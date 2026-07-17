@@ -1,5 +1,4 @@
 import { defaultCompressionOptions } from '../src/utils/mediaCompression/defaultOptions';
-import { CompressibleMediaType, CompressedMedia } from '../src/utils/mediaCompression/compressionTypes';
 import {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -17,12 +16,14 @@ describe('mediaCompression', () => {
             expect(defaultCompressionOptions.audio.bitrate).toBe(128_000);
             expect(defaultCompressionOptions.audio.codec).toBe('opus');
             expect(defaultCompressionOptions.audio.sampleRate).toBe(48000);
+            expect(defaultCompressionOptions.audio.channels).toBe(2);
         });
 
         test('video defaults match spec: max 720px height, 1000 kbps, H.264', () => {
             expect(defaultCompressionOptions.video.maxHeight).toBe(720);
             expect(defaultCompressionOptions.video.bitrate).toBe(1_000_000);
             expect(defaultCompressionOptions.video.codec).toMatch(/^avc1\./);
+            expect(defaultCompressionOptions.video.framerate).toBe(30);
         });
     });
 });

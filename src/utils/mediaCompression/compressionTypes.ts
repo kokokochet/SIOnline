@@ -20,7 +20,7 @@ export interface AudioCompressionOptions {
     /** Output sample rate (Opus requires 48000). */
     sampleRate: number;
     /** Number of audio channels (1 or 2 only — OGG Opus mapping family 0). */
-    channels: number;
+    channels: 1 | 2;
 }
 
 /** Options for video compression via WebCodecs VideoEncoder. */
@@ -63,8 +63,6 @@ export interface WorkerCompressRequest {
 }
 
 /** Message from a compression worker to main thread. */
-export interface WorkerCompressResponse {
-    type: 'done' | 'error';
-    data?: ArrayBuffer;
-    error?: string;
-}
+export type WorkerCompressResponse =
+    | { type: 'done'; data: ArrayBuffer }
+    | { type: 'error'; error: string };
