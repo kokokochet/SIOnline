@@ -13,6 +13,7 @@ import './CompressionPanel.scss';
 interface CompressionPanelProps {
 	open: boolean;
 	onClose: () => void;
+	style?: React.CSSProperties;
 }
 
 /**
@@ -20,7 +21,7 @@ interface CompressionPanelProps {
  * a Low/Medium/High quality preset radio group. Mounted in the PackageView
  * toolbar; the trigger button lives in PackageView and toggles `open`.
  */
-const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
+const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, style }) => {
 	const appDispatch = useAppDispatch();
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as CompressionPreset });
 
@@ -35,7 +36,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 	}
 
 	return (
-		<Popup className='compressionPanel' onClose={onClose}>
+		<Popup className='compressionPanel' onClose={onClose} style={style}>
 			<div className='compressionPanel__toggle'>
 				<input
 					id='compressMedia'

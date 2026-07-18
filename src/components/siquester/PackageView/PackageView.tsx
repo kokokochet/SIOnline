@@ -21,6 +21,7 @@ import RoundItem from './components/RoundItem';
 import ThemeItem from './components/ThemeItem';
 import QuestionItem from './components/QuestionItem';
 import MediaView from './components/MediaView/MediaView';
+import CompressionPanel from './components/CompressionPanel';
 
 import './PackageView.scss';
 import exitImg from '../../../../assets/images/exit.png';
@@ -38,6 +39,10 @@ const PackageView: React.FC = () => {
 	const [isEditMode, setIsEditMode] = React.useState(isNewPackage ?? false);
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
+	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
+	const compressionButtonRef = React.useRef<HTMLButtonElement>(null);
+	const [compressionPopoverStyle, setCompressionPopoverStyle] = React.useState<React.CSSProperties>({});
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as const });
 
 	React.useEffect(() => {
 		if (isNewPackage) {
@@ -403,6 +408,32 @@ const PackageView: React.FC = () => {
 						title={localization.enableEditMode}>
 						<img src={editImg} alt='Edit' />
 					</button>
+
+					<button
+						ref={compressionButtonRef}
+						type='button'
+						className={`standard imageButton ${mediaCompression.enabled ? 'editActive' : ''}`}
+						onClick={() => {
+							const rect = compressionButtonRef.current?.getBoundingClientRect();
+							if (rect) {
+								setCompressionPopoverStyle({ left: rect.left, top: rect.bottom });
+							}
+							setIsCompressionPanelOpen(!isCompressionPanelOpen);
+						}}
+						title={localization.compressionSettings}
+						aria-expanded={isCompressionPanelOpen}
+					>
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M3 9V7H10V9H7V15H10V17H3V15H6V9H3Z" fill="currentColor"/>
+							<path d="M21 9V7H14V9H17V15H14V17H21V15H18V9H21Z" fill="currentColor"/>
+							<path d="M10 11H14V13H10V11Z" fill="currentColor"/>
+						</svg>
+					</button>
+					<CompressionPanel
+						open={isCompressionPanelOpen}
+						onClose={() => setIsCompressionPanelOpen(false)}
+						style={compressionPopoverStyle}
+					/>
 
 					<button
 						type='button'
