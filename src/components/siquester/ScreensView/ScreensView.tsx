@@ -4,10 +4,11 @@ import MediaItem from '../MediaItem/MediaItem';
 import AutoSizedText from '../../common/AutoSizedText/AutoSizedText';
 import localization from '../../../model/resources/localization';
 import Constants from '../../../model/enums/Constants';
-import { useAppDispatch } from '../../../state/hooks';
+import { useAppDispatch, useAppSelector } from '../../../state/hooks';
 import getExtension from '../../../utils/FileHelper';
 import { userErrorChanged } from '../../../state/commonSlice';
 import { compressMedia } from '../../../utils/mediaCompression';
+import { compressionPresets } from '../../../utils/mediaCompression/compressionPresets';
 import {
 	updateContentItem,
 	setContentItemType,
@@ -68,6 +69,13 @@ const maxFileSizeMbByType: Record<MediaContentType, number> = {
 	video: 10,
 	html: 1,
 };
+
+/**
+ * Hard safety cap applied to ALL uploads regardless of compression state.
+ * Prevents browser OOM when decoding multi-hundred-MB files into memory
+ * (the 60s video timeout guards against hangs but not OOM).
+ */
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200 MB
 
 const allowedExtensionsByType: Record<MediaContentType, string[]> = {
 	image: ['.jpg', '.jpe', '.jpeg', '.png', '.gif', '.webp', '.avif'],
@@ -169,6 +177,9 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const dispatch = useAppDispatch();
 	const [screenIndex, setScreenIndex] = React.useState(0);
 	const [isCompressing, setIsCompressing] = React.useState(false);
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as const });
+	const compressionEnabled = mediaCompression.enabled;
+	const compressionOptions = compressionPresets[mediaCompression.preset];
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);
 	const fileInputRefs = React.useRef<Record<MediaContentType, HTMLInputElement | null>>({
@@ -576,13 +587,6 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			return;
 		}
 
-		const maxFileSizeMb = maxFileSizeMbByType[type];
-
-		if (file.size > maxFileSizeMb * 1024 * 1024) {
-			dispatch(userErrorChanged(`${localization.fileIsTooBig} (${maxFileSizeMb} MB)`));
-			return;
-		}
-
 		const extension = getExtension(file.name);
 		const normalizedExtension = extension ? `.${extension.toLowerCase()}` : '';
 
@@ -591,11 +595,50 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			return;
 		}
 
-		setIsCompressing(true);
-		try {
-			// Compress media (progressive enhancement — falls back to original if unsupported)
-			const compressed = await compressMedia(file, type);
+		// Hard safety cap — always enforced, even with compression ON, to prevent OOM.
+		if (file.size > MAX_UPLOAD_BYTES) {
+			const maxMb = Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024));
+			dispatch(userErrorChanged(`${localization.fileIsTooBig} (${maxMb} MB)`));
+			return;
+		}
 
+		const maxFileSizeMb = maxFileSizeMbByType[type];
+
+		if (compressionEnabled) {
+			// Compression ON: skip the pre-size-check; enforce limit AFTER compression.
+			setIsCompressing(true);
+			try {
+				const compressed = await compressMedia(file, type, compressionOptions);
+
+				if (compressed.data.byteLength > maxFileSizeMb * 1024 * 1024) {
+					dispatch(userErrorChanged(localization.formatString(localization.fileTooBigAfterCompression, maxFileSizeMb) as string));
+					return;
+				}
+
+				dispatch(setContentItemMedia({
+					roundIndex: roundIndex as number,
+					themeIndex: themeIndex as number,
+					questionIndex: questionIndex as number,
+					paramName: paramName as string,
+					itemIndex: target.itemIndex,
+					type,
+					fileName: compressed.fileName,
+					fileData: compressed.data,
+				}));
+			} catch (err) {
+				console.warn('Media compression failed:', err);
+				dispatch(userErrorChanged(localization.compressionFailed));
+			} finally {
+				setIsCompressing(false);
+			}
+		} else {
+			// Compression OFF: enforce the pre-upload size limit on the original file.
+			if (file.size > maxFileSizeMb * 1024 * 1024) {
+				dispatch(userErrorChanged(`${localization.fileIsTooBig} (${maxFileSizeMb} MB)`));
+				return;
+			}
+
+			const data = new Uint8Array(await file.arrayBuffer());
 			dispatch(setContentItemMedia({
 				roundIndex: roundIndex as number,
 				themeIndex: themeIndex as number,
@@ -603,14 +646,9 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 				paramName: paramName as string,
 				itemIndex: target.itemIndex,
 				type,
-				fileName: compressed.fileName,
-				fileData: compressed.data,
+				fileName: file.name,
+				fileData: data,
 			}));
-		} catch (err) {
-			console.warn('Media compression failed, using original:', err);
-			dispatch(userErrorChanged(localization.compressionFailed));
-		} finally {
-			setIsCompressing(false);
 		}
 	};
 
