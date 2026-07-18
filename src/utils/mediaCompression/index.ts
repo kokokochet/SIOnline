@@ -1,0 +1,78 @@
+import { CompressibleMediaType, CompressedMedia } from './compressionTypes';
+import { defaultCompressionOptions } from './defaultOptions';
+import { compressImage } from './compressImage';
+import { compressVideo } from './compressVideo';
+import { compressAudio } from './compressAudio';
+
+export { defaultCompressionOptions } from './defaultOptions';
+export {
+    isVideoCompressionSupported,
+    isAudioCompressionSupported,
+} from './featureDetection';
+export type {
+    CompressibleMediaType,
+    CompressedMedia,
+    CompressionOptions,
+    ImageCompressionOptions,
+    AudioCompressionOptions,
+    VideoCompressionOptions,
+} from './compressionTypes';
+
+/**
+ * Compresses a media file with lossy compression.
+ *
+ * - Images: canvas + toBlob → JPEG (max 800px, quality 0.8) — works everywhere
+ * - Video: WebCodecs VideoEncoder → H.264 MP4 (max 720px, 1000 kbps) — Chrome/Edge only
+ * - Audio: WebCodecs AudioEncoder → Opus in OGG (128 kbps, 48 kHz) — Chrome/Edge only
+ *
+ * Progressive enhancement: when WebCodecs is unavailable (Safari, Tauri-macOS),
+ * the file is returned as-is. The editor remains fully functional.
+ *
+ * Safety check: if the compressed output is larger than the original,
+ * the original file is returned unchanged.
+ *
+ * @param file - The media file to compress
+ * @param type - The media type ('image', 'audio', 'video', 'html')
+ * @returns Compressed media data with metadata
+ */
+export async function compressMedia(
+    file: File,
+    type: CompressibleMediaType | 'html',
+): Promise<CompressedMedia> {
+    // HTML is text-only, no compression
+    if (type === 'html') {
+        const text = await file.text();
+        return {
+            data: new TextEncoder().encode(text),
+            fileName: file.name,
+            originalSize: file.size,
+            compressedSize: file.size,
+            wasCompressed: false,
+        };
+    }
+
+    switch (type) {
+        case 'image':
+            return compressImage(file, defaultCompressionOptions.image);
+
+        case 'audio':
+            return compressAudio(file, defaultCompressionOptions.audio);
+
+        case 'video':
+            return compressVideo(file, defaultCompressionOptions.video);
+
+        default:
+            return passthrough(file);
+    }
+}
+
+async function passthrough(file: File): Promise<CompressedMedia> {
+    const data = new Uint8Array(await file.arrayBuffer());
+    return {
+        data,
+        fileName: file.name,
+        originalSize: data.length,
+        compressedSize: data.length,
+        wasCompressed: false,
+    };
+}

@@ -6,6 +6,7 @@ import {
 import { calculateTargetDimensions } from '../src/utils/mediaCompression/compressImage';
 import { compressVideo } from '../src/utils/mediaCompression/compressVideo';
 import { compressAudio } from '../src/utils/mediaCompression/compressAudio';
+import { compressMedia } from '../src/utils/mediaCompression';
 
 describe('mediaCompression', () => {
     describe('defaultCompressionOptions', () => {
@@ -136,6 +137,32 @@ describe('compressAudio', () => {
         } finally {
             if (originalAudioEncoder) {
                 globalThis.AudioEncoder = originalAudioEncoder;
+            }
+        }
+    });
+});
+
+describe('compressMedia (public API)', () => {
+    test('returns passthrough for HTML type', async () => {
+        const file = new File(['<p>hello</p>'], 'test.html', { type: 'text/html' });
+        const result = await compressMedia(file, 'html');
+
+        expect(result.wasCompressed).toBe(false);
+        expect(result.fileName).toBe('test.html');
+    });
+
+    test('returns passthrough for image when image compression not available', async () => {
+        const originalDoc = globalThis.document;
+        delete (globalThis as Record<string, unknown>).document;
+
+        try {
+            const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
+            const result = await compressMedia(file, 'image');
+
+            expect(result.wasCompressed).toBe(false);
+        } finally {
+            if (originalDoc) {
+                globalThis.document = originalDoc;
             }
         }
     });
