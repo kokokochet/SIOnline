@@ -66,3 +66,17 @@ export interface WorkerCompressRequest {
 export type WorkerCompressResponse =
     | { type: 'done'; data: ArrayBuffer }
     | { type: 'error'; error: string };
+
+/** Message from main thread to audio worker — PCM data (decoded on main thread). */
+export interface AudioWorkerRequest {
+    channels: ArrayBuffer[];
+    sampleRate: number;
+    numberOfChannels: number;
+    totalFrames: number;
+    options: AudioCompressionOptions;
+}
+
+/** Message from audio worker to main thread. */
+export type AudioWorkerResponse =
+    | { type: 'done'; data: ArrayBuffer }
+    | { type: 'error'; error: string };
