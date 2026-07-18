@@ -125,7 +125,8 @@ function calculateVideoDimensions(
     maxHeight: number,
 ): { width: number; height: number } {
     if (srcHeight <= maxHeight) {
-        return { width: srcWidth, height: srcHeight };
+        // Ensure even dimensions (H.264 requires it)
+        return { width: Math.round(srcWidth / 2) * 2, height: Math.round(srcHeight / 2) * 2 };
     }
     const scale = maxHeight / srcHeight;
     const width = Math.round((srcWidth * scale) / 2) * 2;

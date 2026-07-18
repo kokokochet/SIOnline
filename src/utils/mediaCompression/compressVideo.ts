@@ -25,6 +25,7 @@ export async function compressVideo(
     try {
         const worker = createVideoWorker();
 
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
             const compressedBuffer = await Promise.race([
                 new Promise<ArrayBuffer>((resolve, reject) => {
@@ -48,7 +49,7 @@ export async function compressVideo(
                     worker.postMessage(request, [request.data]);
                 }),
                 new Promise<ArrayBuffer>((_, reject) => {
-                    setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
+                    timeoutId = setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
                 }),
             ]);
 
@@ -66,6 +67,7 @@ export async function compressVideo(
                 wasCompressed: true,
             };
         } finally {
+            if (timeoutId) { clearTimeout(timeoutId); }
             worker.terminate();
         }
     } catch (err) {
