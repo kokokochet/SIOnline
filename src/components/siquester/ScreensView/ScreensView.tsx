@@ -606,7 +606,8 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 				fileName: compressed.fileName,
 				fileData: compressed.data,
 			}));
-		} catch {
+		} catch (err) {
+			console.warn('Media compression failed, using original:', err);
 			dispatch(userErrorChanged(localization.compressionFailed));
 		} finally {
 			setIsCompressing(false);
