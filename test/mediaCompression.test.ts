@@ -4,6 +4,7 @@ import {
     isAudioCompressionSupported,
 } from '../src/utils/mediaCompression/featureDetection';
 import { calculateTargetDimensions } from '../src/utils/mediaCompression/compressImage';
+import { compressVideo } from '../src/utils/mediaCompression/compressVideo';
 
 describe('mediaCompression', () => {
     describe('defaultCompressionOptions', () => {
@@ -96,5 +97,25 @@ describe('compressImage', () => {
         test('scales down square image exceeding maxDimension', () => {
             expect(calculateTargetDimensions(1000, 1000, 800)).toEqual({ width: 800, height: 800 });
         });
+    });
+});
+
+describe('compressVideo', () => {
+    test('returns passthrough when VideoEncoder is not available', async () => {
+        const originalVideoEncoder = globalThis.VideoEncoder;
+        delete (globalThis as Record<string, unknown>).VideoEncoder;
+
+        try {
+            const file = new File([new Uint8Array([1, 2, 3, 4])], 'test.mp4', { type: 'video/mp4' });
+            const result = await compressVideo(file, defaultCompressionOptions.video);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('test.mp4');
+            expect(result.data.length).toBe(4);
+        } finally {
+            if (originalVideoEncoder) {
+                globalThis.VideoEncoder = originalVideoEncoder;
+            }
+        }
     });
 });
