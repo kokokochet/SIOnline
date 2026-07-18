@@ -7,6 +7,7 @@ import Constants from '../../../model/enums/Constants';
 import { useAppDispatch } from '../../../state/hooks';
 import getExtension from '../../../utils/FileHelper';
 import { userErrorChanged } from '../../../state/commonSlice';
+import { compressMedia } from '../../../utils/mediaCompression';
 import {
 	updateContentItem,
 	setContentItemType,
@@ -167,6 +168,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 }) => {
 	const dispatch = useAppDispatch();
 	const [screenIndex, setScreenIndex] = React.useState(0);
+	const [isCompressing, setIsCompressing] = React.useState(false);
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);
 	const fileInputRefs = React.useRef<Record<MediaContentType, HTMLInputElement | null>>({
@@ -543,29 +545,8 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 		}
 	};
 
-	const readMediaFile = async (file: File, type: MediaContentType): Promise<string> => {
-		if (type === 'html') {
-			return file.text();
-		}
-
-		return new Promise<string>((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => {
-				if (typeof reader.result !== 'string') {
-					reject(new Error('Unexpected file reader result'));
-					return;
-				}
-
-				const [, base64Data = ''] = reader.result.split(',');
-				resolve(base64Data);
-			};
-			reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-			reader.readAsDataURL(file);
-		});
-	};
-
 	const handleMediaTypeSelected = (contentItem: ContentItem, itemIndex: number, type: MediaContentType) => {
-		if (!canAddScreen) {
+		if (!canAddScreen || isCompressing) {
 			return;
 		}
 
@@ -591,7 +572,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 		event.target.value = '';
 		pendingFileTargetRef.current = null;
 
-		if (!file || !target || target.type !== type || !canAddScreen) {
+		if (!file || !target || target.type !== type || !canAddScreen || isCompressing) {
 			return;
 		}
 
@@ -610,18 +591,26 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			return;
 		}
 
-		const fileData = await readMediaFile(file, type);
+		setIsCompressing(true);
+		try {
+			// Compress media (progressive enhancement — falls back to original if unsupported)
+			const compressed = await compressMedia(file, type);
 
-		dispatch(setContentItemMedia({
-			roundIndex: roundIndex as number,
-			themeIndex: themeIndex as number,
-			questionIndex: questionIndex as number,
-			paramName: paramName as string,
-			itemIndex: target.itemIndex,
-			type,
-			fileName: file.name,
-			fileData,
-		}));
+			dispatch(setContentItemMedia({
+				roundIndex: roundIndex as number,
+				themeIndex: themeIndex as number,
+				questionIndex: questionIndex as number,
+				paramName: paramName as string,
+				itemIndex: target.itemIndex,
+				type,
+				fileName: compressed.fileName,
+				fileData: compressed.data,
+			}));
+		} catch {
+			dispatch(userErrorChanged(localization.compressionFailed));
+		} finally {
+			setIsCompressing(false);
+		}
 	};
 
 	const renderContentTypeButtons = (contentItem: ContentItem, itemIndex: number) => (
@@ -630,6 +619,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 				<button
 					key={`${itemIndex}-${type}`}
 					type='button'
+					disabled={isCompressing}
 					className={`screensView__content__type__button ${isContentModeSelected(contentItem, type) ? 'selected' : ''}`}
 					onClick={() => {
 						if (type === 'text') {
@@ -671,6 +661,12 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 							}}
 						/>
 					))}
+					{isCompressing ? (
+						<div className='screensView__compressing' role='status' aria-live='polite'>
+							<span className='screensView__compressing__spinner' aria-hidden='true' />
+							{localization.compressing}
+						</div>
+					) : null}
 				</>
 			) : null}
 			{(screens.length > 1 || isEditMode) ? <div className='packageView__question__screens'>
