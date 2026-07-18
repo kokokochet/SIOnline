@@ -1,6 +1,9 @@
 /** Media types that can be compressed. HTML is excluded (text-only). */
 export type CompressibleMediaType = 'image' | 'audio' | 'video';
 
+/** Quality preset for media compression. */
+export type CompressionPreset = 'low' | 'medium' | 'high';
+
 /** Options for image compression via canvas + toBlob. */
 export interface ImageCompressionOptions {
     /** Maximum dimension (width or height) in pixels. */
