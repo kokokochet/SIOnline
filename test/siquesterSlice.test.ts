@@ -1,4 +1,4 @@
-import reducer, { addComplexAnswer, resetQuestion, SIQuesterState, undo, redo, updatePackageProperty, updateRoundProperty, addRound, setContentItemMedia } from '../src/state/siquesterSlice';
+import reducer, { addComplexAnswer, resetQuestion, SIQuesterState, undo, redo, updatePackageProperty, updateRoundProperty, addRound, setContentItemMedia, setMediaCompressionEnabled, setMediaCompressionPreset } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import JSZip from 'jszip';
 
@@ -368,5 +368,40 @@ describe('siquesterSlice', () => {
 				placement: 'screen',
 			}],
 		});
+	});
+
+	test('setMediaCompressionEnabled toggles the enabled flag', () => {
+		const state: SIQuesterState = {};
+		const nextState = reducer(state, setMediaCompressionEnabled(false));
+		expect(nextState.mediaCompression?.enabled).toBe(false);
+		expect(nextState.mediaCompression?.preset).toBe('medium');
+
+		const reenabled = reducer(nextState, setMediaCompressionEnabled(true));
+		expect(reenabled.mediaCompression?.enabled).toBe(true);
+	});
+
+	test('setMediaCompressionPreset changes the preset', () => {
+		const state: SIQuesterState = {};
+		const nextState = reducer(state, setMediaCompressionPreset('high'));
+		expect(nextState.mediaCompression?.preset).toBe('high');
+		expect(nextState.mediaCompression?.enabled).toBe(true);
+	});
+
+	test('setMediaCompressionPreset preserves the enabled flag', () => {
+		const disabled: SIQuesterState = {
+			mediaCompression: { enabled: false, preset: 'medium' },
+		};
+		const nextState = reducer(disabled, setMediaCompressionPreset('low'));
+		expect(nextState.mediaCompression?.preset).toBe('low');
+		expect(nextState.mediaCompression?.enabled).toBe(false);
+	});
+
+	test('setMediaCompressionEnabled preserves the preset', () => {
+		const high: SIQuesterState = {
+			mediaCompression: { enabled: true, preset: 'high' },
+		};
+		const nextState = reducer(high, setMediaCompressionEnabled(false));
+		expect(nextState.mediaCompression?.enabled).toBe(false);
+		expect(nextState.mediaCompression?.preset).toBe('high');
 	});
 });

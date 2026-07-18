@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice, createAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, createAction, PayloadAction } from '@reduxjs/toolkit';
 import JSZip from 'jszip';
 import SIStatisticsClient from 'sistatistics-client';
 import QuestionStats from 'sistatistics-client/dist/models/QuestionStats';
@@ -13,6 +13,7 @@ import { createDefaultPackage, createDefaultZip, NewPackageOptions } from '../mo
 export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
+import { CompressionPreset } from '../utils/mediaCompression/compressionTypes';
 
 export interface SIQuesterState {
 	zip?: JSZip;
@@ -44,9 +45,19 @@ export interface SIQuesterState {
 			isPackageSelected?: boolean;
 		}[];
 	};
+	/** Per-session media compression settings. Not persisted across sessions. */
+	mediaCompression?: {
+		enabled: boolean;
+		preset: CompressionPreset;
+	};
 }
 
-const initialState: SIQuesterState = {};
+const initialState: SIQuesterState = {
+	mediaCompression: {
+		enabled: true,
+		preset: 'medium',
+	},
+};
 
 function createDefaultQuestion(price = 0): Question {
 	return {
@@ -1106,6 +1117,18 @@ export const siquesterSlice = createSlice({
 		togglePackageStats: (state) => {
 			state.showPackageStats = !state.showPackageStats;
 		},
+		setMediaCompressionEnabled: (state, action: PayloadAction<boolean>) => {
+			if (!state.mediaCompression) {
+				state.mediaCompression = { enabled: true, preset: 'medium' };
+			}
+			state.mediaCompression.enabled = action.payload;
+		},
+		setMediaCompressionPreset: (state, action: PayloadAction<CompressionPreset>) => {
+			if (!state.mediaCompression) {
+				state.mediaCompression = { enabled: true, preset: 'medium' };
+			}
+			state.mediaCompression.preset = action.payload;
+		},
 	},
 	extraReducers: builder => {
 		builder.addCase(openFile.fulfilled, (state, action) => {
@@ -1185,6 +1208,8 @@ export const {
 	togglePackageStats,
 	addComplexAnswer,
 	resetQuestion,
+	setMediaCompressionEnabled,
+	setMediaCompressionPreset,
 } = siquesterSlice.actions;
 
 // Selector to get the current item based on the indices
