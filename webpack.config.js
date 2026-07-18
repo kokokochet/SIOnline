@@ -125,7 +125,7 @@ module.exports = (env, argv) => {
 					commons: {
 						test: /[\\/]node_modules[\\/]/,
 						name: 'vendor',
-						chunks: 'all'
+						chunks: 'initial'
 					}
 				}
 			}
