@@ -19,6 +19,21 @@ export type {
 } from './compressionTypes';
 
 /**
+ * Creates a passthrough result — the original file returned unchanged.
+ * Used for unknown media types or as a fallback.
+ */
+async function passthrough(file: File): Promise<CompressedMedia> {
+    const data = new Uint8Array(await file.arrayBuffer());
+    return {
+        data,
+        fileName: file.name,
+        originalSize: data.length,
+        compressedSize: data.length,
+        wasCompressed: false,
+    };
+}
+
+/**
  * Compresses a media file with lossy compression.
  *
  * - Images: canvas + toBlob → JPEG (max 800px, quality 0.8) — works everywhere
@@ -64,15 +79,4 @@ export async function compressMedia(
         default:
             return passthrough(file);
     }
-}
-
-async function passthrough(file: File): Promise<CompressedMedia> {
-    const data = new Uint8Array(await file.arrayBuffer());
-    return {
-        data,
-        fileName: file.name,
-        originalSize: data.length,
-        compressedSize: data.length,
-        wasCompressed: false,
-    };
 }
