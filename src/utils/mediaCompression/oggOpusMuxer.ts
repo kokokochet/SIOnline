@@ -168,8 +168,8 @@ export function muxOggOpus(
     for (const packet of packets) {
         const packetSegments = Math.floor(packet.data.length / 255) + 1;
 
-        if (pageDataSize + packet.data.length > maxPageDataSize ||
-            pageSegments + packetSegments > maxSegments) {
+        if (pagePackets.length > 0 && (pageDataSize + packet.data.length > maxPageDataSize ||
+            pageSegments + packetSegments > maxSegments)) {
             // Flush current page (not EOS)
             pages.push(buildOggPage({
                 packets: pagePackets,

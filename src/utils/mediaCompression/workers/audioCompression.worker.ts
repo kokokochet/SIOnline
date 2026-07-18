@@ -30,6 +30,14 @@ function encodeAudioToOpus(
         const encodedPackets: { data: Uint8Array; timestamp: number; duration: number }[] = [];
         const chunkDuration = 20; // ms per AudioData chunk
         const chunkFrameCount = Math.floor((sampleRate * chunkDuration) / 1000);
+        let encoderClosed = false;
+
+        const closeEncoder = () => {
+            if (!encoderClosed) {
+                encoderClosed = true;
+                encoder.close();
+            }
+        };
 
         const encoder = new AudioEncoder({
             output: (chunk: EncodedAudioChunk) => {
@@ -42,6 +50,7 @@ function encodeAudioToOpus(
                 });
             },
             error: (e: DOMException) => {
+                closeEncoder();
                 reject(new Error(`AudioEncoder error: ${e.message}`));
             },
         });
@@ -55,6 +64,7 @@ function encodeAudioToOpus(
 
         AudioEncoder.isConfigSupported(encoderConfig).then((support) => {
             if (!support.supported) {
+                closeEncoder();
                 reject(new Error(`AudioEncoder config not supported: ${options.codec}`));
                 return;
             }
@@ -89,7 +99,7 @@ function encodeAudioToOpus(
 
             // Await flush to ensure all encoded output is emitted, then close
             encoder.flush().then(() => {
-                encoder.close();
+                closeEncoder();
                 if (encodedPackets.length === 0) {
                     reject(new Error('No audio data encoded'));
                     return;
@@ -97,9 +107,11 @@ function encodeAudioToOpus(
                 const result = muxOggOpus(encodedPackets, sampleRate, numberOfChannels);
                 resolve(result);
             }).catch((e: DOMException) => {
+                closeEncoder();
                 reject(new Error(`AudioEncoder flush error: ${e.message}`));
             });
         }).catch((e: DOMException) => {
+            closeEncoder();
             reject(new Error(`AudioEncoder isConfigSupported error: ${e.message}`));
         });
     });

@@ -431,7 +431,7 @@ describe('oggOpusMuxer', () => {
     });
 
     describe('muxOggOpus — page packing limits', () => {
-        test('a single packet larger than 8KB goes on its own EOS page', () => {
+        test('a single packet larger than 8KB goes on its own EOS page (no spurious empty page)', () => {
             const packets = [{
                 data: new Uint8Array(9000).fill(0x42),
                 timestamp: 0,
@@ -439,6 +439,8 @@ describe('oggOpusMuxer', () => {
             }];
             const result = muxOggOpus(packets, 48000, 2);
             const pages = parseOggPages(result);
+            // Exactly 3 pages: OpusHead, OpusTags, audio EOS. No spurious empty page.
+            expect(pages.length).toBe(3);
             // The last page is EOS and contains the 9000-byte packet.
             const last = pages[pages.length - 1];
             expect(last.headerType & 0x04).toBe(0x04); // EOS
