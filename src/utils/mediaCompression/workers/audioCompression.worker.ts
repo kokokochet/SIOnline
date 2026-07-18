@@ -1,21 +1,31 @@
-/// <reference lib="webworker" />
 
 import { AudioWorkerRequest, AudioWorkerResponse, AudioCompressionOptions } from '../compressionTypes';
 import { muxOggOpus } from '../oggOpusMuxer';
 
-self.onmessage = async (e: MessageEvent<AudioWorkerRequest>) => {
+/**
+ * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
+ * pollutes the global `navigator` type as `WorkerNavigator` across the project.
+ */
+type WorkerScope = {
+    onmessage: ((ev: MessageEvent) => void) | null;
+    postMessage(message: unknown, transfer: Transferable[]): void;
+    postMessage(message: unknown): void;
+};
+const ctx = self as unknown as WorkerScope;
+
+ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest>) => {
     const { channels, sampleRate, numberOfChannels, totalFrames, options } = e.data;
 
     try {
         const result = await encodeAudioToOpus(channels, sampleRate, numberOfChannels, totalFrames, options);
         const response: AudioWorkerResponse = { type: 'done', data: result.buffer as ArrayBuffer };
-        self.postMessage(response, [result.buffer]);
+        ctx.postMessage(response, [result.buffer]);
     } catch (err) {
         const response: AudioWorkerResponse = {
             type: 'error',
             error: err instanceof Error ? err.message : String(err),
         };
-        self.postMessage(response);
+        ctx.postMessage(response);
     }
 };
 

@@ -1,22 +1,32 @@
-/// <reference lib="webworker" />
 
 import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, type Sample } from 'mp4box';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
 
-self.onmessage = async (e: MessageEvent<WorkerCompressRequest>) => {
+/**
+ * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
+ * pollutes the global `navigator` type as `WorkerNavigator` across the project.
+ */
+type WorkerScope = {
+    onmessage: ((ev: MessageEvent) => void) | null;
+    postMessage(message: unknown, transfer: Transferable[]): void;
+    postMessage(message: unknown): void;
+};
+const ctx = self as unknown as WorkerScope;
+
+ctx.onmessage = async (e: MessageEvent<WorkerCompressRequest>) => {
     const { data, options } = e.data;
 
     try {
         const result = await compressVideoData(data, options as VideoCompressionOptions);
         const response: WorkerCompressResponse = { type: 'done', data: result.buffer as ArrayBuffer };
-        self.postMessage(response, [result.buffer]);
+        ctx.postMessage(response, [result.buffer]);
     } catch (err) {
         const response: WorkerCompressResponse = {
             type: 'error',
             error: err instanceof Error ? err.message : String(err),
         };
-        self.postMessage(response);
+        ctx.postMessage(response);
     }
 };
 
