@@ -1,10 +1,15 @@
-import { CompressibleMediaType, CompressedMedia } from './compressionTypes';
-import { defaultCompressionOptions } from './defaultOptions';
+import { CompressibleMediaType, CompressedMedia, CompressionOptions } from './compressionTypes';
 import { compressImage } from './compressImage';
 import { compressVideo } from './compressVideo';
 import { compressAudio } from './compressAudio';
 
 export { defaultCompressionOptions } from './defaultOptions';
+export {
+    lowPreset,
+    mediumPreset,
+    highPreset,
+    compressionPresets,
+} from './compressionPresets';
 export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -13,6 +18,7 @@ export type {
     CompressibleMediaType,
     CompressedMedia,
     CompressionOptions,
+    CompressionPreset,
     ImageCompressionOptions,
     AudioCompressionOptions,
     VideoCompressionOptions,
@@ -36,9 +42,9 @@ async function passthrough(file: File): Promise<CompressedMedia> {
 /**
  * Compresses a media file with lossy compression.
  *
- * - Images: canvas + toBlob → JPEG (max 800px, quality 0.8) — works everywhere
- * - Video: WebCodecs VideoEncoder → H.264 MP4 (max 720px, 1000 kbps) — Chrome/Edge only
- * - Audio: WebCodecs AudioEncoder → Opus in OGG (128 kbps, 48 kHz) — Chrome/Edge only
+ * - Images: canvas + toBlob → JPEG — works everywhere
+ * - Video: WebCodecs VideoEncoder → H.264 MP4 — Chrome/Edge only
+ * - Audio: WebCodecs AudioEncoder → Opus in OGG — Chrome/Edge only
  *
  * Progressive enhancement: when WebCodecs is unavailable (Safari, Tauri-macOS),
  * the file is returned as-is. The editor remains fully functional.
@@ -48,11 +54,13 @@ async function passthrough(file: File): Promise<CompressedMedia> {
  *
  * @param file - The media file to compress
  * @param type - The media type ('image', 'audio', 'video', 'html')
+ * @param options - Compression options (typically from `compressionPresets[preset]`)
  * @returns Compressed media data with metadata
  */
 export async function compressMedia(
     file: File,
     type: CompressibleMediaType | 'html',
+    options: CompressionOptions,
 ): Promise<CompressedMedia> {
     // HTML is text-only, no compression
     if (type === 'html') {
@@ -68,13 +76,13 @@ export async function compressMedia(
 
     switch (type) {
         case 'image':
-            return compressImage(file, defaultCompressionOptions.image);
+            return compressImage(file, options.image);
 
         case 'audio':
-            return compressAudio(file, defaultCompressionOptions.audio);
+            return compressAudio(file, options.audio);
 
         case 'video':
-            return compressVideo(file, defaultCompressionOptions.video);
+            return compressVideo(file, options.video);
 
         default:
             return passthrough(file);

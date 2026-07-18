@@ -1,4 +1,5 @@
 import { defaultCompressionOptions } from '../src/utils/mediaCompression/defaultOptions';
+import { compressionPresets } from '../src/utils/mediaCompression/compressionPresets';
 import {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -145,7 +146,7 @@ describe('compressAudio', () => {
 describe('compressMedia (public API)', () => {
     test('returns passthrough for HTML type', async () => {
         const file = new File(['<p>hello</p>'], 'test.html', { type: 'text/html' });
-        const result = await compressMedia(file, 'html');
+        const result = await compressMedia(file, 'html', compressionPresets.medium);
 
         expect(result.wasCompressed).toBe(false);
         expect(result.fileName).toBe('test.html');
@@ -157,7 +158,39 @@ describe('compressMedia (public API)', () => {
 
         try {
             const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
-            const result = await compressMedia(file, 'image');
+            const result = await compressMedia(file, 'image', compressionPresets.medium);
+
+            expect(result.wasCompressed).toBe(false);
+        } finally {
+            if (originalDoc) {
+                globalThis.document = originalDoc;
+            }
+        }
+    });
+
+    test('accepts low preset options', async () => {
+        const originalDoc = globalThis.document;
+        delete (globalThis as Record<string, unknown>).document;
+
+        try {
+            const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
+            const result = await compressMedia(file, 'image', compressionPresets.low);
+
+            expect(result.wasCompressed).toBe(false);
+        } finally {
+            if (originalDoc) {
+                globalThis.document = originalDoc;
+            }
+        }
+    });
+
+    test('accepts high preset options', async () => {
+        const originalDoc = globalThis.document;
+        delete (globalThis as Record<string, unknown>).document;
+
+        try {
+            const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
+            const result = await compressMedia(file, 'image', compressionPresets.high);
 
             expect(result.wasCompressed).toBe(false);
         } finally {

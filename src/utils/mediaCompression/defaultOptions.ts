@@ -1,29 +1,12 @@
 import { CompressionOptions } from './compressionTypes';
+import { mediumPreset } from './compressionPresets';
 
 /**
- * Default compression parameters from the spec:
- * - Images: max 800px, JPEG quality 0.8
- * - Audio: 128 kbps Opus at 48 kHz (WebCodecs AudioEncoder cannot encode MP3;
- *   Opus is ~1.5-2× more efficient than MP3 — 128 kbps ≈ MP3 192 kbps.
- *   Output format: OGG Opus, .opus extension — already in allowedExtensionsByType)
- * - Video: max 720px height, 1000 kbps H.264
+ * Default compression options. Kept for backward compatibility with existing
+ * callers and tests. New callers should pass an explicit preset from
+ * `compressionPresets` to `compressMedia`.
+ *
+ * Re-exports mediumPreset so existing `defaultCompressionOptions` imports keep
+ * working without duplication.
  */
-export const defaultCompressionOptions: CompressionOptions = {
-    image: {
-        maxDimension: 800,
-        quality: 0.8,
-        mimeType: 'image/jpeg',
-    },
-    audio: {
-        bitrate: 128_000,
-        codec: 'opus',
-        sampleRate: 48000,
-        channels: 2,
-    },
-    video: {
-        maxHeight: 720,
-        bitrate: 1_000_000,
-        codec: 'avc1.64001F',
-        framerate: 30,
-    },
-};
+export const defaultCompressionOptions: CompressionOptions = mediumPreset;
