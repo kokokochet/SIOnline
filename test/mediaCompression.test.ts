@@ -5,6 +5,7 @@ import {
 } from '../src/utils/mediaCompression/featureDetection';
 import { calculateTargetDimensions } from '../src/utils/mediaCompression/compressImage';
 import { compressVideo } from '../src/utils/mediaCompression/compressVideo';
+import { compressAudio } from '../src/utils/mediaCompression/compressAudio';
 
 describe('mediaCompression', () => {
     describe('defaultCompressionOptions', () => {
@@ -115,6 +116,26 @@ describe('compressVideo', () => {
         } finally {
             if (originalVideoEncoder) {
                 globalThis.VideoEncoder = originalVideoEncoder;
+            }
+        }
+    });
+});
+
+describe('compressAudio', () => {
+    test('returns passthrough when AudioEncoder is not available', async () => {
+        const originalAudioEncoder = globalThis.AudioEncoder;
+        delete (globalThis as Record<string, unknown>).AudioEncoder;
+
+        try {
+            const file = new File([new Uint8Array([1, 2, 3, 4])], 'test.mp3', { type: 'audio/mpeg' });
+            const result = await compressAudio(file, defaultCompressionOptions.audio);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('test.mp3');
+            expect(result.data.length).toBe(4);
+        } finally {
+            if (originalAudioEncoder) {
+                globalThis.AudioEncoder = originalAudioEncoder;
             }
         }
     });
