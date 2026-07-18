@@ -768,7 +768,7 @@ export const siquesterSlice = createSlice({
 				itemIndex: number;
 				type: Exclude<ContentType, 'text'>;
 				fileName: string;
-				fileData: string;
+				fileData: Uint8Array;
 			}
 		}) => {
 			const question = state.pack?.rounds[action.payload.roundIndex]
@@ -792,12 +792,7 @@ export const siquesterSlice = createSlice({
 				const { fileName } = action.payload;
 
 				if (state.zip) {
-					if (action.payload.type === 'html') {
-						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
-					} else {
-						// Decode base64 string before adding to zip
-						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData, { base64: true });
-					}
+					state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
 				}
 
 				item.type = action.payload.type;
