@@ -4,7 +4,7 @@ import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
-import { getTrackChunkTimings } from '../chunkTiming';
+import { getRebasedTimestamps } from '../chunkTiming';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -165,12 +165,13 @@ async function reencodeVideo(
         throw new Error(`Source video dimensions too large: ${srcWidth}x${srcHeight}`);
     }
 
+    const framerate = getSourceFramerate(track);
     const encoderConfig = {
         codec: options.codec,
         width: targetWidth,
         height: targetHeight,
         bitrate: options.bitrate,
-        framerate: getSourceFramerate(track),
+        framerate,
         avc: { format: 'avc' as const },
     };
     const encoderSupport = await VideoEncoder.isConfigSupported(encoderConfig);
@@ -198,23 +199,22 @@ async function reencodeVideo(
             if (!decoderClosed) { decoderClosed = true; decoder.close(); }
         };
 
-        // Rebased (first-PTS=0) timings; composition offsets are looked up by
-        // timestamp because the encoder may reorder/delay output chunks.
-        const timings = getTrackChunkTimings(samples, track.timescale);
-        const offsetByTimestamp = new Map<number, number>();
-        for (const t of timings) {
-            offsetByTimestamp.set(t.timestamp, t.compositionTimeOffset);
-        }
+        // Presentation timestamps rebased to start at 0 (edit-list semantics).
+        const rebasedTimestamps = getRebasedTimestamps(samples, track.timescale);
+
+        // Decode timestamps are assigned cumulatively in encoder output order:
+        // the encoder reorders frames for B-frames into its own decode order,
+        // and mp4-muxer requires DTS to be monotonically increasing in arrival
+        // order — the source decode order cannot be assumed.
+        let nextDecodeTimestamp = 0;
+        const frameDurationFallback = Math.round(1_000_000 / framerate);
 
         const encoder = new VideoEncoder({
             output: (chunk, metadata) => {
                 try {
-                    muxer.addVideoChunk(
-                        chunk,
-                        metadata,
-                        chunk.timestamp,
-                        offsetByTimestamp.get(chunk.timestamp) ?? 0,
-                    );
+                    const compositionTimeOffset = chunk.timestamp - nextDecodeTimestamp;
+                    nextDecodeTimestamp += chunk.duration ?? frameDurationFallback;
+                    muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
                     closeBoth();
                     reject(err instanceof Error ? err : new Error(String(err)));
@@ -251,7 +251,7 @@ async function reencodeVideo(
             const sample = samples[i];
             const chunk = new EncodedVideoChunk({
                 type: sample.is_sync ? 'key' : 'delta',
-                timestamp: timings[i].timestamp,
+                timestamp: rebasedTimestamps[i],
                 duration: Math.round((sample.duration * 1_000_000) / track.timescale),
                 data: sample.data!,
             });
@@ -283,13 +283,13 @@ function passThroughAudio(
     let firstChunk = true;
     // Rebase like the video track: first presentation timestamp must be 0
     // (mp4-muxer strict mode; the source edit list is not carried over).
-    const timings = getTrackChunkTimings(samples, track.timescale);
+    const rebasedTimestamps = getRebasedTimestamps(samples, track.timescale);
 
     for (let i = 0; i < samples.length; i += 1) {
         const sample = samples[i];
         const chunk = new EncodedAudioChunk({
             type: sample.is_sync ? 'key' : 'delta',
-            timestamp: timings[i].timestamp,
+            timestamp: rebasedTimestamps[i],
             duration: Math.round((sample.duration * 1_000_000) / track.timescale),
             data: sample.data!,
         });

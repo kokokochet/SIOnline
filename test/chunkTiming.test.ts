@@ -1,66 +1,51 @@
-import { getChunkTiming, getTrackChunkTimings } from '../src/utils/mediaCompression/chunkTiming';
+import { getRebasedTimestamps } from '../src/utils/mediaCompression/chunkTiming';
 
-describe('getChunkTiming', () => {
-    test('first sample gets timestamp 0 and zero composition offset', () => {
-        // cts=1024, dts=0 at timescale 15360 — typical B-frame reorder offset
-        const timing = getChunkTiming({ cts: 1024, dts: 0 }, 1024, 15360);
-        expect(timing.timestamp).toBe(0);
-        expect(timing.compositionTimeOffset).toBe(0);
-    });
-
-    test('shifts later samples by firstCts and keeps PTS-DTS offset consistent', () => {
-        // cts=3072, dts=512: PTS' = (3072-1024)/15360 = 0.1333s, DTS = 512/15360 = 0.0333s
-        const timing = getChunkTiming({ cts: 3072, dts: 512 }, 1024, 15360);
-        expect(timing.timestamp).toBe(133333);
-        expect(timing.compositionTimeOffset).toBe(133333 - 33333);
-    });
-
-    test('audio-like sample with cts == dts gets zero composition offset', () => {
-        // AAC frame: cts=dts=1024 at timescale 44100, no rebase needed (firstCts=0)
-        const timing = getChunkTiming({ cts: 1024, dts: 1024 }, 0, 44100);
-        expect(timing.timestamp).toBe(Math.round((1024 * 1_000_000) / 44100));
-        expect(timing.compositionTimeOffset).toBe(0);
-    });
-
-    test('handles firstCts = 0 (no rebase)', () => {
-        const timing = getChunkTiming({ cts: 512, dts: 512 }, 0, 15360);
-        expect(timing.timestamp).toBe(Math.round((512 * 1_000_000) / 15360));
-        expect(timing.compositionTimeOffset).toBe(0);
-    });
-});
-
-describe('getTrackChunkTimings', () => {
+describe('getRebasedTimestamps', () => {
     // Mirrors the real failing file: B-frame reorder, first cts=1024 at timescale 15360
     const samples = [
-        { cts: 1024, dts: 0 },
-        { cts: 3072, dts: 512 },
-        { cts: 2048, dts: 1024 },
-        { cts: 1536, dts: 1536 },
-        { cts: 2560, dts: 2048 },
+        { cts: 1024 },
+        { cts: 3072 },
+        { cts: 2048 },
+        { cts: 1536 },
+        { cts: 2560 },
     ];
 
     test('rebases presentation timestamps so the first one is 0', () => {
-        const timings = getTrackChunkTimings(samples, 15360);
-        expect(timings[0].timestamp).toBe(0);
+        const timestamps = getRebasedTimestamps(samples, 15360);
+        expect(timestamps[0]).toBe(0);
     });
 
-    test('derived decode timestamps (timestamp - offset) stay monotonic in decode order', () => {
-        const timings = getTrackChunkTimings(samples, 15360);
-        const dts = timings.map((t) => t.timestamp - t.compositionTimeOffset);
-        expect(dts[0]).toBe(0);
-        for (let i = 1; i < dts.length; i++) {
-            expect(dts[i]).toBeGreaterThan(dts[i - 1]);
-        }
+    test('converts inter-sample cts deltas to microseconds using the track timescale', () => {
+        // delta of 512 at timescale 15360 → 33333 µs
+        const timestamps = getRebasedTimestamps([{ cts: 1024 }, { cts: 1536 }], 15360);
+        expect(timestamps).toEqual([0, 33333]);
+    });
+
+    test('preserves presentation offsets between samples (no re-ordering)', () => {
+        const timestamps = getRebasedTimestamps(samples, 15360);
+        expect(timestamps).toEqual([
+            0,
+            Math.round((2048 * 1_000_000) / 15360),
+            Math.round((1024 * 1_000_000) / 15360),
+            Math.round((512 * 1_000_000) / 15360),
+            Math.round((1536 * 1_000_000) / 15360),
+        ]);
     });
 
     test('all timestamps are non-negative (muxer validation)', () => {
-        const timings = getTrackChunkTimings(samples, 15360);
-        for (const t of timings) {
-            expect(t.timestamp).toBeGreaterThanOrEqual(0);
+        const timestamps = getRebasedTimestamps(samples, 15360);
+        for (const t of timestamps) {
+            expect(t).toBeGreaterThanOrEqual(0);
         }
     });
 
+    test('applies no shift when the first cts is already 0', () => {
+        // AAC-like stream: cts starts at 0, delta of 1024 at timescale 44100 → 23220 µs
+        const timestamps = getRebasedTimestamps([{ cts: 0 }, { cts: 1024 }], 44100);
+        expect(timestamps).toEqual([0, Math.round((1024 * 1_000_000) / 44100)]);
+    });
+
     test('returns empty array for empty input', () => {
-        expect(getTrackChunkTimings([], 15360)).toEqual([]);
+        expect(getRebasedTimestamps([], 15360)).toEqual([]);
     });
 });
