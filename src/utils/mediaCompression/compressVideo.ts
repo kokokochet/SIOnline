@@ -38,6 +38,10 @@ export async function compressVideo(
                     };
 
                     worker.onerror = (e: ErrorEvent) => {
+                        // Prevent the uncaught worker error from reaching the
+                        // window error handlers (dev-server overlay) — the
+                        // compression failure is handled gracefully via reject.
+                        e.preventDefault();
                         reject(new Error(e.message || 'Worker error'));
                     };
 

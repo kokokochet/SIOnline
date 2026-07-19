@@ -4,6 +4,7 @@ import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
+import { getTrackChunkTimings } from '../chunkTiming';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -192,13 +193,35 @@ async function reencodeVideo(
         let encoderClosed = false;
         let decoderClosed = false;
 
+        const closeBoth = () => {
+            if (!encoderClosed) { encoderClosed = true; encoder.close(); }
+            if (!decoderClosed) { decoderClosed = true; decoder.close(); }
+        };
+
+        // Rebased (first-PTS=0) timings; composition offsets are looked up by
+        // timestamp because the encoder may reorder/delay output chunks.
+        const timings = getTrackChunkTimings(samples, track.timescale);
+        const offsetByTimestamp = new Map<number, number>();
+        for (const t of timings) {
+            offsetByTimestamp.set(t.timestamp, t.compositionTimeOffset);
+        }
+
         const encoder = new VideoEncoder({
             output: (chunk, metadata) => {
-                muxer.addVideoChunk(chunk, metadata);
+                try {
+                    muxer.addVideoChunk(
+                        chunk,
+                        metadata,
+                        chunk.timestamp,
+                        offsetByTimestamp.get(chunk.timestamp) ?? 0,
+                    );
+                } catch (err) {
+                    closeBoth();
+                    reject(err instanceof Error ? err : new Error(String(err)));
+                }
             },
             error: (e: DOMException) => {
-                if (!encoderClosed) { encoderClosed = true; encoder.close(); }
-                if (!decoderClosed) { decoderClosed = true; decoder.close(); }
+                closeBoth();
                 reject(new Error(`VideoEncoder error: ${e.message}`));
             },
         });
@@ -209,23 +232,26 @@ async function reencodeVideo(
             output: (frame: VideoFrame) => {
                 try {
                     encoder.encode(frame);
+                } catch (err) {
+                    closeBoth();
+                    reject(err instanceof Error ? err : new Error(String(err)));
                 } finally {
                     frame.close();
                 }
             },
             error: (e: DOMException) => {
-                if (!decoderClosed) { decoderClosed = true; decoder.close(); }
-                if (!encoderClosed) { encoderClosed = true; encoder.close(); }
+                closeBoth();
                 reject(new Error(`VideoDecoder error: ${e.message}`));
             },
         });
 
         decoder.configure(decoderConfig);
 
-        for (const sample of samples) {
+        for (let i = 0; i < samples.length; i += 1) {
+            const sample = samples[i];
             const chunk = new EncodedVideoChunk({
                 type: sample.is_sync ? 'key' : 'delta',
-                timestamp: Math.round((sample.cts * 1_000_000) / track.timescale),
+                timestamp: timings[i].timestamp,
                 duration: Math.round((sample.duration * 1_000_000) / track.timescale),
                 data: sample.data!,
             });
@@ -255,11 +281,15 @@ function passThroughAudio(
     muxer: Muxer<ArrayBufferTarget>,
 ): void {
     let firstChunk = true;
+    // Rebase like the video track: first presentation timestamp must be 0
+    // (mp4-muxer strict mode; the source edit list is not carried over).
+    const timings = getTrackChunkTimings(samples, track.timescale);
 
-    for (const sample of samples) {
+    for (let i = 0; i < samples.length; i += 1) {
+        const sample = samples[i];
         const chunk = new EncodedAudioChunk({
             type: sample.is_sync ? 'key' : 'delta',
-            timestamp: Math.round((sample.cts * 1_000_000) / track.timescale),
+            timestamp: timings[i].timestamp,
             duration: Math.round((sample.duration * 1_000_000) / track.timescale),
             data: sample.data!,
         });
