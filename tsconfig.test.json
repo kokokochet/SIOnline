@@ -6,7 +6,10 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
-    "types": ["jest", "node"]
+    "types": ["jest", "node"],
+    "paths": {
+      "mp4box": ["./node_modules/mp4box/dist/mp4box.all.d.cts"]
+    }
   },
   "include": [
     "src",
