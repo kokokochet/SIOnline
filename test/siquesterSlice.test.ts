@@ -374,34 +374,34 @@ describe('siquesterSlice', () => {
 		const state: SIQuesterState = {};
 		const nextState = reducer(state, setMediaCompressionEnabled(false));
 		expect(nextState.mediaCompression?.enabled).toBe(false);
-		expect(nextState.mediaCompression?.preset).toBe('medium');
+		expect(nextState.mediaCompression?.presets).toEqual({ image: 'medium', audio: 'medium', video: 'medium' });
 
 		const reenabled = reducer(nextState, setMediaCompressionEnabled(true));
 		expect(reenabled.mediaCompression?.enabled).toBe(true);
 	});
 
-	test('setMediaCompressionPreset changes the preset', () => {
+	test('setMediaCompressionPreset changes the preset for one type only', () => {
 		const state: SIQuesterState = {};
-		const nextState = reducer(state, setMediaCompressionPreset('high'));
-		expect(nextState.mediaCompression?.preset).toBe('high');
+		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
+		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'medium', video: 'medium' });
 		expect(nextState.mediaCompression?.enabled).toBe(true);
 	});
 
 	test('setMediaCompressionPreset preserves the enabled flag', () => {
 		const disabled: SIQuesterState = {
-			mediaCompression: { enabled: false, preset: 'medium' },
+			mediaCompression: { enabled: false, presets: { image: 'medium', audio: 'medium', video: 'medium' } },
 		};
-		const nextState = reducer(disabled, setMediaCompressionPreset('low'));
-		expect(nextState.mediaCompression?.preset).toBe('low');
+		const nextState = reducer(disabled, setMediaCompressionPreset({ type: 'video', preset: 'low' }));
+		expect(nextState.mediaCompression?.presets.video).toBe('low');
 		expect(nextState.mediaCompression?.enabled).toBe(false);
 	});
 
-	test('setMediaCompressionEnabled preserves the preset', () => {
+	test('setMediaCompressionEnabled preserves the presets', () => {
 		const high: SIQuesterState = {
-			mediaCompression: { enabled: true, preset: 'high' },
+			mediaCompression: { enabled: true, presets: { image: 'high', audio: 'medium', video: 'medium' } },
 		};
 		const nextState = reducer(high, setMediaCompressionEnabled(false));
 		expect(nextState.mediaCompression?.enabled).toBe(false);
-		expect(nextState.mediaCompression?.preset).toBe('high');
+		expect(nextState.mediaCompression?.presets.image).toBe('high');
 	});
 });

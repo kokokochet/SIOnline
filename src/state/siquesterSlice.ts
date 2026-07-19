@@ -13,7 +13,7 @@ import { createDefaultPackage, createDefaultZip, NewPackageOptions } from '../mo
 export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
-import { CompressionPreset } from '../utils/mediaCompression/compressionTypes';
+import { CompressibleMediaType, CompressionPreset, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
 
 export interface SIQuesterState {
 	zip?: JSZip;
@@ -48,14 +48,20 @@ export interface SIQuesterState {
 	/** Per-session media compression settings. Not persisted across sessions. */
 	mediaCompression?: {
 		enabled: boolean;
-		preset: CompressionPreset;
+		presets: MediaCompressionPresets;
 	};
 }
 
+/** Default compression settings: enabled, all media types at Medium. */
+export const defaultMediaCompressionState: { enabled: boolean; presets: MediaCompressionPresets } = {
+	enabled: true,
+	presets: { image: 'medium', audio: 'medium', video: 'medium' },
+};
+
 const initialState: SIQuesterState = {
 	mediaCompression: {
-		enabled: true,
-		preset: 'medium',
+		...defaultMediaCompressionState,
+		presets: { ...defaultMediaCompressionState.presets },
 	},
 };
 
@@ -1119,15 +1125,21 @@ export const siquesterSlice = createSlice({
 		},
 		setMediaCompressionEnabled: (state, action: PayloadAction<boolean>) => {
 			if (!state.mediaCompression) {
-				state.mediaCompression = { enabled: true, preset: 'medium' };
+				state.mediaCompression = {
+					...defaultMediaCompressionState,
+					presets: { ...defaultMediaCompressionState.presets },
+				};
 			}
 			state.mediaCompression.enabled = action.payload;
 		},
-		setMediaCompressionPreset: (state, action: PayloadAction<CompressionPreset>) => {
+		setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
 			if (!state.mediaCompression) {
-				state.mediaCompression = { enabled: true, preset: 'medium' };
+				state.mediaCompression = {
+					...defaultMediaCompressionState,
+					presets: { ...defaultMediaCompressionState.presets },
+				};
 			}
-			state.mediaCompression.preset = action.payload;
+			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
 		},
 	},
 	extraReducers: builder => {
