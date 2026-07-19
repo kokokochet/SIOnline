@@ -20,8 +20,6 @@ export interface AudioCompressionOptions {
     bitrate: number;
     /** WebCodecs codec string (e.g. 'opus'). */
     codec: string;
-    /** Output sample rate (Opus requires 48000). */
-    sampleRate: number;
     /** Number of audio channels (1 or 2 only — OGG Opus mapping family 0). */
     channels: 1 | 2;
 }
@@ -71,7 +69,6 @@ export type WorkerCompressResponse =
 /** Message from main thread to audio worker — PCM data (decoded on main thread). */
 export interface AudioWorkerRequest {
     channels: ArrayBuffer[];
-    sampleRate: number;
     numberOfChannels: number;
     totalFrames: number;
     options: AudioCompressionOptions;

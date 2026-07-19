@@ -6,6 +6,14 @@ import { passthroughMedia } from './passthrough';
 const WORKER_TIMEOUT_MS = 60_000;
 
 /**
+ * Opus native sample rate (RFC 7845) — Opus always operates internally at
+ * 48 kHz, so input audio is decoded/resampled to 48 kHz before encoding.
+ * Keep in sync with the identical constant in workers/audioCompression.worker.ts
+ * (the worker is bundled separately and cannot import this module).
+ */
+export const OPUS_SAMPLE_RATE = 48000;
+
+/**
  * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.
  *
  * Decoding (decodeAudioData) runs on the main thread because OfflineAudioContext
@@ -53,7 +61,6 @@ export async function compressAudio(
 
                     const request: AudioWorkerRequest = {
                         channels: pcmData.channels,
-                        sampleRate: options.sampleRate,
                         numberOfChannels: pcmData.numberOfChannels,
                         totalFrames: pcmData.totalFrames,
                         options,
@@ -107,7 +114,7 @@ async function decodeAndExtractPcm(
     const audioContext = new OfflineAudioContext(
         options.channels,
         1,
-        options.sampleRate,
+        OPUS_SAMPLE_RATE,
     );
     const audioBuffer = await audioContext.decodeAudioData(originalData.buffer.slice(0) as ArrayBuffer);
 

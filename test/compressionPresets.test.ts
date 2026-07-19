@@ -21,7 +21,6 @@ describe('compressionPresets', () => {
         expect(mediumPreset.image.mimeType).toBe('image/jpeg');
         expect(mediumPreset.audio.bitrate).toBe(128_000);
         expect(mediumPreset.audio.codec).toBe('opus');
-        expect(mediumPreset.audio.sampleRate).toBe(48000);
         expect(mediumPreset.audio.channels).toBe(2);
         expect(mediumPreset.video.maxHeight).toBe(720);
         expect(mediumPreset.video.bitrate).toBe(1_000_000);

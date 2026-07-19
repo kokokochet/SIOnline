@@ -13,7 +13,6 @@ export const lowPreset: CompressionOptions = {
     audio: {
         bitrate: 64_000,
         codec: 'opus',
-        sampleRate: 48000,
         channels: 2,
     },
     video: {
@@ -36,7 +35,6 @@ export const mediumPreset: CompressionOptions = {
     audio: {
         bitrate: 128_000,
         codec: 'opus',
-        sampleRate: 48000,
         channels: 2,
     },
     video: {
@@ -60,7 +58,6 @@ export const highPreset: CompressionOptions = {
     audio: {
         bitrate: 192_000,
         codec: 'opus',
-        sampleRate: 48000,
         channels: 2,
     },
     video: {

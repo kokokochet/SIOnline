@@ -20,7 +20,6 @@ describe('mediaCompression', () => {
         test('audio defaults: 128 kbps Opus, 48 kHz (Opus 128k ≈ MP3 192k)', () => {
             expect(defaultCompressionOptions.audio.bitrate).toBe(128_000);
             expect(defaultCompressionOptions.audio.codec).toBe('opus');
-            expect(defaultCompressionOptions.audio.sampleRate).toBe(48000);
             expect(defaultCompressionOptions.audio.channels).toBe(2);
         });
 

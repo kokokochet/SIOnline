@@ -3,6 +3,12 @@ import { AudioWorkerRequest, AudioWorkerResponse, AudioCompressionOptions } from
 import { muxOggOpus } from '../oggOpusMuxer';
 
 /**
+ * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz.
+ * Duplicated from compressAudio.ts because this worker is bundled separately.
+ */
+const OPUS_SAMPLE_RATE = 48000;
+
+/**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
  * pollutes the global `navigator` type as `WorkerNavigator` across the project.
  */
@@ -14,10 +20,10 @@ type WorkerScope = {
 const ctx = self as unknown as WorkerScope;
 
 ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest>) => {
-    const { channels, sampleRate, numberOfChannels, totalFrames, options } = e.data;
+    const { channels, numberOfChannels, totalFrames, options } = e.data;
 
     try {
-        const result = await encodeAudioToOpus(channels, sampleRate, numberOfChannels, totalFrames, options);
+        const result = await encodeAudioToOpus(channels, numberOfChannels, totalFrames, options);
         const response: AudioWorkerResponse = { type: 'done', data: result.buffer as ArrayBuffer };
         ctx.postMessage(response, [result.buffer]);
     } catch (err) {
@@ -31,7 +37,6 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest>) => {
 
 function encodeAudioToOpus(
     channels: ArrayBuffer[],
-    sampleRate: number,
     numberOfChannels: number,
     totalFrames: number,
     options: AudioCompressionOptions,
@@ -39,7 +44,7 @@ function encodeAudioToOpus(
     return new Promise((resolve, reject) => {
         const encodedPackets: { data: Uint8Array; timestamp: number; duration: number }[] = [];
         const chunkDuration = 20; // ms per AudioData chunk
-        const chunkFrameCount = Math.floor((sampleRate * chunkDuration) / 1000);
+        const chunkFrameCount = Math.floor((OPUS_SAMPLE_RATE * chunkDuration) / 1000);
         let encoderClosed = false;
 
         const closeEncoder = () => {
@@ -67,7 +72,7 @@ function encodeAudioToOpus(
 
         const encoderConfig = {
             codec: options.codec,
-            sampleRate,
+            sampleRate: OPUS_SAMPLE_RATE,
             numberOfChannels,
             bitrate: options.bitrate,
         };
@@ -96,10 +101,10 @@ function encodeAudioToOpus(
 
                 const audioData = new AudioData({
                     format: 'f32-planar',
-                    sampleRate,
+                    sampleRate: OPUS_SAMPLE_RATE,
                     numberOfFrames: frameCount,
                     numberOfChannels,
-                    timestamp: Math.round((offset / sampleRate) * 1_000_000),
+                    timestamp: Math.round((offset / OPUS_SAMPLE_RATE) * 1_000_000),
                     data: planarData,
                 });
 
@@ -114,7 +119,7 @@ function encodeAudioToOpus(
                     reject(new Error('No audio data encoded'));
                     return;
                 }
-                const result = muxOggOpus(encodedPackets, sampleRate, numberOfChannels);
+                const result = muxOggOpus(encodedPackets, OPUS_SAMPLE_RATE, numberOfChannels);
                 resolve(result);
             }).catch((e: DOMException) => {
                 closeEncoder();
