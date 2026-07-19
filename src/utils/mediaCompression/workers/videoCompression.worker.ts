@@ -2,6 +2,7 @@
 import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, type Sample } from 'mp4box';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
+import { getSourceFramerate } from '../videoFramerate';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -167,7 +168,7 @@ async function reencodeVideo(
         width: targetWidth,
         height: targetHeight,
         bitrate: options.bitrate,
-        framerate: options.framerate,
+        framerate: getSourceFramerate(track),
         avc: { format: 'avc' as const },
     };
     const encoderSupport = await VideoEncoder.isConfigSupported(encoderConfig);

@@ -28,7 +28,6 @@ describe('mediaCompression', () => {
             expect(defaultCompressionOptions.video.maxHeight).toBe(720);
             expect(defaultCompressionOptions.video.bitrate).toBe(1_000_000);
             expect(defaultCompressionOptions.video.codec).toMatch(/^avc1\./);
-            expect(defaultCompressionOptions.video.framerate).toBe(30);
         });
     });
 });

@@ -34,8 +34,6 @@ export interface VideoCompressionOptions {
     bitrate: number;
     /** WebCodecs codec string (e.g. 'avc1.64001F' for H.264 High 3.1). */
     codec: string;
-    /** Target frame rate. */
-    framerate: number;
 }
 
 /** Combined options for all media types. */

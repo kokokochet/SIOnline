@@ -26,7 +26,6 @@ describe('compressionPresets', () => {
         expect(mediumPreset.video.maxHeight).toBe(720);
         expect(mediumPreset.video.bitrate).toBe(1_000_000);
         expect(mediumPreset.video.codec).toBe('avc1.64001F');
-        expect(mediumPreset.video.framerate).toBe(30);
     });
 
     test('highPreset favors quality', () => {

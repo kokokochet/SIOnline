@@ -20,7 +20,6 @@ export const lowPreset: CompressionOptions = {
         maxHeight: 480,
         bitrate: 500_000,
         codec: 'avc1.64001F',
-        framerate: 30,
     },
 };
 
@@ -44,7 +43,6 @@ export const mediumPreset: CompressionOptions = {
         maxHeight: 720,
         bitrate: 1_000_000,
         codec: 'avc1.64001F',
-        framerate: 30,
     },
 };
 
@@ -69,7 +67,6 @@ export const highPreset: CompressionOptions = {
         maxHeight: 1080,
         bitrate: 2_500_000,
         codec: 'avc1.640028',
-        framerate: 30,
     },
 };
 
