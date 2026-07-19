@@ -48,7 +48,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, styl
 			</div>
 
 			<div className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}>
-				<div className='compressionPanel__title'>{localization.compressionSettings}</div>
+				<div className='compressionPanel__title'>{localization.compressionQuality}</div>
 				{presets.map(({ value, label }) => (
 					<label key={value} className='compressionPanel__preset'>
 						<input
