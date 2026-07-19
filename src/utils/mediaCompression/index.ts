@@ -15,6 +15,7 @@ export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
 } from './featureDetection';
+export { MAX_MEDIA_BYTES } from './limits';
 export type {
     CompressibleMediaType,
     CompressedMedia,
