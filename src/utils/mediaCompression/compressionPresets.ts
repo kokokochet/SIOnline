@@ -1,4 +1,4 @@
-import { CompressionOptions, CompressionPreset } from './compressionTypes';
+import { CompressionOptions, CompressionPreset, MediaCompressionPresets } from './compressionTypes';
 
 /**
  * Low quality preset — aggressive compression for smallest file size.
@@ -73,3 +73,15 @@ export const compressionPresets: Record<CompressionPreset, CompressionOptions> =
     medium: mediumPreset,
     high: highPreset,
 };
+
+/**
+ * Builds CompressionOptions by picking each media type's section from its own
+ * selected preset. Used by both upload-time and bulk compression.
+ */
+export function resolveCompressionOptions(presets: MediaCompressionPresets): CompressionOptions {
+    return {
+        image: compressionPresets[presets.image].image,
+        audio: compressionPresets[presets.audio].audio,
+        video: compressionPresets[presets.video].video,
+    };
+}

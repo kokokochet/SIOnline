@@ -9,6 +9,7 @@ export {
     mediumPreset,
     highPreset,
     compressionPresets,
+    resolveCompressionOptions,
 } from './compressionPresets';
 export {
     isVideoCompressionSupported,
@@ -19,6 +20,7 @@ export type {
     CompressedMedia,
     CompressionOptions,
     CompressionPreset,
+    MediaCompressionPresets,
     ImageCompressionOptions,
     AudioCompressionOptions,
     VideoCompressionOptions,

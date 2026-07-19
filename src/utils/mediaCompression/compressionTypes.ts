@@ -4,6 +4,9 @@ export type CompressibleMediaType = 'image' | 'audio' | 'video';
 /** Quality preset for media compression. */
 export type CompressionPreset = 'low' | 'medium' | 'high';
 
+/** Per-media-type preset selection (image / audio / video). */
+export type MediaCompressionPresets = Record<CompressibleMediaType, CompressionPreset>;
+
 /** Options for image compression via canvas + toBlob. */
 export interface ImageCompressionOptions {
     /** Maximum dimension (width or height) in pixels. */

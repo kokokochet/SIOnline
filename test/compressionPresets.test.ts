@@ -3,6 +3,7 @@ import {
     mediumPreset,
     highPreset,
     compressionPresets,
+    resolveCompressionOptions,
 } from '../src/utils/mediaCompression/compressionPresets';
 import { CompressionOptions, CompressionPreset } from '../src/utils/mediaCompression/compressionTypes';
 
@@ -60,5 +61,19 @@ describe('compressionPresets', () => {
             expect(typeof opts.video.bitrate).toBe('number');
             expect(opts.audio.channels === 1 || opts.audio.channels === 2).toBe(true);
         }
+    });
+
+    describe('resolveCompressionOptions', () => {
+        test('picks each media type options from its own preset', () => {
+            const options = resolveCompressionOptions({ image: 'low', audio: 'medium', video: 'high' });
+
+            expect(options.image).toEqual(lowPreset.image);
+            expect(options.audio).toEqual(mediumPreset.audio);
+            expect(options.video).toEqual(highPreset.video);
+        });
+
+        test('uniform per-type presets equal the corresponding preset itself', () => {
+            expect(resolveCompressionOptions({ image: 'high', audio: 'high', video: 'high' })).toEqual(highPreset);
+        });
     });
 });
