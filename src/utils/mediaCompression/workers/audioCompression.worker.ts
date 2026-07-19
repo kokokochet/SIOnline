@@ -5,6 +5,7 @@ import { muxOggOpus } from '../oggOpusMuxer';
 /**
  * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz.
  * Duplicated from compressAudio.ts because this worker is bundled separately.
+ * Keep in sync with OPUS_SAMPLE_RATE in compressAudio.ts.
  */
 const OPUS_SAMPLE_RATE = 48000;
 

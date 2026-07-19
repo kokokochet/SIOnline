@@ -17,7 +17,7 @@ describe('mediaCompression', () => {
             expect(defaultCompressionOptions.image.mimeType).toBe('image/jpeg');
         });
 
-        test('audio defaults: 128 kbps Opus, 48 kHz (Opus 128k ≈ MP3 192k)', () => {
+        test('audio defaults: 128 kbps Opus (Opus 128k ≈ MP3 192k)', () => {
             expect(defaultCompressionOptions.audio.bitrate).toBe(128_000);
             expect(defaultCompressionOptions.audio.codec).toBe('opus');
             expect(defaultCompressionOptions.audio.channels).toBe(2);

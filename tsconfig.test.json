@@ -7,6 +7,7 @@
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
     "types": ["jest", "node"],
+    // mp4box 2.4.1 "types" points to a missing .d.ts; real types live behind conditional "exports" that legacy "node" resolution ignores
     "paths": {
       "mp4box": ["./node_modules/mp4box/dist/mp4box.all.d.cts"]
     }
