@@ -3,6 +3,7 @@ import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, ty
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
+import { getCodecDescription } from '../codecDescription';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -176,12 +177,11 @@ async function reencodeVideo(
         throw new Error(`VideoEncoder config not supported: ${options.codec} ${targetWidth}x${targetHeight}`);
     }
 
-    const description = samples[0]?.description?.data;
     const decoderConfig = {
         codec: track.codec,
         codedWidth: srcWidth,
         codedHeight: srcHeight,
-        description: description ? new Uint8Array(description) : undefined,
+        description: getCodecDescription(samples[0]),
     };
     const decoderSupport = await VideoDecoder.isConfigSupported(decoderConfig);
     if (!decoderSupport.supported) {
@@ -265,11 +265,13 @@ function passThroughAudio(
         });
 
         if (firstChunk) {
-            const description = sample.description?.data;
+            // No description passed: mp4box keeps the AAC config in the parsed
+            // esds box (not in Box.data), and mp4-muxer already generates an
+            // AudioSpecificConfig for AAC-LC from sampleRate/channels — passing
+            // undefined here would overwrite it via Object.assign.
             muxer.addAudioChunk(chunk, {
                 decoderConfig: {
                     codec: track.codec,
-                    description: description ? new Uint8Array(description) : undefined,
                     sampleRate: track.audio?.sample_rate ?? 44100,
                     numberOfChannels: track.audio?.channel_count ?? 2,
                 },
