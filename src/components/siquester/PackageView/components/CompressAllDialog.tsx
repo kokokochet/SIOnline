@@ -114,7 +114,14 @@ const CompressAllDialog: React.FC = () => {
 					<div className='compressAllDialog__progressLabel'>
 						{`${localization.compressing} ${localization.formatString(localization.compressionProgress, bulk.completed, bulk.total)}`}
 					</div>
-					<div className='compressAllDialog__progressBar'>
+					<div
+						className='compressAllDialog__progressBar'
+						role='progressbar'
+						aria-label={localization.compressing}
+						aria-valuenow={bulk.total > 0 ? Math.round((bulk.completed / bulk.total) * 100) : 0}
+						aria-valuemin={0}
+						aria-valuemax={100}
+					>
 						<div
 							className='compressAllDialog__progressFill'
 							style={{ width: `${bulk.total > 0 ? (bulk.completed / bulk.total) * 100 : 0}%` }}

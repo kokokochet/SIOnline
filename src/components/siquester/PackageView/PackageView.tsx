@@ -431,12 +431,12 @@ const PackageView: React.FC = () => {
 							<path d="M10 11H14V13H10V11Z" fill="currentColor"/>
 						</svg>
 					</button>
-				<CompressionPanel
-					open={isCompressionPanelOpen}
-					onClose={() => setIsCompressionPanelOpen(false)}
-					style={compressionPopoverStyle}
-				/>
-				<CompressAllDialog />
+					<CompressionPanel
+						open={isCompressionPanelOpen}
+						onClose={() => setIsCompressionPanelOpen(false)}
+						style={compressionPopoverStyle}
+					/>
+					<CompressAllDialog />
 
 					<button
 						type='button'
