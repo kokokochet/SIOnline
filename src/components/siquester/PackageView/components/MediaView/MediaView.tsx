@@ -2,6 +2,7 @@ import React from 'react';
 import JSZip from 'jszip';
 import MediaItem from '../../../MediaItem/MediaItem';
 import localization from '../../../../../model/resources/localization';
+import { useAppSelector } from '../../../../../state/hooks';
 
 import './MediaView.scss';
 
@@ -35,6 +36,8 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 	});
 	const [loading, setLoading] = React.useState(true);
 	const [displayedFiles, setDisplayedFiles] = React.useState<MediaFile[]>([]);
+
+	const zipRevision = useAppSelector(state => state.siquester.zipRevision);
 
 	const loadMediaFiles = async () => {
 		setLoading(true);
@@ -102,7 +105,7 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 
 	React.useEffect(() => {
 		loadMediaFiles();
-	}, [zip]);
+	}, [zip, zipRevision]);
 
 	React.useEffect(() => {
 		// Clear displayed files when switching tabs
