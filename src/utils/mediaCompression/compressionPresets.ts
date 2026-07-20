@@ -17,7 +17,7 @@ export const lowPreset: CompressionOptions = {
     },
     video: {
         maxHeight: 480,
-        bitrate: 500_000,
+        bitrate: 350_000,
         codec: 'avc1.64001F',
     },
 };
@@ -39,7 +39,7 @@ export const mediumPreset: CompressionOptions = {
     },
     video: {
         maxHeight: 720,
-        bitrate: 1_000_000,
+        bitrate: 500_000,
         codec: 'avc1.64001F',
     },
 };
@@ -62,7 +62,7 @@ export const highPreset: CompressionOptions = {
     },
     video: {
         maxHeight: 1080,
-        bitrate: 2_500_000,
+        bitrate: 1_500_000,
         codec: 'avc1.640028',
     },
 };
