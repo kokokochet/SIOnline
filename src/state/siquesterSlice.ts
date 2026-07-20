@@ -89,10 +89,10 @@ export interface SIQuesterState {
 	zipRevision?: number;
 }
 
-/** Default compression settings: enabled, all media types at Medium. */
+/** Default compression settings: disabled by default; Medium images, Low audio/video. */
 export const defaultMediaCompressionState: { enabled: boolean; presets: MediaCompressionPresets } = {
-	enabled: true,
-	presets: { image: 'medium', audio: 'medium', video: 'medium' },
+	enabled: false,
+	presets: { image: 'medium', audio: 'low', video: 'low' },
 };
 
 const initialState: SIQuesterState = {

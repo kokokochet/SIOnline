@@ -394,7 +394,7 @@ describe('siquesterSlice', () => {
 		const state: SIQuesterState = {};
 		const nextState = reducer(state, setMediaCompressionEnabled(false));
 		expect(nextState.mediaCompression?.enabled).toBe(false);
-		expect(nextState.mediaCompression?.presets).toEqual({ image: 'medium', audio: 'medium', video: 'medium' });
+		expect(nextState.mediaCompression?.presets).toEqual({ image: 'medium', audio: 'low', video: 'low' });
 
 		const reenabled = reducer(nextState, setMediaCompressionEnabled(true));
 		expect(reenabled.mediaCompression?.enabled).toBe(true);
@@ -403,8 +403,8 @@ describe('siquesterSlice', () => {
 	test('setMediaCompressionPreset changes the preset for one type only', () => {
 		const state: SIQuesterState = {};
 		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
-		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'medium', video: 'medium' });
-		expect(nextState.mediaCompression?.enabled).toBe(true);
+		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'low', video: 'low' });
+		expect(nextState.mediaCompression?.enabled).toBe(false);
 	});
 
 	test('setMediaCompressionPreset preserves the enabled flag', () => {
