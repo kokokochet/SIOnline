@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
+	bulkCompressionDialogOpened,
 	defaultMediaCompressionState,
 	setMediaCompressionEnabled,
 	setMediaCompressionPreset,
@@ -75,6 +76,19 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, styl
 					))}
 				</div>
 			))}
+
+			<div className='compressionPanel__divider' />
+
+			<button
+				type='button'
+				className='compressionPanel__compressAll'
+				onClick={() => {
+					appDispatch(bulkCompressionDialogOpened());
+					onClose();
+				}}
+			>
+				{localization.compressAllMedia}
+			</button>
 		</Popup>
 	);
 };

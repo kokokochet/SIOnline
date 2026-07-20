@@ -45,4 +45,13 @@
 		font-size: 0.95em;
 		margin: 0;
 	}
+
+	&__divider {
+		border-top: 1px solid rgba(128, 128, 128, 0.3);
+	}
+
+	&__compressAll {
+		padding: 6px 10px;
+		cursor: pointer;
+	}
 }

@@ -23,6 +23,7 @@ import ThemeItem from './components/ThemeItem';
 import QuestionItem from './components/QuestionItem';
 import MediaView from './components/MediaView/MediaView';
 import CompressionPanel from './components/CompressionPanel';
+import CompressAllDialog from './components/CompressAllDialog';
 
 import './PackageView.scss';
 import exitImg from '../../../../assets/images/exit.png';
@@ -430,11 +431,12 @@ const PackageView: React.FC = () => {
 							<path d="M10 11H14V13H10V11Z" fill="currentColor"/>
 						</svg>
 					</button>
-					<CompressionPanel
-						open={isCompressionPanelOpen}
-						onClose={() => setIsCompressionPanelOpen(false)}
-						style={compressionPopoverStyle}
-					/>
+				<CompressionPanel
+					open={isCompressionPanelOpen}
+					onClose={() => setIsCompressionPanelOpen(false)}
+					style={compressionPopoverStyle}
+				/>
+				<CompressAllDialog />
 
 					<button
 						type='button'
