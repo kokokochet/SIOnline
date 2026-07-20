@@ -14,7 +14,16 @@ export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
 import { CompressibleMediaType, CompressionPreset, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
-import { renameMediaReferences, StagedMediaFile } from '../utils/mediaCompression/compressPackageMedia';
+import { compressMedia, MAX_MEDIA_BYTES, resolveCompressionOptions } from '../utils/mediaCompression';
+import {
+	collectExistingMediaNames,
+	collectMediaReferences,
+	getMediaFolderName as getCompressibleMediaFolderName,
+	planRenames,
+	renameMediaReferences,
+	resolveZipEntry,
+	StagedMediaFile,
+} from '../utils/mediaCompression/compressPackageMedia';
 
 /** Summary of a finished bulk compression run. */
 export interface BulkCompressionSummary {
@@ -275,6 +284,123 @@ export const loadPackageStatistics = createAsyncThunk(
 				questionStats: {}
 			};
 		}
+	},
+);
+
+/**
+ * Compresses every referenced media file in the open package using the
+ * per-type presets from `state.siquester.mediaCompression.presets`.
+ *
+ * Safety contract — the package is never left in a broken state:
+ * - each file is processed in isolation; any failure skips that file;
+ * - results are staged in memory and applied by a single
+ *   `bulkMediaCompressed` dispatch (all-or-nothing);
+ * - cancelling discards staged results, leaving the package untouched;
+ * - a mid-run package swap aborts the apply (the dialog is not modal, and
+ *   staged results must never be written into a different zip).
+ *
+ * Files are processed sequentially to bound peak memory, but staged results
+ * accumulate until the apply: the bound is (staged file count × the per-file
+ * MAX_MEDIA_BYTES cap). Video/audio encoding runs in Web Workers per file.
+ */
+export const compressAllPackageMedia = createAsyncThunk(
+	'siquester/compressAllPackageMedia',
+	async (_, thunkAPI) => {
+		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
+		const { zip, pack } = getSiqState();
+
+		if (!zip || !pack) {
+			throw new Error('No package loaded');
+		}
+
+		const presets = getSiqState().mediaCompression?.presets ?? defaultMediaCompressionState.presets;
+		const options = resolveCompressionOptions(presets);
+		const refs = collectMediaReferences(pack);
+
+		thunkAPI.dispatch(bulkCompressionStarted({ total: refs.length }));
+
+		const staged: StagedMediaFile[] = [];
+		let skippedCount = 0;
+		let savedBytes = 0;
+
+		const isCancelRequested = () => getSiqState().bulkCompression?.cancelRequested === true;
+
+		for (let i = 0; i < refs.length; i += 1) {
+			if (isCancelRequested()) {
+				thunkAPI.dispatch(bulkCompressionCancelled());
+				return { applied: false };
+			}
+
+			const ref = refs[i];
+			thunkAPI.dispatch(bulkCompressionProgress({ completed: i, currentFile: ref.value }));
+
+			try {
+				const folder = getCompressibleMediaFolderName(ref.type);
+				const entry = resolveZipEntry(zip, folder, ref.value);
+
+				if (!entry) {
+					// Referenced but missing — a pre-existing inconsistency; keep as-is.
+					skippedCount += 1;
+					continue;
+				}
+
+				// eslint-disable-next-line no-await-in-loop
+				const data = await entry.async('uint8array');
+
+				if (data.byteLength > MAX_MEDIA_BYTES) {
+					// OOM guard — same hard cap as the upload flow.
+					skippedCount += 1;
+					continue;
+				}
+
+				// Copy into a fresh Uint8Array: entry.async() returns Uint8Array<ArrayBufferLike>, not a BlobPart.
+				// eslint-disable-next-line no-await-in-loop
+				const compressed = await compressMedia(new File([new Uint8Array(data)], ref.value), ref.type, options);
+
+				if (compressed.wasCompressed) {
+					staged.push({
+						type: ref.type,
+						oldValue: ref.value,
+						newValue: compressed.fileName,
+						data: compressed.data,
+					});
+					savedBytes += compressed.originalSize - compressed.compressedSize;
+				} else {
+					skippedCount += 1;
+				}
+			} catch (err) {
+				console.warn(`Bulk compression skipped ${ref.type}:${ref.value}:`, err);
+				skippedCount += 1;
+			}
+		}
+
+		if (isCancelRequested()) {
+			thunkAPI.dispatch(bulkCompressionCancelled());
+			return { applied: false };
+		}
+
+		// The dialog is not modal: the user may have opened another package
+		// mid-run. Never apply staged results into a different zip.
+		if (getSiqState().zip !== zip) {
+			thunkAPI.dispatch(bulkCompressionCancelled());
+			return { applied: false };
+		}
+
+		const renames = planRenames(staged, collectExistingMediaNames(zip));
+		const files = staged.map(file => ({
+			...file,
+			newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
+		}));
+
+		if (files.length > 0) {
+			thunkAPI.dispatch(bulkMediaCompressed({ files }));
+		}
+
+		thunkAPI.dispatch(bulkCompressionFinished({
+			summary: { compressedCount: files.length, skippedCount, savedBytes },
+		}));
+
+		return { applied: files.length > 0 };
 	},
 );
 

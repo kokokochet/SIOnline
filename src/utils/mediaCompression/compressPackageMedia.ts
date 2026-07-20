@@ -165,6 +165,9 @@ export function collectExistingMediaNames(zip: JSZip): Set<string> {
  * `-1`, `-2`, … before the extension while the candidate exists in the zip or
  * is already assigned in this run. Existing names always block — names freed
  * by renames are NOT reused as targets, which keeps the apply safe.
+ *
+ * Precondition: every staged `oldValue` must be present in `existingNames`
+ * (guaranteed when files are staged via `resolveZipEntry` against the same zip).
  */
 export function planRenames(staged: StagedMediaFile[], existingNames: Set<string>): Map<string, string> {
     const renames = new Map<string, string>();
