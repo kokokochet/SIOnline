@@ -1,4 +1,24 @@
-import reducer, { addComplexAnswer, resetQuestion, SIQuesterState, undo, redo, updatePackageProperty, updateRoundProperty, addRound, setContentItemMedia, setMediaCompressionEnabled, setMediaCompressionPreset } from '../src/state/siquesterSlice';
+import reducer, {
+	addComplexAnswer,
+	resetQuestion,
+	SIQuesterState,
+	undo,
+	redo,
+	updatePackageProperty,
+	updateRoundProperty,
+	addRound,
+	setContentItemMedia,
+	setMediaCompressionEnabled,
+	setMediaCompressionPreset,
+	bulkCompressionDialogOpened,
+	bulkCompressionDialogClosed,
+	bulkCompressionCancelRequested,
+	bulkCompressionStarted,
+	bulkCompressionProgress,
+	bulkCompressionFinished,
+	bulkCompressionCancelled,
+	bulkMediaCompressed,
+} from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import JSZip from 'jszip';
 
@@ -403,5 +423,122 @@ describe('siquesterSlice', () => {
 		const nextState = reducer(high, setMediaCompressionEnabled(false));
 		expect(nextState.mediaCompression?.enabled).toBe(false);
 		expect(nextState.mediaCompression?.presets.image).toBe('high');
+	});
+
+	function makeBulkState(): SIQuesterState {
+		const zip = new JSZip();
+		zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));
+		zip.file('Images/my%20photo.png', new Uint8Array([4, 5, 6]));
+		zip.file('Video/clip.mp4', new Uint8Array([7, 8, 9]));
+		// Stored URI-encoded; referenced raw — exercises identity-rename cleanup.
+		zip.file('Video/my%20clip.mp4', new Uint8Array([13, 14]));
+
+		const pack = createDefaultPackage({
+			packageName: '',
+			authorName: '',
+			roundCount: 1,
+			themeCount: 1,
+			questionCount: 1,
+			includeFinalRound: false,
+			finalThemeCount: 0,
+		});
+
+		pack.rounds[0].themes[0].questions[0].params.question = {
+			items: [
+				{ type: 'image', value: 'pic.png', isRef: true, placement: 'screen' },
+				{ type: 'image', value: 'my photo.png', isRef: true, placement: 'screen' },
+				{ type: 'video', value: 'clip.mp4', isRef: true, placement: 'screen' },
+				{ type: 'video', value: 'my clip.mp4', isRef: true, placement: 'screen' },
+			],
+		};
+
+		return { pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+	}
+
+	test('bulkCompression dialog phase actions drive the state machine', () => {
+		let state: SIQuesterState = {};
+		state = reducer(state, bulkCompressionDialogOpened());
+		expect(state.bulkCompression?.phase).toBe('confirm');
+
+		state = reducer(state, bulkCompressionStarted({ total: 5 }));
+		expect(state.bulkCompression?.phase).toBe('running');
+		expect(state.bulkCompression?.total).toBe(5);
+
+		state = reducer(state, bulkCompressionProgress({ completed: 2, currentFile: 'a.png' }));
+		expect(state.bulkCompression?.completed).toBe(2);
+		expect(state.bulkCompression?.currentFile).toBe('a.png');
+
+		state = reducer(state, bulkCompressionFinished({ summary: { compressedCount: 4, skippedCount: 1, savedBytes: 1024 } }));
+		expect(state.bulkCompression?.phase).toBe('done');
+		expect(state.bulkCompression?.summary?.compressedCount).toBe(4);
+
+		state = reducer(state, bulkCompressionDialogClosed());
+		expect(state.bulkCompression?.phase).toBe('idle');
+	});
+
+	test('bulkCompressionCancelRequested closes from confirm, flags from running', () => {
+		let state: SIQuesterState = {};
+		state = reducer(state, bulkCompressionDialogOpened());
+		state = reducer(state, bulkCompressionCancelRequested());
+		expect(state.bulkCompression?.phase).toBe('idle');
+
+		state = reducer(state, bulkCompressionDialogOpened());
+		state = reducer(state, bulkCompressionStarted({ total: 1 }));
+		state = reducer(state, bulkCompressionCancelRequested());
+		expect(state.bulkCompression?.phase).toBe('running');
+		expect(state.bulkCompression?.cancelRequested).toBe(true);
+
+		state = reducer(state, bulkCompressionCancelled());
+		expect(state.bulkCompression?.phase).toBe('cancelled');
+	});
+
+	test('bulkMediaCompressed replaces zip entries, rewrites refs, bumps zipRevision, clears history', async () => {
+		const state = makeBulkState();
+		// Pre-existing edit history must be dropped by the apply.
+		state.history = { past: [{ pack: state.pack! }], future: [] };
+
+		const files = [
+			{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) },
+			{ type: 'image' as const, oldValue: 'my photo.png', newValue: 'my photo.jpg', data: new Uint8Array([11]) },
+			{ type: 'video' as const, oldValue: 'clip.mp4', newValue: 'clip.mp4', data: new Uint8Array([12]) },
+			{ type: 'video' as const, oldValue: 'my clip.mp4', newValue: 'my clip.mp4', data: new Uint8Array([15]) },
+		];
+
+		const nextState = reducer(state, bulkMediaCompressed({ files }));
+
+		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
+		expect(nextState.zip?.file('Images/my photo.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/my%20photo.png')).toBeNull();
+		expect(nextState.zipRevision).toBe(1);
+
+		// Identity renames: new bytes are written under the raw name, and the
+		// URI-encoded original entry is removed (no duplicate left behind).
+		expect(await nextState.zip!.file('Video/clip.mp4')!.async('uint8array')).toEqual(new Uint8Array([12]));
+		expect(await nextState.zip!.file('Video/my clip.mp4')!.async('uint8array')).toEqual(new Uint8Array([15]));
+		expect(nextState.zip?.file('Video/my%20clip.mp4')).toBeNull();
+
+		const items = nextState.pack!.rounds[0].themes[0].questions[0].params.question!.items;
+		expect(items[0].value).toBe('pic.jpg');
+		expect(items[1].value).toBe('my photo.jpg');
+		expect(items[2].value).toBe('clip.mp4');
+		expect(items[3].value).toBe('my clip.mp4');
+
+		// History cleared — bulk compression is intentionally not undoable.
+		expect(nextState.history?.past).toHaveLength(0);
+		expect(nextState.history?.future).toHaveLength(0);
+	});
+
+	test('bulkMediaCompressed rewrites a package logo reference when its file is renamed', () => {
+		const state = makeBulkState();
+		state.pack!.logo = '@pic.png';
+
+		const nextState = reducer(state, bulkMediaCompressed({
+			files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
+		}));
+
+		expect(nextState.pack!.logo).toBe('@pic.jpg');
+		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
 	});
 });

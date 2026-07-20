@@ -14,6 +14,29 @@ export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
 import { CompressibleMediaType, CompressionPreset, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
+import { renameMediaReferences, StagedMediaFile } from '../utils/mediaCompression/compressPackageMedia';
+
+/** Summary of a finished bulk compression run. */
+export interface BulkCompressionSummary {
+	/** Files actually re-encoded and replaced. */
+	compressedCount: number;
+	/** Files kept as-is (passthrough, skipped, or failed). */
+	skippedCount: number;
+	/** Total bytes saved across compressed files. */
+	savedBytes: number;
+}
+
+export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled';
+
+/** Bulk compression dialog/progress state machine. Per-session, never persisted. */
+export interface BulkCompressionState {
+	phase: BulkCompressionPhase;
+	total: number;
+	completed: number;
+	currentFile?: string;
+	cancelRequested: boolean;
+	summary?: BulkCompressionSummary;
+}
 
 export interface SIQuesterState {
 	zip?: JSZip;
@@ -50,6 +73,11 @@ export interface SIQuesterState {
 		enabled: boolean;
 		presets: MediaCompressionPresets;
 	};
+	/** Bulk compression dialog/progress state machine. */
+	bulkCompression?: BulkCompressionState;
+	/** Monotonic counter bumped when zip entries are replaced in bulk.
+	 * Lets MediaView re-scan the zip (the JSZip instance identity never changes). */
+	zipRevision?: number;
 }
 
 /** Default compression settings: enabled, all media types at Medium. */
@@ -1141,6 +1169,109 @@ export const siquesterSlice = createSlice({
 			}
 			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
 		},
+		bulkCompressionDialogOpened: (state) => {
+			state.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
+		},
+		bulkCompressionDialogClosed: (state) => {
+			state.bulkCompression = { phase: 'idle', total: 0, completed: 0, cancelRequested: false };
+		},
+		bulkCompressionCancelRequested: (state) => {
+			if (!state.bulkCompression) {
+				return;
+			}
+			if (state.bulkCompression.phase === 'running') {
+				state.bulkCompression.cancelRequested = true;
+			} else if (state.bulkCompression.phase === 'confirm') {
+				state.bulkCompression.phase = 'idle';
+			}
+		},
+		bulkCompressionStarted: (state, action: PayloadAction<{ total: number }>) => {
+			state.bulkCompression = {
+				phase: 'running',
+				total: action.payload.total,
+				completed: 0,
+				cancelRequested: false,
+			};
+		},
+		bulkCompressionProgress: (state, action: PayloadAction<{ completed: number; currentFile: string }>) => {
+			if (state.bulkCompression?.phase === 'running') {
+				state.bulkCompression.completed = action.payload.completed;
+				state.bulkCompression.currentFile = action.payload.currentFile;
+			}
+		},
+		bulkCompressionFinished: (state, action: PayloadAction<{ summary: BulkCompressionSummary }>) => {
+			if (state.bulkCompression) {
+				state.bulkCompression.phase = 'done';
+				state.bulkCompression.completed = state.bulkCompression.total;
+				state.bulkCompression.summary = action.payload.summary;
+			}
+		},
+		bulkCompressionCancelled: (state) => {
+			if (state.bulkCompression) {
+				state.bulkCompression.phase = 'cancelled';
+			}
+		},
+		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
+			if (!state.zip || !state.pack) {
+				return;
+			}
+
+			// Write all new entries first, then remove replaced ones.
+			for (const file of action.payload.files) {
+				const folder = getMediaFolderName(file.type);
+
+				if (folder) {
+					state.zip.file(`${folder}/${file.newValue}`, file.data);
+				}
+			}
+
+			const renames = new Map<string, string>();
+
+			for (const file of action.payload.files) {
+				const folder = getMediaFolderName(file.type);
+
+				if (!folder) {
+					continue;
+				}
+
+				// Remove the superseded original entry, including a URI-encoded
+				// variant (a file referenced as 'my clip.mp4' may be stored as
+				// 'Video/my%20clip.mp4'). This applies to identity renames too —
+				// the compressed bytes are written under the raw name. Never
+				// remove the just-written target.
+				const writeTarget = `${folder}/${file.newValue}`;
+
+				for (const oldPath of [`${folder}/${file.oldValue}`, `${folder}/${encodeURIComponent(file.oldValue)}`]) {
+					if (oldPath !== writeTarget) {
+						state.zip.remove(oldPath);
+					}
+				}
+
+				if (file.newValue !== file.oldValue) {
+					renames.set(`${file.type}:${file.oldValue}`, file.newValue);
+				}
+			}
+
+			if (renames.size > 0) {
+				renameMediaReferences(state.pack, renames);
+			}
+
+			// The package logo is a media reference outside question params;
+			// keep it in sync when its file is renamed ('@' prefix preserved).
+			if (state.pack.logo?.startsWith('@')) {
+				const newLogoName = renames.get(`image:${state.pack.logo.substring(1)}`);
+
+				if (newLogoName) {
+					state.pack.logo = `@${newLogoName}`;
+				}
+			}
+
+			// Bulk compression is intentionally not undoable: drop prior edit
+			// history so undo cannot silently revert the apply.
+			state.history = { past: [], future: [] };
+
+			state.zipRevision = (state.zipRevision ?? 0) + 1;
+		},
 	},
 	extraReducers: builder => {
 		builder.addCase(openFile.fulfilled, (state, action) => {
@@ -1154,6 +1285,8 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
+			state.bulkCompression = undefined;
+			state.zipRevision = 0;
 		});
 		builder.addCase(createNewPackage.fulfilled, (state, action) => {
 			state.zip = action.payload.zip;
@@ -1166,6 +1299,8 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
+			state.bulkCompression = undefined;
+			state.zipRevision = 0;
 		});
 		builder.addCase(loadPackageStatistics.pending, (state) => {
 			state.packageStatsLoading = true;
@@ -1222,6 +1357,14 @@ export const {
 	resetQuestion,
 	setMediaCompressionEnabled,
 	setMediaCompressionPreset,
+	bulkCompressionDialogOpened,
+	bulkCompressionDialogClosed,
+	bulkCompressionCancelRequested,
+	bulkCompressionStarted,
+	bulkCompressionProgress,
+	bulkCompressionFinished,
+	bulkCompressionCancelled,
+	bulkMediaCompressed,
 } = siquesterSlice.actions;
 
 // Selector to get the current item based on the indices
@@ -1313,6 +1456,17 @@ const ignoreActions = new Set([
 	'siquester/createNewPackage/pending',
 	'siquester/createNewPackage/fulfilled',
 	'siquester/createNewPackage/rejected',
+	'siquester/bulkCompressionDialogOpened',
+	'siquester/bulkCompressionDialogClosed',
+	'siquester/bulkCompressionCancelRequested',
+	'siquester/bulkCompressionStarted',
+	'siquester/bulkCompressionProgress',
+	'siquester/bulkCompressionFinished',
+	'siquester/bulkCompressionCancelled',
+	'siquester/bulkMediaCompressed',
+	'siquester/compressAllPackageMedia/pending',
+	'siquester/compressAllPackageMedia/fulfilled',
+	'siquester/compressAllPackageMedia/rejected',
 	'siquester/loadPackageStatistics/pending',
 	'siquester/loadPackageStatistics/fulfilled',
 	'siquester/loadPackageStatistics/rejected',
