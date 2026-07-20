@@ -2,12 +2,12 @@ import { CompressionOptions, CompressionPreset, MediaCompressionPresets } from '
 
 /**
  * Low quality preset — aggressive compression for smallest file size.
- * Images: 480px, quality 0.6. Audio: 64 kbps. Video: 480p, 500 kbps.
+ * Images: 1000px, quality 0.7. Audio: 64 kbps. Video: 720p, 350 kbps.
  */
 export const lowPreset: CompressionOptions = {
     image: {
-        maxDimension: 480,
-        quality: 0.6,
+        maxDimension: 1000,
+        quality: 0.7,
         mimeType: 'image/jpeg',
     },
     audio: {
@@ -16,19 +16,19 @@ export const lowPreset: CompressionOptions = {
         channels: 2,
     },
     video: {
-        maxHeight: 480,
+        maxHeight: 720,
         bitrate: 350_000,
         codec: 'avc1.64001F',
     },
 };
 
 /**
- * Medium quality preset — balanced. Matches the previous hardcoded defaults.
- * Images: 800px, quality 0.8. Audio: 128 kbps. Video: 720p, 1000 kbps.
+ * Medium quality preset — balanced.
+ * Images: 1200px, quality 0.8. Audio: 128 kbps. Video: 720p, 500 kbps.
  */
 export const mediumPreset: CompressionOptions = {
     image: {
-        maxDimension: 800,
+        maxDimension: 1200,
         quality: 0.8,
         mimeType: 'image/jpeg',
     },
@@ -46,13 +46,13 @@ export const mediumPreset: CompressionOptions = {
 
 /**
  * High quality preset — favors quality over file size.
- * Images: 1280px, quality 0.92. Audio: 192 kbps. Video: 1080p, 2500 kbps.
+ * Images: 1500px, quality 0.9. Audio: 192 kbps. Video: 1080p, 1500 kbps.
  * Uses H.264 Level 4.0 (avc1.640028) which is required for 1080p.
  */
 export const highPreset: CompressionOptions = {
     image: {
-        maxDimension: 1280,
-        quality: 0.92,
+        maxDimension: 1500,
+        quality: 0.9,
         mimeType: 'image/jpeg',
     },
     audio: {
