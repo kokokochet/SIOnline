@@ -1440,6 +1440,14 @@ export const siquesterSlice = createSlice({
 		builder.addCase(loadPackageStatistics.rejected, (state) => {
 			state.packageStatsLoading = false;
 		});
+		builder.addCase(compressAllPackageMedia.rejected, (state) => {
+			// Defensive: an unexpected throw after bulkCompressionStarted would
+			// otherwise leave phase='running' forever. bulkMediaCompressed never
+			// dispatched, so the package is untouched (all-or-nothing contract).
+			if (state.bulkCompression?.phase === 'running') {
+				state.bulkCompression.phase = 'cancelled';
+			}
+		});
 	},
 });
 

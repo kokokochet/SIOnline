@@ -262,3 +262,39 @@ test('rename plan resolves a literal-% collision without breaking the package', 
     // all three are compressed (the mock's else branch also catches song.mp3).
     expect(finalState.bulkCompression?.summary?.compressedCount).toBe(3);
 });
+
+test('rejected thunk after Started transitions phase to cancelled and applies nothing', async () => {
+    // The thunk's only explicit throw is BEFORE bulkCompressionStarted (the
+    // !zip/!pack guard). If anything throws AFTER Started — a future refactor,
+    // an Immer invariant, an OOM in a pure helper — phase would stick at
+    // 'running' forever (Cancel only flips cancelRequested, which a dead thunk
+    // never reads). The rejected extraReducer closes that gap. We exercise it
+    // directly because forcing a real post-Started throw is brittle: the
+    // per-file try/catch swallows compressMedia rejections, so even all-failing
+    // mocks reach Finished. Dispatching the rejected lifecycle action through
+    // the real reducer is the deterministic way to cover running->cancelled.
+    const { compressAllPackageMedia: thunk } = await import('../src/state/siquesterSlice');
+
+    let state: SIQuesterState = makeState();
+    const dispatch = jest.fn((action: any) => {
+        state = reducer(state, action);
+        return action;
+    });
+    const getState = () => ({ siquester: state });
+
+    // Drive the thunk normally so Started dispatches against the real reducer,
+    // then simulate a mid-run rejection via the rejected action creator.
+    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
+    expect(state.bulkCompression?.phase).toBe('running');
+
+    // thunk.rejected signature in RTK 2.x: (error, requestId, arg, payload?, meta?).
+    // arg is void for this thunk, so undefined.
+    const rejectedAction = thunk.rejected(new Error('unexpected'), 'fakeReqId', undefined);
+    state = reducer(state, rejectedAction as any);
+
+    expect(state.bulkCompression?.phase).toBe('cancelled');
+    // All-or-nothing: bulkMediaCompressed never dispatched, package untouched.
+    expect(state.zip?.file('Images/pic.png')).not.toBeNull();
+    expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
+    expect(state.zipRevision).toBe(0);
+});
