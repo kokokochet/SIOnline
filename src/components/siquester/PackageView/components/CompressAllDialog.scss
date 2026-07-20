@@ -1,4 +1,9 @@
 .compressAllDialog {
+	background: linear-gradient(180deg, rgba(15, 22, 34, 0.98), rgba(6, 10, 18, 0.98));
+	color: #f4f7fb;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
 	min-width: 320px;
 	max-width: 420px;
 
