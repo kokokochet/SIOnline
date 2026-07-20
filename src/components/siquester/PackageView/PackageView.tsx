@@ -14,7 +14,8 @@ import {
 	addTheme,
 	addQuestion,
 	undo,
-	redo
+	redo,
+	defaultMediaCompressionState
 } from '../../../state/siquesterSlice';
 import PackageItem from './components/PackageItem';
 import RoundItem from './components/RoundItem';
@@ -42,7 +43,7 @@ const PackageView: React.FC = () => {
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
 	const compressionButtonRef = React.useRef<HTMLButtonElement>(null);
 	const [compressionPopoverStyle, setCompressionPopoverStyle] = React.useState<React.CSSProperties>({});
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as const });
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
 	React.useEffect(() => {
 		if (isNewPackage) {

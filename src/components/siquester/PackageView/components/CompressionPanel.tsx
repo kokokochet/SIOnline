@@ -1,11 +1,12 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
+	defaultMediaCompressionState,
 	setMediaCompressionEnabled,
 	setMediaCompressionPreset,
 } from '../../../../state/siquesterSlice';
 import localization from '../../../../model/resources/localization';
-import { CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
+import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
 import Popup from '../../../common/Popup/Popup';
 
 import './CompressionPanel.scss';
@@ -18,17 +19,23 @@ interface CompressionPanelProps {
 
 /**
  * Popover panel for media compression settings. Renders a toggle (on/off) and
- * a Low/Medium/High quality preset radio group. Mounted in the PackageView
+ * per-media-type Low/Medium/High preset radio groups. Mounted in the PackageView
  * toolbar; the trigger button lives in PackageView and toggles `open`.
  */
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, style }) => {
 	const appDispatch = useAppDispatch();
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as CompressionPreset });
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
 	const presets: ReadonlyArray<{ value: CompressionPreset; label: string }> = [
 		{ value: 'low', label: localization.compressionLow },
 		{ value: 'medium', label: localization.compressionMedium },
 		{ value: 'high', label: localization.compressionHigh },
+	];
+
+	const mediaTypes: ReadonlyArray<{ type: CompressibleMediaType; label: string }> = [
+		{ type: 'image', label: localization.images },
+		{ type: 'audio', label: localization.audio },
+		{ type: 'video', label: localization.video },
 	];
 
 	if (!open) {
@@ -47,22 +54,27 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, styl
 				<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 			</div>
 
-			<div className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}>
-				<div className='compressionPanel__title'>{localization.compressionQuality}</div>
-				{presets.map(({ value, label }) => (
-					<label key={value} className='compressionPanel__preset'>
-						<input
-							type='radio'
-							name='compressionPreset'
-							value={value}
-							checked={mediaCompression.preset === value}
-							disabled={!mediaCompression.enabled}
-							onChange={() => appDispatch(setMediaCompressionPreset(value))}
-						/>
-						{label}
-					</label>
-				))}
-			</div>
+			{mediaTypes.map(({ type, label }) => (
+				<div
+					key={type}
+					className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}
+				>
+					<div className='compressionPanel__title'>{label}</div>
+					{presets.map(({ value, label: presetLabel }) => (
+						<label key={value} className='compressionPanel__preset'>
+							<input
+								type='radio'
+								name={`compressionPreset-${type}`}
+								value={value}
+								checked={mediaCompression.presets[type] === value}
+								disabled={!mediaCompression.enabled}
+								onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
+							/>
+							{presetLabel}
+						</label>
+					))}
+				</div>
+			))}
 		</Popup>
 	);
 };

@@ -7,8 +7,7 @@ import Constants from '../../../model/enums/Constants';
 import { useAppDispatch, useAppSelector } from '../../../state/hooks';
 import getExtension from '../../../utils/FileHelper';
 import { userErrorChanged } from '../../../state/commonSlice';
-import { compressMedia } from '../../../utils/mediaCompression';
-import { compressionPresets } from '../../../utils/mediaCompression/compressionPresets';
+import { compressMedia, MAX_MEDIA_BYTES, resolveCompressionOptions } from '../../../utils/mediaCompression';
 import {
 	updateContentItem,
 	setContentItemType,
@@ -17,6 +16,7 @@ import {
 	removeContentScreen,
 	addScreenContentItem,
 	removeScreenContentItem,
+	defaultMediaCompressionState,
 } from '../../../state/siquesterSlice';
 
 import './ScreensView.scss';
@@ -69,13 +69,6 @@ const maxFileSizeMbByType: Record<MediaContentType, number> = {
 	video: 10,
 	html: 1,
 };
-
-/**
- * Hard safety cap applied to ALL uploads regardless of compression state.
- * Prevents browser OOM when decoding multi-hundred-MB files into memory
- * (the 60s video timeout guards against hangs but not OOM).
- */
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200 MB
 
 const allowedExtensionsByType: Record<MediaContentType, string[]> = {
 	image: ['.jpg', '.jpe', '.jpeg', '.png', '.gif', '.webp', '.avif'],
@@ -177,9 +170,9 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const dispatch = useAppDispatch();
 	const [screenIndex, setScreenIndex] = React.useState(0);
 	const [isCompressing, setIsCompressing] = React.useState(false);
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? { enabled: true, preset: 'medium' as const });
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 	const compressionEnabled = mediaCompression.enabled;
-	const compressionOptions = compressionPresets[mediaCompression.preset];
+	const compressionOptions = resolveCompressionOptions(mediaCompression.presets);
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);
 	const fileInputRefs = React.useRef<Record<MediaContentType, HTMLInputElement | null>>({
@@ -596,8 +589,8 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 		}
 
 		// Hard safety cap — always enforced, even with compression ON, to prevent OOM.
-		if (file.size > MAX_UPLOAD_BYTES) {
-			const maxMb = Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024));
+		if (file.size > MAX_MEDIA_BYTES) {
+			const maxMb = Math.floor(MAX_MEDIA_BYTES / (1024 * 1024));
 			dispatch(userErrorChanged(`${localization.fileIsTooBig} (${maxMb} MB)`));
 			return;
 		}
