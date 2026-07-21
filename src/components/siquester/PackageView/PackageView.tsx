@@ -42,8 +42,7 @@ const PackageView: React.FC = () => {
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
-	const compressionButtonRef = React.useRef<HTMLButtonElement>(null);
-	const [compressionPopoverStyle, setCompressionPopoverStyle] = React.useState<React.CSSProperties>({});
+
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
 	React.useEffect(() => {
@@ -412,16 +411,9 @@ const PackageView: React.FC = () => {
 					</button>
 
 					<button
-						ref={compressionButtonRef}
 						type='button'
 						className={`standard imageButton ${mediaCompression.enabled ? 'editActive' : ''}`}
-						onClick={() => {
-							const rect = compressionButtonRef.current?.getBoundingClientRect();
-							if (rect) {
-								setCompressionPopoverStyle({ left: rect.left, top: rect.bottom });
-							}
-							setIsCompressionPanelOpen(!isCompressionPanelOpen);
-						}}
+						onClick={() => setIsCompressionPanelOpen(true)}
 						title={localization.compressionSettings}
 						aria-expanded={isCompressionPanelOpen}
 					>
@@ -434,7 +426,6 @@ const PackageView: React.FC = () => {
 					<CompressionPanel
 						open={isCompressionPanelOpen}
 						onClose={() => setIsCompressionPanelOpen(false)}
-						style={compressionPopoverStyle}
 					/>
 					<CompressAllDialog />
 

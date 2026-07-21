@@ -1,4 +1,4 @@
-import React from 'react';
+import * as React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
 	bulkCompressionDialogOpened,
@@ -8,24 +8,29 @@ import {
 } from '../../../../state/siquesterSlice';
 import localization from '../../../../model/resources/localization';
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
-import Popup from '../../../common/Popup/Popup';
+import Dialog from '../../../common/Dialog/Dialog';
 
 import './CompressionPanel.scss';
 
 interface CompressionPanelProps {
 	open: boolean;
 	onClose: () => void;
-	style?: React.CSSProperties;
 }
 
 /**
- * Popover panel for media compression settings. Renders a toggle (on/off) and
+ * Side-dialog for media compression settings. Renders a toggle (on/off) and
  * per-media-type Low/Medium/High preset radio groups. Mounted in the PackageView
  * toolbar; the trigger button lives in PackageView and toggles `open`.
+ *
+ * Closing behaviour mirrors SettingsDialog: the × button (provided by Dialog)
+ * and any `mousedown` outside the panel both call `onClose`. Listening on
+ * `mousedown` (not `mouseup`) is what lets users interact with form controls
+ * inside the panel without dismissing it.
  */
-const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, style }) => {
+const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
+	const layout = React.useRef<HTMLDivElement>(null);
 
 	const presets: ReadonlyArray<{ value: CompressionPreset; label: string }> = [
 		{ value: 'low', label: localization.compressionLow },
@@ -39,57 +44,79 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose, styl
 		{ type: 'video', label: localization.video },
 	];
 
+	const hide = React.useCallback((e: Event): void => {
+		if (!layout.current || (e.target instanceof Node && layout.current.contains(e.target as Node))) {
+			return;
+		}
+
+		onClose();
+	}, [onClose]);
+
+	React.useEffect(() => {
+		if (!open) {
+			return;
+		}
+
+		window.addEventListener('mousedown', hide);
+
+		return () => {
+			window.removeEventListener('mousedown', hide);
+		};
+	}, [open, hide]);
+
 	if (!open) {
 		return null;
 	}
 
 	return (
-		<Popup className='compressionPanel' onClose={onClose} style={style}>
-			<div className='compressionPanel__toggle'>
-				<input
-					id='compressMedia'
-					type='checkbox'
-					checked={mediaCompression.enabled}
-					onChange={() => appDispatch(setMediaCompressionEnabled(!mediaCompression.enabled))}
-				/>
-				<label htmlFor='compressMedia'>{localization.compressMedia}</label>
-			</div>
-
-			{mediaTypes.map(({ type, label }) => (
-				<div
-					key={type}
-					className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}
-				>
-					<div className='compressionPanel__title'>{label}</div>
-					{presets.map(({ value, label: presetLabel }) => (
-						<label key={value} className='compressionPanel__preset'>
-							<input
-								type='radio'
-								name={`compressionPreset-${type}`}
-								value={value}
-								checked={mediaCompression.presets[type] === value}
-								disabled={!mediaCompression.enabled}
-								onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
-							/>
-							{presetLabel}
-						</label>
-					))}
+		<Dialog id='compressionPanel' ref={layout} title={localization.compressionSettings} onClose={onClose}>
+			<div className='compressionPanelBody'>
+				<div className='compressionPanel__toggle'>
+					<input
+						id='compressMedia'
+						type='checkbox'
+						checked={mediaCompression.enabled}
+						onChange={() => appDispatch(setMediaCompressionEnabled(!mediaCompression.enabled))}
+					/>
+					<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 				</div>
-			))}
 
-			<div className='compressionPanel__divider' />
+				{mediaTypes.map(({ type, label }) => (
+					<div
+						key={type}
+						className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}
+					>
+						<div className='compressionPanel__title'>{label}</div>
+						{presets.map(({ value, label: presetLabel }) => (
+							<label key={value} className='compressionPanel__preset'>
+								<input
+									type='radio'
+									name={`compressionPreset-${type}`}
+									value={value}
+									checked={mediaCompression.presets[type] === value}
+									disabled={!mediaCompression.enabled}
+									onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
+								/>
+								{presetLabel}
+							</label>
+						))}
+					</div>
+				))}
 
-			<button
-				type='button'
-				className='compressionPanel__compressAll'
-				onClick={() => {
-					appDispatch(bulkCompressionDialogOpened());
-					onClose();
-				}}
-			>
-				{localization.compressAllMedia}
-			</button>
-		</Popup>
+				<div className='compressionPanel__divider' />
+
+				<button
+					type='button'
+					className='compressionPanel__compressAll standard'
+					onClick={() => {
+						appDispatch(bulkCompressionDialogOpened());
+						onClose();
+					}}
+				>
+					{localization.compressAllMedia}
+				</button>
+			</div>
+		</Dialog>
 	);
 };
 
