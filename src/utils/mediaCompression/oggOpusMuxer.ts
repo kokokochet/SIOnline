@@ -7,6 +7,29 @@
 
 const OGG_MAGIC = 0x5367674f; // "OggS" little-endian
 
+/**
+ * Thrown when a single OGG page would need more than 255 segment-table entries.
+ *
+ * Why: the number-of-page-segments field at byte offset 26 is a single uint8,
+ * so `segmentTableSize` > 255 cannot be represented. The previous code did
+ * `setUint8(26, segmentTableSize)`, silently truncating mod 256 and emitting a
+ * corrupt page. Single Opus packets are normally tiny, but this guard removes
+ * the latent corruption path and surfaces it as an explicit error.
+ *
+ * Name-fidelity: the `.name` survives end-to-end only because the audio
+ * worker's flush-.catch does reject(e) (not reject(new Error(...))) — see T24.
+ */
+export class OGGSegmentTableOverflowError extends Error {
+    constructor(segmentTableSize: number) {
+        const message =
+            `OGG segment table overflow: a page needs ${segmentTableSize} segment entries, ` +
+            'but the OGG number-of-page-segments field is a single byte (max 255). ' +
+            'Split the packet or reduce the page size.';
+        super(message);
+        this.name = 'OGGSegmentTableOverflowError';
+    }
+}
+
 /** CRC lookup table for OGG CRC-32 (polynomial 0x04c11db7). */
 const crcTable: Uint32Array = (() => {
     const table = new Uint32Array(256);
@@ -43,6 +66,10 @@ function buildOggPage(page: OggPage): Uint8Array {
     for (const packet of page.packets) {
         segmentTableSize += Math.floor(packet.length / 255) + 1;
         totalDataSize += packet.length;
+    }
+
+    if (segmentTableSize > 255) {
+        throw new OGGSegmentTableOverflowError(segmentTableSize);
     }
 
     const headerSize = 27; // includes number_page_segments byte at offset 26

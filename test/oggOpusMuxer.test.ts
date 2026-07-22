@@ -504,4 +504,40 @@ describe('oggOpusMuxer', () => {
             expect(pages[2].packetData).toEqual(packetData);
         });
     });
+
+    describe('muxOggOpus — segment-table overflow guard (review MAJOR)', () => {
+        test('a single packet of 65024 bytes fits exactly in 255 segments', () => {
+            // floor(65024/255) = 254, +1 = 255 segments — the OGG max.
+            const packets = [{
+                data: new Uint8Array(65024).fill(0x42),
+                timestamp: 0,
+                duration: 20000,
+            }];
+            expect(() => muxOggOpus(packets, 48000, 2)).not.toThrow();
+        });
+
+        test('a single packet of 65025 bytes overflows the segment table and throws', () => {
+            // floor(65025/255) = 255, +1 = 256 segments — exceeds the uint8 field.
+            const packets = [{
+                data: new Uint8Array(65025).fill(0x42),
+                timestamp: 0,
+                duration: 20000,
+            }];
+            expect(() => muxOggOpus(packets, 48000, 2)).toThrow(/segment table/i);
+        });
+
+        test('the overflow throw carries a programmatic name', () => {
+            const packets = [{
+                data: new Uint8Array(70000).fill(0x42),
+                timestamp: 0,
+                duration: 20000,
+            }];
+            try {
+                muxOggOpus(packets, 48000, 2);
+                throw new Error('expected throw');
+            } catch (e) {
+                expect((e as Error).name).toBe('OGGSegmentTableOverflowError');
+            }
+        });
+    });
 });
