@@ -15,6 +15,15 @@ export interface ImageCompressionOptions {
     quality: number;
     /** Output MIME type. */
     mimeType: string;
+    /**
+     * When true, skip the lossy canvas re-encode and return the file unchanged.
+     * Preserves ICC profiles, bit depth, and wide gamut that canvas would clip
+     * to 8-bit sRGB. Callers (e.g. a future "lossless" preset) opt in here.
+     *
+     * NOTE: intentionally forward-looking — no production caller sets this as
+     * of Phase 5. Exempt from the Phase 11 dead-code audit; do not remove.
+     */
+    lossless?: boolean;
 }
 
 /** Options for audio compression via WebCodecs AudioEncoder. */

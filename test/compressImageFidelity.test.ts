@@ -342,6 +342,79 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.createImageBitmapCalls).toHaveLength(0);
         });
     });
+
+    describe('#img-5 color fidelity (lossless escape hatch + 16-bit guard)', () => {
+        function makePngIhdr(colorType: number, bitDepth = 8) {
+            return new Uint8Array([
+                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+                0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                bitDepth, colorType, 0x00, 0x00, 0x00,
+            ]);
+        }
+
+        let mock: ImageCompressionMockHandle;
+
+        beforeEach(() => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(1),
+            });
+        });
+
+        afterEach(() => {
+            uninstallImageCompressionMock();
+        });
+
+        test('lossless option bypasses the canvas re-encode', async () => {
+            const file = new File([new Uint8Array(100)], 'profile.jpg', { type: 'image/jpeg' });
+
+            const result = await compressImage(file, { ...jpegOptions, lossless: true });
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('profile.jpg');
+            expect(mock.createImageBitmapCalls).toHaveLength(0);
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('16-bit PNG passes through (canvas would clip to 8-bit)', async () => {
+            const file = new File([makePngIhdr(2, 16)], 'hdr.png', { type: 'image/png' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('hdr.png');
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('8-bit PNG still proceeds to compression (regression)', async () => {
+            const file = new File([makePngIhdr(2, 8)], 'normal.png', { type: 'image/png' });
+
+            await compressImage(file, jpegOptions);
+
+            expect(mock.createImageBitmapCalls).toHaveLength(1);
+        });
+    });
+
+    describe('#img-5 compressionIrreversible warning discloses color loss', () => {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const localization = (require('../src/model/resources/localization') as {
+            default: { getString: (key: string, language?: string) => string };
+        }).default;
+
+        test('English warning mentions ICC and 8-bit', () => {
+            const text = localization.getString('compressionIrreversible', 'en');
+            expect(text).toMatch(/ICC/);
+            expect(text).toMatch(/8-bit/);
+        });
+
+        test('Russian warning mentions ICC and 8-бит', () => {
+            const text = localization.getString('compressionIrreversible', 'ru');
+            expect(text).toMatch(/ICC/);
+            expect(text).toMatch(/8-бит/);
+        });
+    });
 });
 
 describe('media-compression-review FOLLOWUP WebP alpha detection (imageFormatDetect)', () => {

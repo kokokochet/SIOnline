@@ -256,3 +256,20 @@ export function isSvg(data: Uint8Array): boolean {
     const text = new TextDecoder('utf-8').decode(head);
     return /<svg[\s>]/i.test(text);
 }
+
+/**
+ * PNG IHDR bit depth (1/2/4/8/16), used to detect 16-bit imagery that canvas
+ * would silently clip to 8-bit sRGB. Returns null when not a PNG or the header
+ * is too short. Bit depth byte lives at offset 24:
+ *   signature(8) + length(4) + "IHDR"(4) + width(4) + height(4).
+ */
+export function getPngBitDepth(data: Uint8Array): number | null {
+    if (!bytesStartWith(data, PNG_SIGNATURE)) {
+        return null;
+    }
+    const bitDepthOffset = 24;
+    if (data.length <= bitDepthOffset) {
+        return null;
+    }
+    return data[bitDepthOffset];
+}

@@ -1,6 +1,6 @@
 import { CompressedMedia, ImageCompressionOptions } from './compressionTypes';
 import { passthroughMedia } from './passthrough';
-import { detectImageFormat, hasAlphaChannel, isAnimated } from './imageFormatDetect';
+import { detectImageFormat, hasAlphaChannel, isAnimated, getPngBitDepth } from './imageFormatDetect';
 
 /** Maximum pixel count allowed for decoded images (≈8192×4096). Prevents decompression-bomb OOM. */
 const MAX_IMAGE_PIXELS = 33_177_600;
@@ -115,6 +115,14 @@ export async function compressImage(
 
     try {
         const format = detectImageFormat(originalData);
+
+        // Color fidelity guard (#img-5): canvas re-encode clips to 8-bit sRGB
+        // and strips ICC profiles. Honor an explicit lossless opt-out, and
+        // automatically pass through 16-bit PNG (canvas would silently clip it).
+        // ICC preservation in canvas is impossible — documented in the warning.
+        if (options.lossless || (format === 'png' && (getPngBitDepth(originalData) ?? 0) > 8)) {
+            return passthroughMedia(originalData, file.name);
+        }
 
         // Animation / format passthrough (content-based, not filename):
         //  - GIF: always pass through (preserves frames; matches prior behaviour).
