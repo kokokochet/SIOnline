@@ -1542,6 +1542,11 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
+			// Same swap-while-running gate as openFile.fulfilled: keep the live
+			// loop's isCancelRequested() check working instead of wiping
+			// bulkCompression to undefined (wiping would hide the cancel and let
+			// the orphaned run corrupt the new package). The non-running
+			// else-branch wipes to undefined as before.
 			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.cancelRequested = true;
 				state.bulkCompression.phase = 'cancelled';
