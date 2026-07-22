@@ -208,6 +208,14 @@ function packageContainsMediaReference(
 	return pack.rounds.some(round => round.themes.some(theme => theme.questions.some(questionContainsReference)));
 }
 
+/** True while a bulk compression run is staging files. Used to gate concurrent
+ * media-editing reducers (`setContentItemMedia`, `setContentItemType`,
+ * `removeScreenContentItem`) so their live `state.zip` mutations cannot be
+ * overwritten by the eventual `bulkMediaCompressed` apply. */
+function isBulkCompressionRunning(state: SIQuesterState): boolean {
+	return state.bulkCompression?.phase === 'running';
+}
+
 function removeOrphanedMediaFile(state: SIQuesterState, item: ContentItem, excludedItem?: ContentItem): boolean {
 	if (!state.zip || !isMediaReferenceItem(item)) {
 		return false;
@@ -1022,6 +1030,10 @@ export const siquesterSlice = createSlice({
 				type: ContentType;
 			}
 		}) => {
+			if (isBulkCompressionRunning(state)) {
+				console.warn('setContentItemType ignored: bulk media compression is running');
+				return;
+			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
@@ -1055,6 +1067,10 @@ export const siquesterSlice = createSlice({
 				fileData: Uint8Array;
 			}
 		}) => {
+			if (isBulkCompressionRunning(state)) {
+				console.warn('setContentItemMedia ignored: bulk media compression is running');
+				return;
+			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
@@ -1262,6 +1278,10 @@ export const siquesterSlice = createSlice({
 				itemIndex: number;
 			}
 		}) => {
+			if (isBulkCompressionRunning(state)) {
+				console.warn('removeScreenContentItem ignored: bulk media compression is running');
+				return;
+			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
