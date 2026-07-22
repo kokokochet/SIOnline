@@ -230,6 +230,7 @@ function removeOrphanedMediaFile(state: SIQuesterState, item: ContentItem, exclu
 export const openFile = createAsyncThunk(
 	'siquester/openFile',
 	async (arg: File, thunkAPI) => {
+		abortActiveBulkCompression();
 		const dataContext = thunkAPI.extra as DataContext;
 		dataContext.file = arg;
 		const zip = new JSZip();
@@ -259,6 +260,7 @@ export const openFile = createAsyncThunk(
 export const createNewPackage = createAsyncThunk(
 	'siquester/createNewPackage',
 	async (options: NewPackageOptions, thunkAPI) => {
+		abortActiveBulkCompression();
 		const pack = createDefaultPackage(options);
 		const zip = await createDefaultZip();
 
@@ -1518,7 +1520,15 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
-			state.bulkCompression = undefined;
+			// If a bulk run is in flight, signal cancel (the thunk's identity guard
+			// already blocks the apply; this stops the in-flight encode loop too).
+			// Never silently wipe to undefined — that hides the cancel from the loop.
+			if (state.bulkCompression?.phase === 'running') {
+				state.bulkCompression.cancelRequested = true;
+				state.bulkCompression.phase = 'cancelled';
+			} else {
+				state.bulkCompression = undefined;
+			}
 			state.zipRevision = 0;
 		});
 		builder.addCase(createNewPackage.fulfilled, (state, action) => {
@@ -1532,7 +1542,12 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
-			state.bulkCompression = undefined;
+			if (state.bulkCompression?.phase === 'running') {
+				state.bulkCompression.cancelRequested = true;
+				state.bulkCompression.phase = 'cancelled';
+			} else {
+				state.bulkCompression = undefined;
+			}
 			state.zipRevision = 0;
 		});
 		builder.addCase(loadPackageStatistics.pending, (state) => {

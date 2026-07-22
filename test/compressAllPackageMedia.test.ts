@@ -408,3 +408,58 @@ test('aborting mid-file cancels within a tick instead of encoding to completion'
     // Package untouched.
     expect(harness.getFinalState().zip?.file('Images/pic.png')).not.toBeNull();
 });
+
+test('opening another package mid-run cancels instead of wiping bulkCompression to undefined', async () => {
+    // Slow compressMedia so the run is in-flight when openFile.fulfilled fires.
+    let resolveFirst: () => void;
+    mockedCompressMedia.mockImplementation(async (_file: File, _type: any, _opts: any, signal?: AbortSignal) => {
+        // The abort is triggered inside the progress-dispatch callback, which
+        // runs synchronously BEFORE compressMedia is reached (the thunk awaits
+        // entry.async between them). By the time we get here the signal is
+        // already aborted, so a listener-only mock would miss it — check the
+        // flag upfront, matching the real compressMedia contract.
+        if (signal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
+        }
+        await new Promise<void>((resolve, reject) => {
+            resolveFirst = resolve;
+            const t = setTimeout(resolve, 30_000);
+            signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+        });
+        return { data: new Uint8Array([1]), fileName: 'x.out', originalSize: 10, compressedSize: 1, wasCompressed: true };
+    });
+
+    let state = makeState();
+    const dispatch = jest.fn((action: any) => {
+        state = reducer(state, action);
+        // Simulate openFile.fulfilled landing while the first file encodes.
+        if (action.type === 'siquester/bulkCompressionProgress') {
+            state = reducer(state, {
+                type: 'siquester/openFile/fulfilled',
+                payload: { zip: new JSZip(), pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }) },
+            });
+            // CRITICAL — deadlock fix: the real `openFile` thunk body calls
+            // `abortActiveBulkCompression()` at its top (Step 3b). Simulating
+            // only the `fulfilled` reducer does NOT run the thunk body, so the
+            // mocked compressMedia would hang on its 30s timer forever (test
+            // deadlock). Invoke the abort here to unblock the signal race so
+            // the test can settle.
+            abortActiveBulkCompression();
+        }
+        return action;
+    });
+    const getState = () => ({ siquester: state });
+
+    await compressAllPackageMedia()(dispatch, getState, undefined);
+
+    // Old behaviour: bulkCompression became undefined → isCancelRequested() false.
+    // New behaviour: cancelRequested true, phase cancelled.
+    expect(state.bulkCompression?.phase).toBe('cancelled');
+    expect(state.bulkCompression?.cancelRequested).toBe(true);
+    const types = actionTypes(dispatch);
+    expect(types).toContain('siquester/bulkCompressionCancelled');
+    expect(types).not.toContain('siquester/bulkMediaCompressed');
+
+    // Let the mocked compressMedia settle so jest doesn't complain about stray ticks.
+    if (resolveFirst!) resolveFirst!();
+});
