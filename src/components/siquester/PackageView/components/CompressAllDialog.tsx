@@ -87,17 +87,14 @@ const CompressAllDialog: React.FC = () => {
 		const refs = collectMediaReferences(pack);
 		let cancelled = false;
 		// Result is per-type deterministic (output codec is fixed by the preset);
-		// dedupe by type via a Map to avoid N redundant isConfigSupported calls.
-		const byType = new Map<CompressibleMediaType, string[]>();
+		// dedupe by type via a Set to avoid N redundant isConfigSupported calls.
+		const types = new Set<CompressibleMediaType>();
 		for (const ref of refs) {
-			const list = byType.get(ref.type) ?? [];
-			list.push(ref.value);
-			byType.set(ref.type, list);
+			types.add(ref.type);
 		}
 		const all: Promise<MediaProbeResult>[] = [];
-		for (const [type, names] of byType.entries()) {
-			const firstFile = new File([new Uint8Array([0])], names[0]);
-			all.push(probeMedia(firstFile, type, options));
+		for (const type of types) {
+			all.push(probeMedia(type, options));
 		}
 		Promise.all(all).then(results => {
 			if (cancelled) return;

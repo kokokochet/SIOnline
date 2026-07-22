@@ -16,8 +16,7 @@ export interface MediaProbeResult {
  * worker runs `isConfigSupported`, so an unsupported codec wastes minutes per
  * file and then silently passes through. Because the output codec is fixed by
  * the preset (not by the file contents), the result is deterministic per type;
- * the UI calls this once per referenced file but gets the same answer for all
- * files of a type.
+ * the UI calls this once per type (dedupes referenced files by type).
  *
  * Advisory: `isConfigSupported` results are NOT authoritative (WebCodecs spec).
  * Some engines may return false negatives. The confirm-screen list is a warning,
@@ -29,7 +28,6 @@ export interface MediaProbeResult {
  *   required to check codec support; full config is validated in the worker).
  */
 export async function probeMedia(
-	file: File,
 	type: CompressibleMediaType,
 	options: CompressionOptions,
 ): Promise<MediaProbeResult> {

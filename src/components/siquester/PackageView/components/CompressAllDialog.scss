@@ -28,6 +28,25 @@
 		border-radius: 2px;
 	}
 
+	&__unsupported {
+		margin: 8px 0;
+		padding: 6px 10px;
+		border-left: 3px solid #f5a623;
+		background-color: rgba(245, 166, 35, 0.12);
+		color: #ffd591;
+		font-size: 0.85em;
+		border-radius: 2px;
+	}
+
+	&__unsupportedTitle {
+		font-weight: 600;
+	}
+
+	&__unsupportedList {
+		margin: 4px 0 0;
+		padding-left: 20px;
+	}
+
 	&__empty {
 		margin: 8px 0;
 	}
