@@ -494,9 +494,9 @@ describe('siquesterSlice', () => {
 		expect(state.bulkCompression?.phase).toBe('cancelled');
 	});
 
-	test('bulkMediaCompressed replaces zip entries, rewrites refs, bumps zipRevision, clears history', async () => {
+	test('bulkMediaCompressed replaces zip entries, rewrites refs, bumps zipRevision, pushes one undo entry', async () => {
 		const state = makeBulkState();
-		// Pre-existing edit history must be dropped by the apply.
+		// Pre-existing edit history must be APPENDED to, not wiped.
 		state.history = { past: [{ pack: state.pack! }], future: [] };
 
 		const files = [
@@ -526,8 +526,9 @@ describe('siquesterSlice', () => {
 		expect(items[2].value).toBe('clip.mp4');
 		expect(items[3].value).toBe('my clip.mp4');
 
-		// History cleared — bulk compression is intentionally not undoable.
-		expect(nextState.history?.past).toHaveLength(0);
+		// History: prior entry preserved + ONE composite entry appended; future cleared.
+		expect(nextState.history?.past).toHaveLength(2);
+		expect(nextState.history?.past[0].pack).toBe(state.pack!); // prior entry kept
 		expect(nextState.history?.future).toHaveLength(0);
 	});
 
@@ -651,6 +652,64 @@ describe('siquesterSlice', () => {
 			expect(zip.file('Images/b.png')).not.toBeNull();
 			expect(zip.file('Images/b.jpg')).toBeNull();
 			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		});
+	});
+
+	describe('media-compression-review MAJOR #undo-composite', () => {
+		test('bulkMediaCompressed pushes one composite undo entry (not a wipe)', () => {
+			const state = makeBulkState();
+			const preApplyPack = state.pack!;
+			const preApplyItemValue = state.pack!.rounds[0].themes[0].questions[0]
+				.params.question!.items[0].value; // 'pic.png'
+
+			// Pre-existing edit history must be PRESERVED (appended to), not wiped.
+			state.history = {
+				past: [{ pack: preApplyPack, roundIndex: 0, themeIndex: 0, questionIndex: 0 }],
+				future: [{ pack: preApplyPack }],
+			};
+
+			const files = [
+				{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) },
+			];
+
+			const nextState = reducer(state, bulkMediaCompressed({ files }));
+
+			// One new composite entry appended; pre-existing past kept; future cleared.
+			expect(nextState.history?.past).toHaveLength(2);
+			expect(nextState.history?.past[0].pack).toBe(preApplyPack); // prior entry preserved
+			expect(nextState.history?.future).toHaveLength(0);
+
+			// The composite entry captured the PRE-apply pack + zip map.
+			const composite = nextState.history?.past[1];
+			expect(composite?.pack).toBe(preApplyPack);
+			expect(composite?.zipFiles).toBeDefined();
+			expect(composite?.zipFiles!['Images/pic.png']).toBeDefined(); // pre-apply entry
+		});
+
+		test('undo() reverts the whole bulk apply in one step (pack + zip)', () => {
+			const state = makeBulkState();
+			const preApplyPack = state.pack!;
+
+			state.history = { past: [], future: [] };
+
+			const applied = reducer(state, bulkMediaCompressed({
+				files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
+			}));
+
+			// Sanity: apply happened.
+			expect(applied.zip?.file('Images/pic.jpg')).not.toBeNull();
+			expect(applied.zip?.file('Images/pic.png')).toBeNull();
+			expect(applied.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.jpg');
+
+			// Single undo reverts BOTH pack and zip.
+			const undone = reducer(applied, undo());
+
+			expect(undone.pack).toBe(preApplyPack);
+			expect(undone.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
+			expect(undone.zip?.file('Images/pic.png')).not.toBeNull();
+			expect(undone.zip?.file('Images/pic.jpg')).toBeNull();
+			// Redo branch now holds the applied state.
+			expect(undone.history?.future).toHaveLength(1);
 		});
 	});
 });

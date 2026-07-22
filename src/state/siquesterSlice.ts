@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice, createAction, PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, createAction, PayloadAction, original } from '@reduxjs/toolkit';
 import JSZip from 'jszip';
 import SIStatisticsClient from 'sistatistics-client';
 import QuestionStats from 'sistatistics-client/dist/models/QuestionStats';
@@ -1480,9 +1480,17 @@ export const siquesterSlice = createSlice({
 				return;
 			}
 
-			// Atomic write-then-remove cycle. Any throw inside the helper restores
-			// `zip.files` from its own snapshot, and Immer discards the `pack`
-			// draft, so state.pack and state.zip stay consistent (all-or-nothing).
+			// Pre-apply snapshot for the composite undo entry. `state.zip` is a
+			// JSZip class instance — NOT drafted by Immer — so `state.zip.files`
+			// is the live pre-apply map. `state.pack` IS drafted; Immer's
+			// `original()` returns the underlying pre-draft pack reference.
+			const preApplyPack = original(state.pack);
+			const preApplyZipFiles = { ...state.zip.files };
+
+			// Atomic write-then-remove cycle. Any throw inside the helper
+			// restores `zip.files` from its own snapshot, and Immer discards
+			// the `pack` draft, so state.pack and state.zip stay consistent
+			// (all-or-nothing).
 			const renames = applyStagedFilesToZip(state.zip, action.payload.files);
 
 			if (renames.size > 0) {
@@ -1499,9 +1507,25 @@ export const siquesterSlice = createSlice({
 				}
 			}
 
-			// Bulk compression is intentionally not undoable: drop prior edit
-			// history so undo cannot silently revert the apply.
-			state.history = { past: [], future: [] };
+			// Single composite undo entry: one Undo reverts the entire bulk
+			// apply (pack refs + zip files). Clears redo history, like any new
+			// edit. `bulkMediaCompressed` stays in `ignoreActions` so the root
+			// reducer wrapper does NOT also push (avoids a double entry).
+			const past = state.history?.past ? [...state.history.past] : [];
+			if (preApplyPack) {
+				past.push({
+					pack: preApplyPack,
+					zipFiles: preApplyZipFiles,
+					roundIndex: state.roundIndex,
+					themeIndex: state.themeIndex,
+					questionIndex: state.questionIndex,
+					isPackageSelected: state.isPackageSelected,
+				});
+				if (past.length > 100) {
+					past.shift();
+				}
+			}
+			state.history = { past, future: [] };
 
 			state.zipRevision = (state.zipRevision ?? 0) + 1;
 		},
