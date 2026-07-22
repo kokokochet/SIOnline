@@ -40,7 +40,7 @@ function makeState(): SIQuesterState {
         ],
     };
 
-    return { pack, zip, mediaCompression: defaultMediaCompressionState, zipRevision: 0, history: { past: [], future: [] } };
+    return { pack, zip, mediaCompression: { ...defaultMediaCompressionState, enabled: true }, zipRevision: 0, history: { past: [], future: [] } };
 }
 
 /** Mini-store: dispatched actions are applied through the real reducer. */
@@ -476,4 +476,27 @@ test('a pre-loop throw dispatches bulkCompressionFailed instead of stranding on 
     const types = actionTypes(dispatch);
     expect(types).toContain('siquester/bulkCompressionFailed');
     expect(types).not.toContain('siquester/bulkCompressionStarted');
+});
+
+test('thunk is a defensive no-op that transitions to phase "failed" when compression is disabled', async () => {
+    // enabled === false. The UI disables the trigger; this guards the case where
+    // the thunk is somehow dispatched anyway.
+    const initial = makeState();
+    initial.mediaCompression = { enabled: false, presets: { image: 'medium', audio: 'low', video: 'low' } };
+    initial.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
+
+    const harness = createHarness(initial);
+    await compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
+
+    const types = actionTypes(harness.dispatch);
+    expect(types).not.toContain('siquester/bulkCompressionStarted');
+    expect(types).not.toContain('siquester/bulkMediaCompressed');
+    expect(types).toContain('siquester/bulkCompressionFailed');
+
+    const finalState = harness.getFinalState();
+    expect(finalState.bulkCompression?.phase).toBe('failed');
+    expect(finalState.bulkCompression?.failedReason).toBe('compression-disabled');
+    // Package untouched.
+    expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
+    expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();
 });

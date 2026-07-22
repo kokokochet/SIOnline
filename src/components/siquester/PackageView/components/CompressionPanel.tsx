@@ -130,7 +130,8 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 				<button
 					type='button'
 					className='compressionPanel__compressAll standard'
-					disabled={bulk?.phase === 'running'}
+					disabled={bulk?.phase === 'running' || !mediaCompression.enabled}
+					title={!mediaCompression.enabled ? localization.compressionDisabledHint : undefined}
 					onClick={() => {
 						appDispatch(bulkCompressionDialogOpened());
 						onClose();

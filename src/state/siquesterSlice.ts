@@ -400,7 +400,22 @@ export const compressAllPackageMedia = createAsyncThunk(
 				throw new Error('No package loaded');
 			}
 
-			const presets = getSiqState().mediaCompression?.presets ?? defaultMediaCompressionState.presets;
+			const mediaCompression = getSiqState().mediaCompression ?? defaultMediaCompressionState;
+
+			// Defensive: the UI disables "Compress All" when compression is off. If
+			// the thunk is invoked anyway, fail honestly instead of silently
+			// performing an irreversible re-encode that also clears undo history.
+			if (!mediaCompression.enabled) {
+				thunkAPI.dispatch(bulkCompressionFailed({
+					type: 'compression-disabled',
+					summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+					errors: [],
+					reason: 'compression-disabled',
+				}));
+				return { applied: false };
+			}
+
+			const presets = mediaCompression.presets;
 			const options = resolveCompressionOptions(presets);
 			const refs = collectMediaReferences(pack);
 
