@@ -33,8 +33,22 @@ interface DialogProps {
 	modal?: boolean;
 }
 
-const FOCUSABLE_SELECTOR =
-	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+// Hardened focusable selector for the Tab trap. Excludes [type=hidden] inputs,
+// [hidden] / [aria-hidden="true"] elements, and any negative tabindex, so an
+// edge `.focus()` can't silently fail and break the wrap.
+// NOTE: assumes a single (non-nested) modal — the selector is not scoped to a
+// subtree, so nested [role="dialog"]s would thrash the trap. The app's modal
+// consumers (e.g. CompressAllDialog) don't nest modal Dialogs; if nesting is
+// ever needed, scope the selector to exclude nested dialog subtrees.
+// Follow-up: [contenteditable] (true vs false) and audio/video[controls].
+const FOCUSABLE_SELECTOR = [
+	'a[href]',
+	'button:not([disabled])',
+	'textarea:not([disabled])',
+	'input:not([disabled]):not([type="hidden"])',
+	'select:not([disabled])',
+	'[tabindex]:not([tabindex^="-"])',
+].map(sel => `${sel}:not([hidden]):not([aria-hidden="true"])`).join(', ');
 
 const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLElement>) => {
 	const {
@@ -55,6 +69,8 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 	const innerRef = useRef<HTMLElement | null>(null);
 	// Element focused before the dialog opened; restored on close (WCAG 2.4.3).
 	const previouslyFocused = useRef<Element | null>(null);
+	// Guards the focusin snap against infinite loops (re-entrant programmatic focus).
+	const isRestoringFocus = useRef(false);
 
 	// Merge the caller's forwarded ref with the internal one we manage for focus.
 	const setRef = useCallback((node: HTMLElement | null) => {
@@ -130,11 +146,38 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 				firstItem.focus();
 			}
 		};
+		// Snap back focus that escapes via programmatic .focus(), a background
+		// click, or an AT virtual cursor (the Tab-only trap was the central
+		// robustness gap). Active only while modal; guarded against re-entrant
+		// loops by isRestoringFocus (our own programmatic focus is ignored).
+		const onFocusIn = (e: FocusEvent) => {
+			const current = innerRef.current;
+			if (!current || isRestoringFocus.current) {
+				return;
+			}
+			const target = e.target as Node | null;
+			if (target && !current.contains(target)) {
+				isRestoringFocus.current = true;
+				const items = Array.from(current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+				const snapTo = items[0] ?? (current as HTMLElement);
+				snapTo.focus();
+				// Reset after the current microtask so the focusin fired by our
+				// programmatic .focus() is ignored even if it fires synchronously.
+				setTimeout(() => {
+					isRestoringFocus.current = false;
+				}, 0);
+			}
+		};
+		document.addEventListener('focusin', onFocusIn);
+
 		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
+			// Remove the snap listener BEFORE restoring focus, otherwise restoring
+			// to the (outside) trigger would immediately re-trap it.
+			document.removeEventListener('focusin', onFocusIn);
 			const toRestore = previouslyFocused.current as HTMLElement | null;
-			if (toRestore && typeof toRestore.focus === 'function') {
+			if (toRestore && toRestore.isConnected && typeof toRestore.focus === 'function') {
 				toRestore.focus();
 			}
 		};
