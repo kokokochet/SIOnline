@@ -69,3 +69,39 @@ describe('CompressAllDialog', () => {
 		expect(screen.getAllByRole('button', { name: /close/i }).length).toBeGreaterThanOrEqual(1);
 	});
 });
+
+describe('CompressAllDialog unmount', () => {
+	test('unmounting while running cancels the in-flight run and discards staged results', () => {
+		const store = makeStore({});
+		const { unmount } = render(
+			<Provider store={store}>
+				<CompressAllDialog />
+			</Provider>,
+		);
+
+		act(() => {
+			store.dispatch(bulkCompressionStarted({ total: 5 }));
+		});
+		expect((store.getState() as any).siquester.bulkCompression.cancelRequested).toBe(false);
+
+		unmount();
+
+		const bulk = (store.getState() as any).siquester.bulkCompression;
+		expect(bulk.cancelRequested).toBe(true);
+	});
+
+	test('unmounting while NOT running does not spuriously cancel', () => {
+		const store = makeStore({});
+		const { unmount } = render(
+			<Provider store={store}>
+				<CompressAllDialog />
+			</Provider>,
+		);
+
+		// confirm phase — no run started.
+		unmount();
+
+		// No bulk state was ever created; nothing to cancel.
+		expect((store.getState() as any).siquester.bulkCompression).toBeUndefined();
+	});
+});
