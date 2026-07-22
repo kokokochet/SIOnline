@@ -6,6 +6,7 @@ import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
 import { buildVideoEncoderConfig } from '../videoEncoderConfig';
+import { assertAudioMp4Compatible } from '../audioCodecSupport';
 import { waitForQueueDrain } from './workerBackpressure';
 
 /**
@@ -70,6 +71,10 @@ async function compressVideoData(
     if (!videoTrack) {
         throw new Error('No video track found in input file');
     }
+
+    // Fail loudly on non-AAC audio instead of producing a muted file
+    // (review MAJOR: "Non-AAC audio в MP4 молча дропается").
+    assertAudioMp4Compatible(audioTrack?.codec);
 
     const srcWidth = videoTrack.track_width || videoTrack.video?.width || 1920;
     const srcHeight = videoTrack.track_height || videoTrack.video?.height || 1080;

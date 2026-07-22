@@ -15,6 +15,7 @@ export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
 } from './featureDetection';
+export { UnsupportedAudioCodecError, assertAudioMp4Compatible } from './audioCodecSupport';
 export { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from './limits';
 export type {
     CompressibleMediaType,
