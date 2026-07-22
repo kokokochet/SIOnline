@@ -22,6 +22,7 @@ import {
 	planRenames,
 	renameMediaReferences,
 	resolveZipEntry,
+	applyStagedFilesToZip,
 	StagedMediaFile,
 } from '../utils/mediaCompression/compressPackageMedia';
 
@@ -1479,41 +1480,10 @@ export const siquesterSlice = createSlice({
 				return;
 			}
 
-			// Write all new entries first, then remove replaced ones.
-			for (const file of action.payload.files) {
-				const folder = getMediaFolderName(file.type);
-
-				if (folder) {
-					state.zip.file(`${folder}/${file.newValue}`, file.data);
-				}
-			}
-
-			const renames = new Map<string, string>();
-
-			for (const file of action.payload.files) {
-				const folder = getMediaFolderName(file.type);
-
-				if (!folder) {
-					continue;
-				}
-
-				// Remove the superseded original entry, including a URI-encoded
-				// variant (a file referenced as 'my clip.mp4' may be stored as
-				// 'Video/my%20clip.mp4'). This applies to identity renames too —
-				// the compressed bytes are written under the raw name. Never
-				// remove the just-written target.
-				const writeTarget = `${folder}/${file.newValue}`;
-
-				for (const oldPath of [`${folder}/${file.oldValue}`, `${folder}/${encodeURIComponent(file.oldValue)}`]) {
-					if (oldPath !== writeTarget) {
-						state.zip.remove(oldPath);
-					}
-				}
-
-				if (file.newValue !== file.oldValue) {
-					renames.set(`${file.type}:${file.oldValue}`, file.newValue);
-				}
-			}
+			// Atomic write-then-remove cycle. Any throw inside the helper restores
+			// `zip.files` from its own snapshot, and Immer discards the `pack`
+			// draft, so state.pack and state.zip stay consistent (all-or-nothing).
+			const renames = applyStagedFilesToZip(state.zip, action.payload.files);
 
 			if (renames.size > 0) {
 				renameMediaReferences(state.pack, renames);

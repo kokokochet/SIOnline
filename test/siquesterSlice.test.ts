@@ -592,6 +592,66 @@ describe('siquesterSlice', () => {
 			// The files map is restored to the exact pre-call key set.
 			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
 		});
+
+		test('bulkMediaCompressed rolls back zip.files when a mid-apply remove throws (all-or-nothing)', () => {
+			// JSZip is a class instance Immer cannot draft, so mutations to
+			// `zip.files` bypass Immer's rollback. The reducer must route the
+			// apply through `applyStagedFilesToZip` so a mid-apply throw restores
+			// the zip (otherwise it is left half-applied while the pack draft is
+			// discarded — an inconsistent state).
+			const zip = new JSZip();
+			zip.file('Images/my a.png', new Uint8Array([1, 2, 3]));
+			zip.file('Images/b.png', new Uint8Array([4, 5, 6]));
+
+			const filesBefore = { ...zip.files };
+
+			const pack = createDefaultPackage({
+				packageName: '',
+				authorName: '',
+				roundCount: 1,
+				themeCount: 1,
+				questionCount: 1,
+				includeFinalRound: false,
+				finalThemeCount: 0,
+			});
+
+			pack.rounds[0].themes[0].questions[0].params.question = {
+				items: [
+					{ type: 'image', value: 'my a.png', isRef: true, placement: 'screen' },
+					{ type: 'image', value: 'b.png', isRef: true, placement: 'screen' },
+				],
+			};
+
+			const state: SIQuesterState = { pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+
+			const files = [
+				{ type: 'image' as const, oldValue: 'my a.png', newValue: 'my a.jpg', data: new Uint8Array([10]) },
+				{ type: 'image' as const, oldValue: 'b.png', newValue: 'b.jpg', data: new Uint8Array([11]) },
+			];
+
+			// Inject a throw on the THIRD remove call — file A's original raw
+			// entry ('Images/my a.png') is genuinely deleted by call 1 before the
+			// throw, so a non-atomic apply leaves it gone while the new write
+			// survives. Snapshot/restore brings it back.
+			const realRemove = zip.remove.bind(zip);
+			let removeCalls = 0;
+			jest.spyOn(zip, 'remove').mockImplementation((path: string) => {
+				removeCalls += 1;
+				if (removeCalls === 3) {
+					throw new Error('injected mid-apply');
+				}
+				return realRemove(path);
+			});
+
+			expect(() => reducer(state, bulkMediaCompressed({ files }))).toThrow('injected mid-apply');
+
+			// All-or-nothing: both originals restored, neither write survived.
+			expect(zip.file('Images/my a.png')).not.toBeNull();
+			expect(zip.file('Images/my a.jpg')).toBeNull();
+			expect(zip.file('Images/b.png')).not.toBeNull();
+			expect(zip.file('Images/b.jpg')).toBeNull();
+			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		});
 	});
 });
 
