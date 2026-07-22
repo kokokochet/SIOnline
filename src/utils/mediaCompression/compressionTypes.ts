@@ -58,16 +58,20 @@ export interface CompressedMedia {
     wasCompressed: boolean;
 }
 
-/** Message from main thread to a video compression worker. */
+/** Message from the main thread to a video compression worker. */
 export interface WorkerCompressRequest {
     data: ArrayBuffer;
     options: VideoCompressionOptions;
 }
 
-/** Message from a compression worker to main thread. */
+/** Message from the main thread to abort an in-flight compression. */
+export type WorkerAbortMessage = { type: 'abort' };
+
+/** Message from a video compression worker to main thread. */
 export type WorkerCompressResponse =
     | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; error: string };
+    | { type: 'error'; error: string }
+    | { type: 'cancelled' };
 
 /** Message from main thread to audio worker — PCM data (decoded on main thread). */
 export interface AudioWorkerRequest {
@@ -77,7 +81,8 @@ export interface AudioWorkerRequest {
     options: AudioCompressionOptions;
 }
 
-/** Message from audio worker to main thread. */
+/** Message from an audio worker to main thread. */
 export type AudioWorkerResponse =
     | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; error: string };
+    | { type: 'error'; error: string }
+    | { type: 'cancelled' };

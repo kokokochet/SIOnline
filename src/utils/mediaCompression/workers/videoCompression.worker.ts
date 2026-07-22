@@ -1,7 +1,7 @@
 
 import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, type Sample } from 'mp4box';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from '../compressionTypes';
+import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse, WorkerAbortMessage } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
@@ -18,14 +18,36 @@ type WorkerScope = {
 };
 const ctx = self as unknown as WorkerScope;
 
-ctx.onmessage = async (e: MessageEvent<WorkerCompressRequest>) => {
+let currentJobRejected = false;
+
+ctx.onmessage = async (e: MessageEvent<WorkerCompressRequest | WorkerAbortMessage>) => {
+    if ('type' in e.data) {
+        // Cooperative abort: tell the main thread we stopped. The main-thread
+        // Promise.race has already rejected on the signal; this is the clean
+        // acknowledgement. Phase 4 may additionally call encoder/decoder close()
+        // here for native resource release.
+        if (!currentJobRejected) {
+            currentJobRejected = true;
+            const response: WorkerCompressResponse = { type: 'cancelled' };
+            ctx.postMessage(response);
+        }
+        return;
+    }
+
     const { data, options } = e.data;
+    currentJobRejected = false;
 
     try {
         const result = await compressVideoData(data, options as VideoCompressionOptions);
+        if (currentJobRejected) {
+            return;
+        }
         const response: WorkerCompressResponse = { type: 'done', data: result.buffer as ArrayBuffer };
         ctx.postMessage(response, [result.buffer]);
     } catch (err) {
+        if (currentJobRejected) {
+            return;
+        }
         const response: WorkerCompressResponse = {
             type: 'error',
             error: err instanceof Error ? err.message : String(err),

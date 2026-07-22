@@ -64,7 +64,12 @@ export async function compressMedia(
     file: File,
     type: CompressibleMediaType | 'html',
     options: CompressionOptions,
+    signal?: AbortSignal,
 ): Promise<CompressedMedia> {
+    if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
     // HTML is text-only, no compression
     if (type === 'html') {
         const text = await file.text();
@@ -79,13 +84,13 @@ export async function compressMedia(
 
     switch (type) {
         case 'image':
-            return compressImage(file, options.image);
+            return compressImage(file, options.image, signal);
 
         case 'audio':
-            return compressAudio(file, options.audio);
+            return compressAudio(file, options.audio, signal);
 
         case 'video':
-            return compressVideo(file, options.video);
+            return compressVideo(file, options.video, signal);
 
         default:
             return passthrough(file);

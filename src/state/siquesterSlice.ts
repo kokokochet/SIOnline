@@ -315,6 +315,47 @@ export const loadPackageStatistics = createAsyncThunk(
 );
 
 /**
+ * Module-level singleton for the active bulk-compression AbortController.
+ *
+ * Safe as a singleton because Phase 1 (CRITICAL C2) guarantees single-entry:
+ * `compressAllPackageMedia` has a `condition` phase-guard, and
+ * `bulkCompressionDialogOpened` is a no-op while `phase === 'running'`.
+ * Set on thunk entry, cleared in the thunk's `finally`.
+ */
+let activeBulkController: AbortController | null = null;
+
+function setActiveBulkController(controller: AbortController | null): void {
+	activeBulkController = controller;
+}
+
+/**
+ * Aborts the in-flight bulk compression's `compressMedia` call, if any.
+ * Pure side-effect (no Redux state read/write) — safe to call from other
+ * thunks (`openFile`, `createNewPackage`) and from component cleanup.
+ */
+export function abortActiveBulkCompression(): void {
+	if (activeBulkController) {
+		activeBulkController.abort();
+	}
+}
+
+/**
+ * Cancels bulk compression from the UI (cancel button, Escape, unmount).
+ * Sets the `cancelRequested` state flag (loop backstop between files) AND
+ * aborts the in-flight file via the controller (prompt exit inside a file).
+ * Always dispatch this instead of the raw `bulkCompressionCancelRequested`
+ * action so the two stay in sync.
+ */
+export const cancelBulkCompression = createAsyncThunk(
+	'siquester/cancelBulkCompression',
+	(_, thunkAPI) => {
+		abortActiveBulkCompression();
+		thunkAPI.dispatch(bulkCompressionCancelRequested());
+		return true;
+	},
+);
+
+/**
  * Compresses every referenced media file in the open package using the
  * per-type presets from `state.siquester.mediaCompression.presets`.
  *
@@ -336,98 +377,117 @@ export const compressAllPackageMedia = createAsyncThunk(
 		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
 		const { zip, pack } = getSiqState();
 
-		if (!zip || !pack) {
-			throw new Error('No package loaded');
-		}
+		const controller = new AbortController();
+		setActiveBulkController(controller);
+		const signal = controller.signal;
 
-		const presets = getSiqState().mediaCompression?.presets ?? defaultMediaCompressionState.presets;
-		const options = resolveCompressionOptions(presets);
-		const refs = collectMediaReferences(pack);
+		try {
+			if (!zip || !pack) {
+				throw new Error('No package loaded');
+			}
 
-		thunkAPI.dispatch(bulkCompressionStarted({ total: refs.length }));
+			const presets = getSiqState().mediaCompression?.presets ?? defaultMediaCompressionState.presets;
+			const options = resolveCompressionOptions(presets);
+			const refs = collectMediaReferences(pack);
 
-		const staged: StagedMediaFile[] = [];
-		let skippedCount = 0;
-		let savedBytes = 0;
+			thunkAPI.dispatch(bulkCompressionStarted({ total: refs.length }));
 
-		const isCancelRequested = () => getSiqState().bulkCompression?.cancelRequested === true;
+			const staged: StagedMediaFile[] = [];
+			let skippedCount = 0;
+			let savedBytes = 0;
 
-		for (let i = 0; i < refs.length; i += 1) {
-			if (isCancelRequested()) {
+			const isCancelRequested = () => getSiqState().bulkCompression?.cancelRequested === true;
+
+			for (let i = 0; i < refs.length; i += 1) {
+				if (isCancelRequested() || signal.aborted) {
+					thunkAPI.dispatch(bulkCompressionCancelled());
+					return { applied: false };
+				}
+
+				const ref = refs[i];
+				thunkAPI.dispatch(bulkCompressionProgress({ completed: i, currentFile: ref.value }));
+
+				try {
+					const folder = getCompressibleMediaFolderName(ref.type);
+					const entry = resolveZipEntry(zip, folder, ref.value);
+
+					if (!entry) {
+						// Referenced but missing — a pre-existing inconsistency; keep as-is.
+						skippedCount += 1;
+						continue;
+					}
+
+					// eslint-disable-next-line no-await-in-loop
+					const data = await entry.async('uint8array');
+
+					if (data.byteLength > MAX_MEDIA_BYTES) {
+						// OOM guard — same hard cap as the upload flow.
+						skippedCount += 1;
+						continue;
+					}
+
+					// Copy into a fresh Uint8Array: entry.async() returns Uint8Array<ArrayBufferLike>, not a BlobPart.
+					// eslint-disable-next-line no-await-in-loop
+					const compressed = await compressMedia(
+						new File([new Uint8Array(data)], ref.value),
+						ref.type,
+						options,
+						signal,
+					);
+
+					if (compressed.wasCompressed) {
+						staged.push({
+							type: ref.type,
+							oldValue: ref.value,
+							newValue: compressed.fileName,
+							data: compressed.data,
+						});
+						savedBytes += compressed.originalSize - compressed.compressedSize;
+					} else {
+						skippedCount += 1;
+					}
+				} catch (err) {
+					// AbortError: the cancel flag is already set; fall through
+					// to the loop-top check on the next iteration (or the
+					// post-loop check for the last file). Other errors skip
+					// the file (existing per-file isolation contract).
+					if ((err as Error)?.name !== 'AbortError') {
+						console.warn(`Bulk compression skipped ${ref.type}:${ref.value}:`, err);
+					}
+					skippedCount += 1;
+				}
+			}
+
+			if (isCancelRequested() || signal.aborted) {
 				thunkAPI.dispatch(bulkCompressionCancelled());
 				return { applied: false };
 			}
 
-			const ref = refs[i];
-			thunkAPI.dispatch(bulkCompressionProgress({ completed: i, currentFile: ref.value }));
-
-			try {
-				const folder = getCompressibleMediaFolderName(ref.type);
-				const entry = resolveZipEntry(zip, folder, ref.value);
-
-				if (!entry) {
-					// Referenced but missing — a pre-existing inconsistency; keep as-is.
-					skippedCount += 1;
-					continue;
-				}
-
-				// eslint-disable-next-line no-await-in-loop
-				const data = await entry.async('uint8array');
-
-				if (data.byteLength > MAX_MEDIA_BYTES) {
-					// OOM guard — same hard cap as the upload flow.
-					skippedCount += 1;
-					continue;
-				}
-
-				// Copy into a fresh Uint8Array: entry.async() returns Uint8Array<ArrayBufferLike>, not a BlobPart.
-				// eslint-disable-next-line no-await-in-loop
-				const compressed = await compressMedia(new File([new Uint8Array(data)], ref.value), ref.type, options);
-
-				if (compressed.wasCompressed) {
-					staged.push({
-						type: ref.type,
-						oldValue: ref.value,
-						newValue: compressed.fileName,
-						data: compressed.data,
-					});
-					savedBytes += compressed.originalSize - compressed.compressedSize;
-				} else {
-					skippedCount += 1;
-				}
-			} catch (err) {
-				console.warn(`Bulk compression skipped ${ref.type}:${ref.value}:`, err);
-				skippedCount += 1;
+			// The dialog is not modal: the user may have opened another package
+			// mid-run. Never apply staged results into a different zip.
+			if (getSiqState().zip !== zip) {
+				thunkAPI.dispatch(bulkCompressionCancelled());
+				return { applied: false };
 			}
+
+			const renames = planRenames(staged, collectExistingMediaNames(zip));
+			const files = staged.map(file => ({
+				...file,
+				newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
+			}));
+
+			if (files.length > 0) {
+				thunkAPI.dispatch(bulkMediaCompressed({ files }));
+			}
+
+			thunkAPI.dispatch(bulkCompressionFinished({
+				summary: { compressedCount: files.length, skippedCount, savedBytes, errors: [] },
+			}));
+
+			return { applied: files.length > 0 };
+		} finally {
+			setActiveBulkController(null);
 		}
-
-		if (isCancelRequested()) {
-			thunkAPI.dispatch(bulkCompressionCancelled());
-			return { applied: false };
-		}
-
-		// The dialog is not modal: the user may have opened another package
-		// mid-run. Never apply staged results into a different zip.
-		if (getSiqState().zip !== zip) {
-			thunkAPI.dispatch(bulkCompressionCancelled());
-			return { applied: false };
-		}
-
-		const renames = planRenames(staged, collectExistingMediaNames(zip));
-		const files = staged.map(file => ({
-			...file,
-			newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
-		}));
-
-		if (files.length > 0) {
-			thunkAPI.dispatch(bulkMediaCompressed({ files }));
-		}
-
-		thunkAPI.dispatch(bulkCompressionFinished({
-			summary: { compressedCount: files.length, skippedCount, savedBytes, errors: [] },
-		}));
-
-		return { applied: files.length > 0 };
 	},
 	{
 		// Re-entry guard: refuse to start a second concurrent run. Without this,

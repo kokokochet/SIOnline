@@ -95,7 +95,12 @@ export function parseImageDimensions(data: Uint8Array): { width: number; height:
 export async function compressImage(
     file: File,
     options: ImageCompressionOptions,
+    signal?: AbortSignal,
 ): Promise<CompressedMedia> {
+    if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
     const originalData = new Uint8Array(await file.arrayBuffer());
 
     try {
@@ -179,6 +184,9 @@ export async function compressImage(
             }
         }
     } catch (err) {
+        if ((err as Error)?.name === 'AbortError') {
+            throw err;
+        }
         console.warn('Image compression failed, using original:', err);
         return passthroughMedia(originalData, file.name);
     }

@@ -5,6 +5,7 @@ import reducer, {
     compressAllPackageMedia,
     defaultMediaCompressionState,
     SIQuesterState,
+    abortActiveBulkCompression,
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import { compressMedia } from '../src/utils/mediaCompression';
@@ -358,4 +359,52 @@ test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
     expect(state.bulkCompression?.phase).toBe('running');
     expect(state.bulkCompression?.cancelRequested).toBe(true);
     expect(state.bulkCompression?.total).toBe(3);
+});
+
+test('aborting mid-file cancels within a tick instead of encoding to completion', async () => {
+    // Mock compressMedia as slow (30s) but responsive to the AbortSignal.
+    mockedCompressMedia.mockImplementation(
+        async (_file: File, _type: any, _opts: any, signal?: AbortSignal) => {
+            // Mirror the real compressMedia pre-check: an already-aborted signal
+            // rejects immediately (the abort may race ahead of this call because
+            // the thunk yields at the JSZip entry read before reaching us).
+            if (signal?.aborted) {
+                throw new DOMException('Aborted', 'AbortError');
+            }
+            await new Promise<void>((resolve, reject) => {
+                const t = setTimeout(resolve, 30_000);
+                signal?.addEventListener('abort', () => {
+                    clearTimeout(t);
+                    reject(new DOMException('Aborted', 'AbortError'));
+                }, { once: true });
+            });
+            // Should never reach here within the test timeout.
+            return { data: new Uint8Array([1]), fileName: 'x.out', originalSize: 10, compressedSize: 1, wasCompressed: true };
+        },
+    );
+
+    const harness = createHarness(makeState());
+    const started = Date.now();
+
+    // Kick off the thunk; once Started dispatches, abort.
+    const promise = compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
+    await new Promise<void>(r => {
+        const check = () => {
+            if (harness.getFinalState().bulkCompression?.phase === 'running') r();
+            else setTimeout(check, 0);
+        };
+        check();
+    });
+    abortActiveBulkCompression();
+
+    await promise;
+    const elapsed = Date.now() - started;
+
+    const types = actionTypes(harness.dispatch);
+    expect(types).toContain('siquester/bulkCompressionCancelled');
+    expect(types).not.toContain('siquester/bulkMediaCompressed');
+    expect(elapsed).toBeLessThan(1000);
+    expect(harness.getFinalState().bulkCompression?.phase).toBe('cancelled');
+    // Package untouched.
+    expect(harness.getFinalState().zip?.file('Images/pic.png')).not.toBeNull();
 });

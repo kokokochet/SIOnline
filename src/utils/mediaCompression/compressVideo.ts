@@ -2,6 +2,7 @@ import { CompressedMedia, VideoCompressionOptions, WorkerCompressRequest, Worker
 import { isVideoCompressionSupported } from './featureDetection';
 import { createVideoWorker } from './workerFactory';
 import { passthroughMedia } from './passthrough';
+import { abortRace } from './abortUtils';
 
 /** Maximum time to wait for the compression worker before giving up. */
 const WORKER_TIMEOUT_MS = 60_000;
@@ -15,7 +16,12 @@ const WORKER_TIMEOUT_MS = 60_000;
 export async function compressVideo(
     file: File,
     options: VideoCompressionOptions,
+    signal?: AbortSignal,
 ): Promise<CompressedMedia> {
+    if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
     const originalData = new Uint8Array(await file.arrayBuffer());
 
     if (!isVideoCompressionSupported()) {
@@ -34,6 +40,8 @@ export async function compressVideo(
                             resolve(e.data.data);
                         } else if (e.data.type === 'error') {
                             reject(new Error(e.data.error));
+                        } else if (e.data.type === 'cancelled') {
+                            reject(new DOMException('Aborted', 'AbortError'));
                         }
                     };
 
@@ -55,6 +63,7 @@ export async function compressVideo(
                 new Promise<ArrayBuffer>((_, reject) => {
                     timeoutId = setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
                 }),
+                abortRace(signal, worker),
             ]);
 
             const compressedData = new Uint8Array(compressedBuffer);
@@ -75,6 +84,11 @@ export async function compressVideo(
             worker.terminate();
         }
     } catch (err) {
+        // Abort must propagate so the thunk's loop re-checks cancelRequested
+        // instead of treating this file as a normal passthrough/skip.
+        if ((err as Error)?.name === 'AbortError') {
+            throw err;
+        }
         console.warn('Video compression failed, using original:', err);
         return passthroughMedia(originalData, file.name);
     }
