@@ -1457,12 +1457,7 @@ export const siquesterSlice = createSlice({
 				state.bulkCompression.phase = 'cancelled';
 			}
 		},
-		bulkCompressionFailed: (state, action: PayloadAction<{
-			type: string;
-			summary: BulkCompressionSummary;
-			errors: BulkCompressionFileError[];
-			reason?: string;
-		}>) => {
+		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
 			// Covers both the confirm-strand (pre-Started throw) and a running-phase
 			// throw. The dialog renders a 'failed' branch with this reason.
 			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
