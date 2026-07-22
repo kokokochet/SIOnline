@@ -265,7 +265,7 @@ test('rename plan resolves a literal-% collision without breaking the package', 
     expect(finalState.bulkCompression?.summary?.compressedCount).toBe(3);
 });
 
-test('rejected thunk after Started transitions phase to cancelled and applies nothing', async () => {
+test('rejected thunk after Started transitions phase to failed and applies nothing', async () => {
     // The thunk's only explicit throw is BEFORE bulkCompressionStarted (the
     // !zip/!pack guard). If anything throws AFTER Started — a future refactor,
     // an Immer invariant, an OOM in a pure helper — phase would stick at
@@ -274,7 +274,7 @@ test('rejected thunk after Started transitions phase to cancelled and applies no
     // directly because forcing a real post-Started throw is brittle: the
     // per-file try/catch swallows compressMedia rejections, so even all-failing
     // mocks reach Finished. Dispatching the rejected lifecycle action through
-    // the real reducer is the deterministic way to cover running->cancelled.
+    // the real reducer is the deterministic way to cover running->failed.
     const { compressAllPackageMedia: thunk } = await import('../src/state/siquesterSlice');
 
     let state: SIQuesterState = makeState();
@@ -294,7 +294,8 @@ test('rejected thunk after Started transitions phase to cancelled and applies no
     const rejectedAction = thunk.rejected(new Error('unexpected'), 'fakeReqId', undefined);
     state = reducer(state, rejectedAction as any);
 
-    expect(state.bulkCompression?.phase).toBe('cancelled');
+    expect(state.bulkCompression?.phase).toBe('failed');
+    expect(state.bulkCompression?.failedReason).toBe('unexpected');
     // All-or-nothing: bulkMediaCompressed never dispatched, package untouched.
     expect(state.zip?.file('Images/pic.png')).not.toBeNull();
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
@@ -462,4 +463,17 @@ test('opening another package mid-run cancels instead of wiping bulkCompression 
 
     // Let the mocked compressMedia settle so jest doesn't complain about stray ticks.
     if (resolveFirst!) resolveFirst!();
+});
+
+test('a pre-loop throw dispatches bulkCompressionFailed instead of stranding on confirm', async () => {
+    // No zip/pack → the very first guard throws before bulkCompressionStarted.
+    const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState, history: { past: [], future: [] } } as any;
+    const dispatch = jest.fn((action: any) => action);
+    const getState = () => ({ siquester: state });
+
+    await compressAllPackageMedia()(dispatch, getState, undefined);
+
+    const types = actionTypes(dispatch);
+    expect(types).toContain('siquester/bulkCompressionFailed');
+    expect(types).not.toContain('siquester/bulkCompressionStarted');
 });

@@ -17,6 +17,7 @@ import reducer, {
 	bulkCompressionProgress,
 	bulkCompressionFinished,
 	bulkCompressionCancelled,
+	bulkCompressionFailed,
 	bulkMediaCompressed,
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
@@ -540,5 +541,40 @@ describe('siquesterSlice', () => {
 		expect(nextState.pack!.logo).toBe('@pic.jpg');
 		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
 		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
+	});
+});
+
+describe('bulkCompressionFailed', () => {
+	test('transitions running -> failed with the error message', () => {
+		let state: SIQuesterState = {
+			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
+			bulkCompression: { phase: 'running', total: 3, completed: 1, cancelRequested: false },
+		};
+
+		state = reducer(state, bulkCompressionFailed({
+			type: 'setup',
+			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+			errors: [],
+			reason: 'no package loaded',
+		}));
+
+		expect(state.bulkCompression?.phase).toBe('failed');
+		expect(state.bulkCompression?.failedReason).toBe('no package loaded');
+	});
+
+	test('also recovers a confirm-phase throw (the original strand-on-confirm bug)', () => {
+		let state: SIQuesterState = {
+			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
+			bulkCompression: { phase: 'confirm', total: 0, completed: 0, cancelRequested: false },
+		};
+
+		state = reducer(state, bulkCompressionFailed({
+			type: 'setup',
+			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+			errors: [],
+			reason: 'collectMediaReferences blew up',
+		}));
+
+		expect(state.bulkCompression?.phase).toBe('failed');
 	});
 });

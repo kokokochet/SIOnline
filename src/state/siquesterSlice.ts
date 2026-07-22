@@ -377,13 +377,14 @@ export const compressAllPackageMedia = createAsyncThunk(
 	'siquester/compressAllPackageMedia',
 	async (_, thunkAPI) => {
 		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
-		const { zip, pack } = getSiqState();
 
 		const controller = new AbortController();
 		setActiveBulkController(controller);
 		const signal = controller.signal;
 
 		try {
+			const { zip, pack } = getSiqState();
+
 			if (!zip || !pack) {
 				throw new Error('No package loaded');
 			}
@@ -487,6 +488,16 @@ export const compressAllPackageMedia = createAsyncThunk(
 			}));
 
 			return { applied: files.length > 0 };
+		} catch (err) {
+			// Pre-loop setup threw (before Started) OR an invariant blew up.
+			// Without this, phase would stay 'confirm' and the dialog would strand.
+			thunkAPI.dispatch(bulkCompressionFailed({
+				type: 'setup',
+				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+				errors: [],
+				reason: err instanceof Error ? err.message : String(err),
+			}));
+			return { applied: false };
 		} finally {
 			setActiveBulkController(null);
 		}
@@ -1446,6 +1457,28 @@ export const siquesterSlice = createSlice({
 				state.bulkCompression.phase = 'cancelled';
 			}
 		},
+		bulkCompressionFailed: (state, action: PayloadAction<{
+			type: string;
+			summary: BulkCompressionSummary;
+			errors: BulkCompressionFileError[];
+			reason?: string;
+		}>) => {
+			// Covers both the confirm-strand (pre-Started throw) and a running-phase
+			// throw. The dialog renders a 'failed' branch with this reason.
+			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
+			if (!state.bulkCompression) {
+				state.bulkCompression = {
+					phase: 'failed',
+					total: 0,
+					completed: 0,
+					cancelRequested: false,
+					failedReason: reason,
+				};
+			} else {
+				state.bulkCompression.phase = 'failed';
+				state.bulkCompression.failedReason = reason;
+			}
+		},
 		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
 			if (!state.zip || !state.pack) {
 				return;
@@ -1568,18 +1601,20 @@ export const siquesterSlice = createSlice({
 			state.packageStatsLoading = false;
 		});
 		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
-			// A condition-rejection means the thunk never started (re-entry guard
-			// refused a second concurrent run). Leave the active run's phase
-			// untouched — flipping it to 'cancelled' here would silently abort
-			// the in-flight run.
+			// Phase 1 CRITICAL C2: a condition-refused re-entry must NOT touch
+			// the in-flight run. Preserve this guard — without it, a rejected
+			// re-entry would flip a successfully-encoding run to 'failed'.
 			if (action.meta.condition) {
 				return;
 			}
-			// Defensive: an unexpected throw after bulkCompressionStarted would
-			// otherwise leave phase='running' forever. bulkMediaCompressed never
-			// dispatched, so the package is untouched (all-or-nothing contract).
-			if (state.bulkCompression?.phase === 'running') {
-				state.bulkCompression.phase = 'cancelled';
+			// Defensive: the thunk's own try/catch already dispatched
+			// bulkCompressionFailed for any covered throw. This handles an
+			// uncovered rejection (e.g. a dispatch invariant) so phase never
+			// sticks at 'running' or 'confirm'. 'failed' is honest — a
+			// rejection is an error, not a user cancel.
+			if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
+				state.bulkCompression.phase = 'failed';
+				state.bulkCompression.failedReason = action.error.message ?? 'Unexpected compression error';
 			}
 		});
 	},
@@ -1633,6 +1668,7 @@ export const {
 	bulkCompressionFinished,
 	bulkCompressionCancelled,
 	bulkMediaCompressed,
+	bulkCompressionFailed,
 } = siquesterSlice.actions;
 
 // Selector to get the current item based on the indices
