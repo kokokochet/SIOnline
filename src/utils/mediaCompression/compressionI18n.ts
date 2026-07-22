@@ -35,3 +35,28 @@ export function getCompressionDoneSummaryKey(totalCount: number): 'compressionDo
 
 	return 'compressionDoneSummary5';
 }
+
+/**
+ * Formats a byte count as a localized "x.x <unit>" string for the compression
+ * summary. Replaces the old `(bytes / MB).toFixed(1) + ' MB'` which (a) hardcoded
+ * Latin "MB" even in Russian where the feature otherwise uses Cyrillic "МБ", and
+ * (b) ignored the locale decimal separator (ru expects "1,5").
+ *
+ * The unit label is passed in (not read from the singleton) so this stays a pure,
+ * locale-explicit function that is trivial to test without the `localized-strings`
+ * global. Callers pass `localization.unitMB` and `localization.getLanguage()`.
+ *
+ * `locale` is a BCP-47 tag; the project's `localized-strings` language codes
+ * ('en' | 'ru' | 'sr' | 'uz') are valid BCP-47 tags as-is.
+ *
+ * (Pre-existing nit: divides by 1024*1024 = MiB but labels with "MB"/"МБ".
+ * Matches the original `formatSaved`; out of scope here.)
+ */
+export function formatSavedBytes(bytes: number, locale: string, unitLabel: string): string {
+	const mebibytes = bytes / (1024 * 1024);
+	const number = new Intl.NumberFormat(locale, {
+		minimumFractionDigits: 1,
+		maximumFractionDigits: 1,
+	}).format(mebibytes);
+	return `${number} ${unitLabel}`;
+}

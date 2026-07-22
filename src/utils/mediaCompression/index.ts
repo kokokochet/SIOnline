@@ -37,6 +37,7 @@ export type {
     AudioCompressionOptions,
     VideoCompressionOptions,
 } from './compressionTypes';
+export { getCompressionDoneSummaryKey, formatSavedBytes } from './compressionI18n';
 
 /**
  * Creates a passthrough result — the original file returned unchanged.
