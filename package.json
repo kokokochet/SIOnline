@@ -113,7 +113,7 @@
     "moduleNameMapper": {
       "\\.(css|less|scss|sass)$": "<rootDir>/test/styleMock.js",
       "\\.(svg|png|jpe?g|gif|webp|mp3|wav|ogg|ttf|eot|woff2?)$": "<rootDir>/test/fileMock.js",
-      "workerFactory$": "<rootDir>/test/workerFactoryMock.js"
+      "workerFactory$": "<rootDir>/test/workerFactoryMock"
     },
     "testPathIgnorePatterns": [
       "/node_modules/",

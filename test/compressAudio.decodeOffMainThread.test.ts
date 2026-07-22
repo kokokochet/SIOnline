@@ -1,20 +1,13 @@
 import { compressAudio } from '../src/utils/mediaCompression/compressAudio';
 import { defaultCompressionOptions } from '../src/utils/mediaCompression/defaultOptions';
 import { AudioWorkerResponse } from '../src/utils/mediaCompression/compressionTypes';
-import * as workerFactory from '../src/utils/mediaCompression/workerFactory';
+import { FakeWorker, getLastAudioWorker, resetFakeWorkerRegistry } from './helpers/fakeWorker';
 
-interface CapturingWorker {
-    postMessage: jest.Mock;
-    terminate: jest.Mock;
-    onmessage: ((e: MessageEvent<AudioWorkerResponse>) => void) | null;
-    onerror: ((e: ErrorEvent) => void) | null;
-}
-
-// moduleNameMapper routes `workerFactory` imports to test/workerFactoryMock.js
-// (a no-automock capturing stub), so the same cached module is shared by source
-// and test — `createAudioWorker._last` is observable without jest.mock.
-type CapturingFactory = (() => CapturingWorker) & { _last?: CapturingWorker };
-const createAudioWorker = workerFactory.createAudioWorker as unknown as CapturingFactory;
+// moduleNameMapper routes `workerFactory` imports (including the one inside
+// compressAudio) to test/workerFactoryMock, whose createAudioWorker builds a
+// FakeWorker and registers it. getLastAudioWorker lets us observe that
+// FakeWorker without jest.mock — the same cached module instance is shared by
+// source and test.
 
 describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main thread', () => {
     const originalAudioEncoder = (globalThis as { AudioEncoder?: unknown }).AudioEncoder;
@@ -31,24 +24,23 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
         } else {
             delete (globalThis as { OfflineAudioContext?: unknown }).OfflineAudioContext;
         }
-        jest.clearAllMocks();
-        // clearAllMocks resets jest.fn() call records but NOT the `_last`
-        // property stashed on the factory function — clear it so the next
-        // test's waitForWorker waits for ITS worker, not the stale one.
-        createAudioWorker._last = undefined;
+        // Clear the registry so the next test's waitForWorker waits for ITS
+        // worker, not the stale one from a previous test.
+        resetFakeWorkerRegistry();
     });
 
     /**
-     * Wait until the audio worker has been created (its capturing mock stashes
-     * itself on `createAudioWorker._last`). jsdom/Node `File.arrayBuffer()`
-     * resolves after a handful of microtasks, so a fixed 1-2 yield count is
-     * fragile (flagged in the plan's review note); poll instead.
+     * Wait until the audio worker has been created (the mock factory registers
+     * each FakeWorker). jsdom/Node `File.arrayBuffer()` resolves after a
+     * handful of microtasks, so a fixed 1-2 yield count is fragile (flagged in
+     * the plan's review note); poll instead.
      */
-    async function waitForWorker(): Promise<CapturingWorker> {
+    async function waitForWorker(): Promise<FakeWorker> {
         for (let i = 0; i < 50; i++) {
             await Promise.resolve();
-            if (createAudioWorker._last) {
-                return createAudioWorker._last;
+            const w = getLastAudioWorker();
+            if (w) {
+                return w;
             }
         }
         throw new Error('audio worker was never created');
@@ -57,14 +49,13 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
     /**
      * Settles compressAudio's in-flight Promise.race so `await pending`
      * resolves into passthrough instead of hanging on the 60s worker timeout.
-     * The capturing mock's `terminate` is a no-op stub (Step 1). We fire a
-     * 'done' response whose output is not smaller than the input, so the host
-     * resolves via passthrough. (T49 changed the host to THROW on worker
-     * errors rather than passthrough; a 'done' keeps this test focused on its
-     * off-main-thread decode assertion instead of error handling.)
+     * We fire a 'done' response whose output is not smaller than the input, so
+     * the host resolves via passthrough. (T49 changed the host to THROW on
+     * worker errors rather than passthrough; a 'done' keeps this test focused
+     * on its off-main-thread decode assertion instead of error handling.)
      */
-    function settle(worker: CapturingWorker): void {
-        worker.onmessage?.({ data: { type: 'done', data: new ArrayBuffer(8) } } as MessageEvent<AudioWorkerResponse>);
+    function settle(worker: FakeWorker): void {
+        worker.emitMessage({ type: 'done', data: new ArrayBuffer(8) } as AudioWorkerResponse);
     }
 
     test('compressAudio does NOT construct OfflineAudioContext or call decodeAudioData on the main thread', async () => {
@@ -101,9 +92,11 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
         const pending = compressAudio(file, defaultCompressionOptions.audio);
         const worker = await waitForWorker();
 
-        expect(worker.postMessage).toHaveBeenCalledTimes(1);
-        const [request, transfer] = worker.postMessage.mock.calls[0];
+        expect(worker.postedMessages).toHaveLength(1);
+        const { message, transfer } = worker.postedMessages[0];
         expect(transfer).toEqual(expect.any(Array));
+
+        const request = message as { data: ArrayBuffer; options: unknown };
 
         // New contract (Section B post-Plan-03 arm): raw bytes + options.
         // No channels / numberOfChannels / totalFrames.
@@ -114,7 +107,7 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
         expect(request).not.toHaveProperty('channels');
         expect(request).not.toHaveProperty('numberOfChannels');
         expect(request).not.toHaveProperty('totalFrames');
-        expect((request.data as ArrayBuffer).byteLength).toBe(4);
+        expect(request.data.byteLength).toBe(4);
 
         settle(worker);
         await pending;
