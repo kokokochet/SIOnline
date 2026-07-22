@@ -38,6 +38,9 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
 
     try {
         const pcm = await decodePcm(data, options);
+        if (currentJobRejected) {
+            return; // abort arrived during decode; skip encode
+        }
         const result = await encodeAudioToOpus(pcm.channels, pcm.numberOfChannels, pcm.totalFrames, options);
         if (currentJobRejected) {
             return;
@@ -82,28 +85,45 @@ async function decodePcm(
     }
 
     // decodeAudioData does not render the context; a 1-frame, 1-channel,
-    // 48 kHz context is the smallest valid configuration.
-    const audioContext = new Ctx(1, 1, OPUS_SAMPLE_RATE);
-    // slice(0): some engines detach the input buffer; keep data reusable.
-    const audioBuffer = await audioContext.decodeAudioData(data.slice(0));
+    // 48 kHz context is the smallest valid configuration. OfflineAudioContext
+    // takes the (numberOfChannels, length, sampleRate) numeric signature, but
+    // AudioContext takes a single AudioContextOptions object ({ sampleRate }) —
+    // the numeric args are IGNORED by AudioContext, so the fallback would decode
+    // at the device-default rate (often 44100) and resample/pitch-shift. Branch
+    // the ctor so each context type uses its correct signature.
+    const isOffline = Ctx === OfflineAudioContext;
+    const audioContext = isOffline
+        ? new OfflineAudioContext(1, 1, OPUS_SAMPLE_RATE)
+        : new AudioContext({ sampleRate: OPUS_SAMPLE_RATE });
+    try {
+        // data is the transferred ArrayBuffer copy and is never reused after
+        // decode, so no slice(0) is needed (it would only double peak memory).
+        const audioBuffer = await audioContext.decodeAudioData(data);
 
-    const numberOfChannels = Math.min(audioBuffer.numberOfChannels, options.channels);
-    const totalFrames = audioBuffer.length;
+        const numberOfChannels = Math.min(audioBuffer.numberOfChannels, options.channels);
+        const totalFrames = audioBuffer.length;
 
-    const decodedBytes = totalFrames * numberOfChannels * 4; // Float32
-    if (decodedBytes > MAX_DECODED_AUDIO_BYTES) {
-        throw new Error(
-            `Decoded audio too large: ${decodedBytes} bytes > MAX_DECODED_AUDIO_BYTES (${MAX_DECODED_AUDIO_BYTES})`,
-        );
+        const decodedBytes = totalFrames * numberOfChannels * 4; // Float32
+        if (decodedBytes > MAX_DECODED_AUDIO_BYTES) {
+            throw new Error(
+                `Decoded audio too large: ${decodedBytes} bytes > MAX_DECODED_AUDIO_BYTES (${MAX_DECODED_AUDIO_BYTES})`,
+            );
+        }
+
+        const channels: ArrayBuffer[] = [];
+        for (let ch = 0; ch < numberOfChannels; ch++) {
+            const channelData = audioBuffer.getChannelData(ch);
+            const buf = new ArrayBuffer(channelData.byteLength);
+            new Float32Array(buf).set(channelData);
+            channels.push(buf);
+        }
+
+        return { channels, numberOfChannels, totalFrames };
+    } finally {
+        // Only AudioContext owns hardware resources and needs closing;
+        // OfflineAudioContext has no close().
+        if (!isOffline) {
+            await (audioContext as AudioContext).close();
+        }
     }
-
-    const channels: ArrayBuffer[] = [];
-    for (let ch = 0; ch < numberOfChannels; ch++) {
-        const channelData = audioBuffer.getChannelData(ch);
-        const buf = new ArrayBuffer(channelData.byteLength);
-        new Float32Array(buf).set(channelData);
-        channels.push(buf);
-    }
-
-    return { channels, numberOfChannels, totalFrames };
 }
