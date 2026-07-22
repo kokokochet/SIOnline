@@ -28,6 +28,8 @@ describe('Dialog', () => {
         fireEvent.keyDown(window, { key: 'Escape' });
 
         expect(onClose).not.toHaveBeenCalled();
+        // aria-modal is driven by the `modal` prop (T53, Phase 8), not dismissable.
+        expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-modal');
     });
 
     test('Escape closes when dismissable is set', () => {
@@ -37,5 +39,8 @@ describe('Dialog', () => {
         fireEvent.keyDown(window, { key: 'Escape' });
 
         expect(onClose).toHaveBeenCalledTimes(1);
+        // dismissable no longer drives aria-modal (T53 moved it to modal-driven);
+        // a dismissable-only dialog does NOT claim modality.
+        expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-modal');
     });
 });
