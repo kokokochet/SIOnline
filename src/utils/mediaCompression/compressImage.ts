@@ -118,8 +118,9 @@ export async function compressImage(
 
         // Animation / format passthrough (content-based, not filename):
         //  - GIF: always pass through (preserves frames; matches prior behaviour).
+        //  - SVG/SVGZ: vector images — canvas rasterizes them to lossy JPEG (#img-4).
         //  - Animated WebP (ANIM chunk) / APNG (acTL chunk): JPEG keeps only frame 1.
-        if (format === 'gif' || isAnimated(originalData, format)) {
+        if (format === 'gif' || format === 'svg' || isAnimated(originalData, format)) {
             return passthroughMedia(originalData, file.name);
         }
 

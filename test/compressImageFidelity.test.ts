@@ -288,6 +288,60 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.createImageBitmapCalls).toHaveLength(1);
         });
     });
+
+    describe('#img-4 SVG passes through (no lossy rasterization)', () => {
+        let mock: ImageCompressionMockHandle;
+
+        beforeEach(() => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(1),
+            });
+        });
+
+        afterEach(() => {
+            uninstallImageCompressionMock();
+        });
+
+        test('inline SVG content passes through unchanged', async () => {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>`;
+            const file = new File([svg], 'icon.svg', { type: 'image/svg+xml' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('icon.svg');
+            expect(mock.toBlobCalls).toHaveLength(0);
+            expect(mock.createImageBitmapCalls).toHaveLength(0);
+        });
+
+        test('SVG with an XML declaration still passes through', async () => {
+            const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg viewBox="0 0 24 24"></svg>`;
+            const file = new File([svg], 'logo.svg', { type: 'image/svg+xml' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('SVGZ (gzipped SVG, gzip magic bytes 0x1f 0x8b) passes through unchanged', async () => {
+            // Gzip magic bytes (0x1f 0x8b) followed by 30 zero bytes — an
+            // SVGZ-shaped payload that has no `<svg` text and no image
+            // signature, so without the gzip-magic guard it would fall through
+            // to createImageBitmap and rasterize on gunzip-capable browsers.
+            const svgz = new Uint8Array([0x1f, 0x8b, ...new Uint8Array(30)]);
+            const file = new File([svgz], 'icon.svgz', { type: 'image/svg+xml' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('icon.svgz');
+            expect(mock.toBlobCalls).toHaveLength(0);
+            expect(mock.createImageBitmapCalls).toHaveLength(0);
+        });
+    });
 });
 
 describe('media-compression-review FOLLOWUP WebP alpha detection (imageFormatDetect)', () => {

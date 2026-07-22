@@ -73,6 +73,9 @@ export function detectImageFormat(data: Uint8Array): DetectedImageFormat {
     ) {
         return 'webp';
     }
+    if (isSvg(data)) {
+        return 'svg';
+    }
     return 'unknown';
 }
 
@@ -223,4 +226,33 @@ export function isAnimated(
         default:
             return false;
     }
+}
+
+const SVG_SNIFF_WINDOW = 1024;
+
+/**
+ * True for SVG content: detects the `<svg` tag (optionally after an `<?xml`
+ * declaration) in the first 1 KiB, case-insensitive. SVG otherwise rasterizes
+ * to a lossy JPEG via canvas — the #img-4 corruption.
+ *
+ * Also recognizes SVGZ (gzip-compressed SVG): files beginning with the gzip
+ * magic bytes `0x1f 0x8b`. SVGZ fails every other signature check in
+ * `detectImageFormat` and its UTF-8 decode yields replacement chars, so without
+ * this guard it would fall through to `createImageBitmap` — which rasterizes
+ * it to a lossy JPEG on browsers that transparently gunzip (the exact #img-4
+ * corruption this task prevents). `image/gz` is not a real MIME in practice,
+ * so treating any gzip payload in an image slot as SVGZ is an acceptable
+ * heuristic; worst case a non-image gzip stream passes through uncompressed
+ * (preserves bytes, never corrupts).
+ *
+ * Uses TextDecoder (global in DOM and Node 18+) — no Node-only `Buffer`.
+ */
+export function isSvg(data: Uint8Array): boolean {
+    // SVGZ: gzip magic bytes. Treat as SVG → passthrough (never rasterize).
+    if (data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b) {
+        return true;
+    }
+    const head = data.length > SVG_SNIFF_WINDOW ? data.subarray(0, SVG_SNIFF_WINDOW) : data;
+    const text = new TextDecoder('utf-8').decode(head);
+    return /<svg[\s>]/i.test(text);
 }
