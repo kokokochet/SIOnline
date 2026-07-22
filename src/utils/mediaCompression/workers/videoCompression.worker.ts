@@ -7,6 +7,7 @@ import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
 import { buildVideoEncoderConfig } from '../videoEncoderConfig';
 import { assertAudioMp4Compatible } from '../audioCodecSupport';
+import { buildErrorResponse } from '../workerErrors';
 import { waitForQueueDrain } from './workerBackpressure';
 
 /**
@@ -50,11 +51,7 @@ ctx.onmessage = async (e: MessageEvent<WorkerCompressRequest | WorkerAbortMessag
         if (currentJobRejected) {
             return;
         }
-        const response: WorkerCompressResponse = {
-            type: 'error',
-            error: err instanceof Error ? err.message : String(err),
-        };
-        ctx.postMessage(response);
+        ctx.postMessage(buildErrorResponse(err) as WorkerCompressResponse);
     }
 };
 
@@ -249,7 +246,7 @@ async function reencodeVideo(
                 }
             },
             error: (e: DOMException) => {
-                if (!settled) { settled = true; closeBoth(); reject(new Error(`VideoEncoder error: ${e.message}`)); }
+                if (!settled) { settled = true; closeBoth(); reject(e); }
             },
         });
 
@@ -266,7 +263,7 @@ async function reencodeVideo(
                 }
             },
             error: (e: DOMException) => {
-                if (!settled) { settled = true; closeBoth(); reject(new Error(`VideoDecoder error: ${e.message}`)); }
+                if (!settled) { settled = true; closeBoth(); reject(e); }
             },
         });
 
@@ -307,7 +304,7 @@ async function reencodeVideo(
                 if (!settled) {
                     settled = true;
                     closeBoth();
-                    reject(e instanceof Error ? e : new Error(String(e)));
+                    reject(e);
                 }
             }
         })();

@@ -1,5 +1,6 @@
 import { AudioCompressionOptions } from './compressionTypes';
 import { muxOggOpus } from './oggOpusMuxer';
+import { namedError } from './workerErrors';
 import { waitForQueueDrain } from './workers/workerBackpressure';
 
 /**
@@ -66,7 +67,12 @@ export async function encodeAudioToOpus(
             }
         },
         error: (e: DOMException) => {
-            rejectOuter(new Error(`AudioEncoder error: ${e.name}: ${e.message}`));
+            // Reject with the raw DOMException so its programmatic `.name`
+            // (NotSupportedError, …) is preserved end-to-end through the
+            // worker's buildErrorResponse. Wrapping in `new Error(...)` would
+            // reset `.name` to 'Error' and lose the only locale-independent
+            // diagnostic (review MAJOR "DOMException.name lost").
+            rejectOuter(e);
         },
     });
 
@@ -80,7 +86,7 @@ export async function encodeAudioToOpus(
 
         const support = await AudioEncoder.isConfigSupported(encoderConfig);
         if (!support.supported) {
-            throw new Error(`AudioEncoder config not supported: ${options.codec}`);
+            throw namedError('NotSupportedError', `AudioEncoder config not supported: ${options.codec}`);
         }
 
         encoder.configure(encoderConfig);
@@ -128,7 +134,7 @@ export async function encodeAudioToOpus(
         await Promise.race([errored, encoder.flush()]);
 
         if (encodedPackets.length === 0) {
-            throw new Error('No audio data encoded');
+            throw namedError('InvalidStateError', 'No audio data encoded');
         }
 
         return muxOggOpus(encodedPackets, OPUS_SAMPLE_RATE, numberOfChannels);

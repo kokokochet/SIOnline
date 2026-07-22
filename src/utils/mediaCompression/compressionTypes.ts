@@ -67,10 +67,14 @@ export interface WorkerCompressRequest {
 /** Message from the main thread to abort an in-flight compression. */
 export type WorkerAbortMessage = { type: 'abort' };
 
-/** Message from a video compression worker to main thread. */
+/**
+ * Message from a video compression worker to main thread.
+ * The error variant carries `name` (programmatic, e.g. NotSupportedError) so
+ * callers/telemetry can triage without parsing locale-dependent `error` text.
+ */
 export type WorkerCompressResponse =
     | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; error: string }
+    | { type: 'error'; name: string; error: string }
     | { type: 'cancelled' };
 
 /**
@@ -91,5 +95,5 @@ export interface AudioWorkerRequest {
 /** Message from an audio worker to main thread. */
 export type AudioWorkerResponse =
     | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; error: string }
+    | { type: 'error'; name: string; error: string }
     | { type: 'cancelled' };

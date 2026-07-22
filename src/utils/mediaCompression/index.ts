@@ -17,6 +17,8 @@ export {
 } from './featureDetection';
 export { UnsupportedAudioCodecError, assertAudioMp4Compatible } from './audioCodecSupport';
 export { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from './limits';
+export { formatWorkerError, namedError, buildErrorResponse } from './workerErrors';
+export type { WorkerErrorInfo, WorkerErrorResponse } from './workerErrors';
 export type {
     CompressibleMediaType,
     CompressedMedia,

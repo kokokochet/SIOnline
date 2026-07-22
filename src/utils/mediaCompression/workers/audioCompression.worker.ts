@@ -1,6 +1,7 @@
 
 import { AudioWorkerRequest, AudioWorkerResponse, WorkerAbortMessage, AudioCompressionOptions } from '../compressionTypes';
 import { encodeAudioToOpus } from '../audioEncoder';
+import { buildErrorResponse } from '../workerErrors';
 import { MAX_DECODED_AUDIO_BYTES } from '../limits';
 
 /**
@@ -51,11 +52,7 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
         if (currentJobRejected) {
             return;
         }
-        const response: AudioWorkerResponse = {
-            type: 'error',
-            error: err instanceof Error ? err.message : String(err),
-        };
-        ctx.postMessage(response);
+        ctx.postMessage(buildErrorResponse(err) as AudioWorkerResponse);
     }
 };
 

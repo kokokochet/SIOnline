@@ -199,7 +199,7 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         await settled;
     });
 
-    test('error callback rejects with a name-bearing message (Resolution 15)', async () => {
+    test('error callback rejects with the raw DOMException, preserving .name (Resolution 15 / T24)', async () => {
         // flush never resolves: Promise.race(flush, errored) MUST be decided by
         // rejectOuter firing in the error callback — a bare throw in the
         // WebCodecs error callback would NOT reject the async function's
@@ -212,14 +212,19 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         const errP = pending.catch((e: unknown) => e);
 
         // Let the loop run (queueSize 0 → no yield) then fire the encoder error
-        // callback with a DOMException-shaped object carrying a `.name`.
+        // callback with a REAL DOMException, exactly as WebCodecs does.
         await Promise.resolve();
-        ctrl.fireError({ name: 'NotSupportedError', message: 'codec rejected' });
+        const domError = new DOMException('codec rejected', 'NotSupportedError');
+        ctrl.fireError(domError);
 
         const err = await errP;
-        expect(err).toBeInstanceOf(Error);
-        // Message MUST preserve DOMException.name (R15). Pre-T22 the callback
-        // rejected with only `${e.message}`, omitting the name → exact-match RED.
-        expect((err as Error).message).toBe('AudioEncoder error: NotSupportedError: codec rejected');
+        // T24: the raw DOMException is propagated unchanged (rejectOuter(e)),
+        // so its programmatic .name survives end-to-end and buildErrorResponse
+        // lifts it to the worker wire {type:'error'; name; error}. The message
+        // no longer carries the "AudioEncoder error:" prefix — identity now
+        // travels via .name, not a locale-dependent prefix string.
+        expect(err).toBe(domError);
+        expect((err as { name: string }).name).toBe('NotSupportedError');
+        expect((err as { message: string }).message).toBe('codec rejected');
     });
 });
