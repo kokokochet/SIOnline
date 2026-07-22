@@ -1,5 +1,10 @@
 
 import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, type Sample } from 'mp4box';
+// DEPRECATED: mp4-muxer@5.2.2 is upstream-deprecated (superseded by Mediabunny).
+// Migration is tracked in docs/follow-ups/mp4-muxer-to-mediabunny-migration.md.
+// It is behavioural (async encoder callbacks, removed compositionTimeOffset,
+// auto-deduced track config) and cannot be safely done until Plan 10 adds an
+// MP4 round-trip integration test. Do NOT migrate inline as part of a types fix.
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse, WorkerAbortMessage } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
