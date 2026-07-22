@@ -18,6 +18,9 @@
   "include": [
     "src"
   ],
+  "exclude": [
+    "src/utils/mediaCompression/workers"
+  ],
   "compileOnSave": false,
   "ts-node": {
       "compilerOptions": {

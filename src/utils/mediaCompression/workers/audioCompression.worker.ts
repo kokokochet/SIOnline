@@ -13,24 +13,29 @@ import { validateAudioWorkerMessage } from '../workerInputValidation';
 const OPUS_SAMPLE_RATE = 48000;
 
 /**
- * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
- * pollutes the global `navigator` type as `WorkerNavigator` across the project.
+ * postMessage(message, transfer) view of the worker global. Under the WebWorker
+ * lib (`tsconfig.worker.json`) `self.postMessage` already has this overload
+ * natively, so no cast is needed for correctness. This alias exists only so the
+ * transfer-list call below also type-checks under the DOM lib, which ts-jest
+ * applies when the wiring tests import this file — there `self.postMessage` is
+ * `Window.postMessage`, whose overloads reject a transfer array. This replaces
+ * the old `self as unknown as WorkerScope` blanket cast + duplicated
+ * `WorkerScope` interface (T57): only this one call site needed the treatment,
+ * so it is scoped here instead of polluting the module-level `self` type.
  */
-type WorkerScope = {
-    onmessage: ((ev: MessageEvent) => void) | null;
-    postMessage(message: unknown, transfer: Transferable[]): void;
-    postMessage(message: unknown): void;
-};
-const ctx = self as unknown as WorkerScope;
+const postMessageWithTransfer = self.postMessage as (
+    message: unknown,
+    transfer: Transferable[],
+) => void;
 
 let currentJobRejected = false;
 
-ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>) => {
+self.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>) => {
     if ('type' in e.data) {
         if (!currentJobRejected) {
             currentJobRejected = true;
             const response: AudioWorkerResponse = { type: 'cancelled' };
-            ctx.postMessage(response);
+            self.postMessage(response);
         }
         return;
     }
@@ -50,12 +55,12 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
             return;
         }
         const response: AudioWorkerResponse = { type: 'done', data: result.buffer as ArrayBuffer };
-        ctx.postMessage(response, [result.buffer]);
+        postMessageWithTransfer(response, [result.buffer]);
     } catch (err) {
         if (currentJobRejected) {
             return;
         }
-        ctx.postMessage(buildErrorResponse(err) as AudioWorkerResponse);
+        self.postMessage(buildErrorResponse(err) as AudioWorkerResponse);
     }
 };
 
