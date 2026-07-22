@@ -1,4 +1,4 @@
-import { muxOggOpus } from '../src/utils/mediaCompression/oggOpusMuxer';
+import { muxOggOpus, oggCrc32 } from '../src/utils/mediaCompression/oggOpusMuxer';
 
 interface ParsedPage {
     data: Uint8Array;
@@ -62,23 +62,6 @@ function parseOggPages(data: Uint8Array): ParsedPage[] {
         offset += pageSize;
     }
     return pages;
-}
-
-/** OGG CRC-32 (polynomial 0x04c11db7, non-reflected) — clean-room reimplementation. */
-function oggCrc32(data: Uint8Array): number {
-    const table = new Uint32Array(256);
-    for (let i = 0; i < 256; i++) {
-        let r = i << 24;
-        for (let j = 0; j < 8; j++) {
-            r = (r & 0x80000000) ? ((r << 1) ^ 0x04c11db7) : (r << 1);
-        }
-        table[i] = r >>> 0;
-    }
-    let crc = 0;
-    for (let i = 0; i < data.length; i++) {
-        crc = ((crc << 8) ^ table[((crc >>> 24) ^ data[i]) & 0xff]) >>> 0;
-    }
-    return crc >>> 0;
 }
 
 describe('oggOpusMuxer', () => {

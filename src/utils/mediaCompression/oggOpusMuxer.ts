@@ -43,7 +43,14 @@ const crcTable: Uint32Array = (() => {
     return table;
 })();
 
-function oggCrc32(data: Uint8Array): number {
+/**
+ * OGG CRC-32 (polynomial 0x04c11db7, non-reflected, init 0, xorOut 0).
+ *
+ * Exported so tests can assert against known-answer vectors (see
+ * test/oggCrc32.knownAnswer.test.ts) without reimplementing the algorithm.
+ * Not part of the public muxer API; callers should use `muxOggOpus`.
+ */
+export function oggCrc32(data: Uint8Array): number {
     let crc = 0;
     for (let i = 0; i < data.length; i++) {
         crc = ((crc << 8) ^ crcTable[((crc >>> 24) ^ data[i]) & 0xff]) >>> 0;
