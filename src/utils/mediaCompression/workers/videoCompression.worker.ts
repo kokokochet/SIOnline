@@ -7,7 +7,8 @@ import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
 import { buildVideoEncoderConfig } from '../videoEncoderConfig';
 import { assertAudioMp4Compatible } from '../audioCodecSupport';
-import { buildErrorResponse } from '../workerErrors';
+import { buildErrorResponse, namedError } from '../workerErrors';
+import { validateAvcLevel } from '../avcLevelValidation';
 import { waitForQueueDrain } from './workerBackpressure';
 import { validateVideoWorkerMessage } from '../workerInputValidation';
 import { configureWithCleanup } from '../configureWithCleanup';
@@ -198,9 +199,19 @@ async function reencodeVideo(
     const framerate = getSourceFramerate(track);
     // latencyMode: 'realtime' suppresses B-frame reordering — see videoEncoderConfig.
     const encoderConfig = buildVideoEncoderConfig(options, targetWidth, targetHeight, framerate);
+
+    // Pre-flight: validate the declared H.264 level can carry target res/fps
+    // before touching WebCodecs (isConfigSupported does NOT check level-vs-res).
+    // On failure the worker throws, the host falls back to passthrough, and
+    // Phase 7 surfaces a clear message + a level bump in the UI.
+    const levelCheck = validateAvcLevel(options.codec, targetWidth, targetHeight, framerate);
+    if (!levelCheck.ok) {
+        throw namedError('NotSupportedError', levelCheck.reason ?? 'H.264 level insufficient for target resolution/fps');
+    }
+
     const encoderSupport = await VideoEncoder.isConfigSupported(encoderConfig);
     if (!encoderSupport.supported) {
-        throw new Error(`VideoEncoder config not supported: ${options.codec} ${targetWidth}x${targetHeight}`);
+        throw namedError('NotSupportedError', `VideoEncoder config not supported: ${options.codec} ${targetWidth}x${targetHeight}`);
     }
 
     const decoderConfig = {

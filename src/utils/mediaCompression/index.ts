@@ -23,6 +23,8 @@ export type { WorkerErrorInfo, WorkerErrorResponse } from './workerErrors';
 export { WorkerValidationError, validateAudioWorkerMessage, validateVideoWorkerMessage } from './workerInputValidation';
 export { configureWithCleanup } from './configureWithCleanup';
 export type { ConfigureWithCleanupArgs } from './configureWithCleanup';
+export { validateAvcLevel } from './avcLevelValidation';
+export type { AvcLevelCheck } from './avcLevelValidation';
 export type {
     CompressibleMediaType,
     CompressedMedia,
