@@ -9,11 +9,10 @@ const WORKER_TIMEOUT_MS = 60_000;
 
 /**
  * Opus native sample rate (RFC 7845) — Opus always operates internally at
- * 48 kHz. Kept here for reference and for upload-side callers that compute
- * durations; the worker carries its own copy (bundled separately, see
- * workers/audioCompression.worker.ts).
+ * 48 kHz. Kept here for reference; the worker carries its own copy (bundled
+ * separately, see workers/audioCompression.worker.ts).
  */
-export const OPUS_SAMPLE_RATE = 48000;
+const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.

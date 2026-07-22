@@ -107,7 +107,6 @@ const localization = new LocalizedStrings({
 		compressionLow: 'Low',
 		compressionMedium: 'Medium',
 		compressionHigh: 'High',
-		compressionQuality: 'Quality',
 		compressionSettings: 'Compression settings',
 		fileTooBigAfterCompression: 'File too big after compression ({0} MB)',
 		compressAllMedia: 'Compress all media',
@@ -857,7 +856,6 @@ Package authors are responsible for package content. The package will be automat
 		compressionLow: 'Низкое',
 		compressionMedium: 'Среднее',
 		compressionHigh: 'Высокое',
-		compressionQuality: 'Качество',
 		compressionSettings: 'Настройки сжатия',
 		fileTooBigAfterCompression: 'Файл слишком большой после сжатия ({0} МБ)',
 		compressAllMedia: 'Сжать все медиа',
@@ -1610,7 +1608,6 @@ Package authors are responsible for package content. The package will be automat
 		compressionLow: 'Nisko', // [NEEDS NATIVE REVIEW] sr
 		compressionMedium: 'Srednje', // [NEEDS NATIVE REVIEW] sr
 		compressionHigh: 'Visoko', // [NEEDS NATIVE REVIEW] sr
-		compressionQuality: 'Kvalitet', // [NEEDS NATIVE REVIEW] sr
 		compressionSettings: 'Podešavanja kompresije', // [NEEDS NATIVE REVIEW] sr
 		fileTooBigAfterCompression: 'Fajl je prevelik nakon kompresije ({0} MB)', // [NEEDS NATIVE REVIEW] sr
 		compressAllMedia: 'Komprimuj sve medije', // [NEEDS NATIVE REVIEW] sr
@@ -2361,7 +2358,6 @@ Autori paketa odgovorni su za sadržaj paketa. Paket će biti automatski obrisan
 		compressionLow: 'Past', // [NEEDS NATIVE REVIEW] uz
 		compressionMedium: "O'rta", // [NEEDS NATIVE REVIEW] uz
 		compressionHigh: 'Yuqori', // [NEEDS NATIVE REVIEW] uz
-		compressionQuality: 'Sifat', // [NEEDS NATIVE REVIEW] uz
 		compressionSettings: 'Siqish sozlamalari', // [NEEDS NATIVE REVIEW] uz
 		fileTooBigAfterCompression: 'Siqishdan keyin fayl hajmi juda katta ({0} MB)', // [NEEDS NATIVE REVIEW] uz
 		compressAllMedia: 'Barcha mediani siqish', // [NEEDS NATIVE REVIEW] uz
