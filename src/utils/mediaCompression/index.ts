@@ -79,16 +79,11 @@ export async function compressMedia(
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    // HTML is text-only, no compression
+    // HTML is text-only and must be stored byte-exact: re-encoding via
+    // file.text() + TextEncoder would strip a BOM and mangle windows-1251 /
+    // UTF-16 bytes (mismatch with the compression-OFF path in ScreensView).
     if (type === 'html') {
-        const text = await file.text();
-        return {
-            data: new TextEncoder().encode(text),
-            fileName: file.name,
-            originalSize: file.size,
-            compressedSize: file.size,
-            wasCompressed: false,
-        };
+        return passthrough(file);
     }
 
     switch (type) {
