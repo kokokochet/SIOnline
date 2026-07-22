@@ -1,5 +1,6 @@
 import { CompressedMedia, ImageCompressionOptions } from './compressionTypes';
 import { passthroughMedia } from './passthrough';
+import { detectImageFormat, hasAlphaChannel } from './imageFormatDetect';
 
 /** Maximum pixel count allowed for decoded images (≈8192×4096). Prevents decompression-bomb OOM. */
 const MAX_IMAGE_PIXELS = 33_177_600;
@@ -113,6 +114,8 @@ export async function compressImage(
     const originalData = new Uint8Array(await file.arrayBuffer());
 
     try {
+        const format = detectImageFormat(originalData);
+
         // GIF passthrough: JPEG conversion destroys animation.
         if (file.name.toLowerCase().endsWith('.gif')) {
             return passthroughMedia(originalData, file.name);
@@ -159,16 +162,22 @@ export async function compressImage(
                 return passthroughMedia(originalData, file.name);
             }
 
-            // Fill white to preserve PNG alpha on JPEG output (avoids black background).
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
+            const hasAlpha = hasAlphaChannel(originalData, format);
+            const effectiveMime = hasAlpha ? 'image/png' : options.mimeType;
+
+            // White-fill only when flattening to JPEG — preserves transparency
+            // for PNG output (the documented #img-2 corruption).
+            if (!hasAlpha) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, targetWidth, targetHeight);
+            }
 
             ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
             bitmap.close();
             bitmapClosed = true;
 
             const blob = await new Promise<Blob | null>((resolve) => {
-                canvas.toBlob(resolve, options.mimeType, options.quality);
+                canvas.toBlob(resolve, effectiveMime, options.quality);
             });
 
             if (!blob) {
@@ -183,7 +192,8 @@ export async function compressImage(
             }
 
             const baseName = file.name.replace(/\.[^.]+$/, '');
-            const newFileName = `${baseName}.jpg`;
+            const extension = hasAlpha ? '.png' : '.jpg';
+            const newFileName = `${baseName}${extension}`;
 
             return {
                 data: compressedData,

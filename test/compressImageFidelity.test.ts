@@ -116,4 +116,72 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.toBlobCalls).toHaveLength(0);
         });
     });
+
+    describe('#img-2 transparency is preserved (alpha-aware format)', () => {
+        // Minimal PNG: signature + IHDR (length 13) with the given color type.
+        // Note: return type inferred (Uint8Array<ArrayBuffer>) so it's a valid BlobPart.
+        function makePngIhdr(colorType: number, bitDepth = 8) {
+            return new Uint8Array([
+                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
+                0x00, 0x00, 0x00, 0x0d, // IHDR length = 13
+                0x49, 0x48, 0x44, 0x52, // "IHDR"
+                0x00, 0x00, 0x00, 0x01, // width = 1
+                0x00, 0x00, 0x00, 0x01, // height = 1
+                bitDepth, // offset 24
+                colorType, // offset 25
+                0x00, 0x00, 0x00, // compression, filter, interlace
+            ]);
+        }
+
+        let mock: ImageCompressionMockHandle;
+
+        afterEach(() => {
+            uninstallImageCompressionMock();
+        });
+
+        test('RGBA PNG (color type 6) is re-encoded as PNG and skips the white fill', async () => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(10),
+            });
+            const file = new File([makePngIhdr(6)], 'logo.png', { type: 'image/png' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(true);
+            expect(result.fileName).toBe('logo.png'); // kept .png, not .jpg
+            expect(mock.toBlobCalls[0].mimeType).toBe('image/png');
+            expect(mock.fillRectCalls).toHaveLength(0); // no white fill
+        });
+
+        test('gray+alpha PNG (color type 4) is re-encoded as PNG', async () => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(10),
+            });
+            const file = new File([makePngIhdr(4)], 'alpha.png', { type: 'image/png' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.fileName).toBe('alpha.png');
+            expect(mock.toBlobCalls[0].mimeType).toBe('image/png');
+            expect(mock.fillRectCalls).toHaveLength(0);
+        });
+
+        test('opaque PNG (color type 2) keeps the JPEG path and white fill', async () => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(10),
+            });
+            const file = new File([makePngIhdr(2)], 'photo.png', { type: 'image/png' });
+
+            await compressImage(file, jpegOptions);
+
+            expect(mock.toBlobCalls[0].mimeType).toBe('image/jpeg');
+            expect(mock.fillRectCalls).toHaveLength(1); // white fill applied
+        });
+    });
 });
