@@ -188,6 +188,106 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.fillRectCalls).toHaveLength(1); // white fill applied
         });
     });
+
+    describe('#img-3 animation is preserved (content-based passthrough)', () => {
+        function makeGif() {
+            // GIF89a magic bytes + a minimal logical screen descriptor.
+            return new Uint8Array([
+                0x47, 0x49, 0x46, 0x38, 0x39, 0x61, // "GIF89a"
+                0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, // canvas w/h/packed
+                0xff, 0xff, 0xff, 0x00, 0x00, 0x00, // palette
+                0x3b, // trailer
+            ]);
+        }
+
+        function makeAnimatedWebp() {
+            return new Uint8Array([
+                0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, // "RIFF" + size
+                0x57, 0x45, 0x42, 0x50, // "WEBP"
+                0x41, 0x4e, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00, // "ANIM" chunk
+            ]);
+        }
+
+        function makeApng() {
+            // signature + IHDR(13) + dummy CRC + acTL(8) + dummy CRC
+            return new Uint8Array([
+                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
+                0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR len + "IHDR"
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // w=1, h=1
+                0x08, 0x02, 0x00, 0x00, 0x00, // bitDepth=8, colorType=2, comp/filter/interlace
+                0x00, 0x00, 0x00, 0x00, // CRC (dummy)
+                0x00, 0x00, 0x00, 0x08, 0x61, 0x63, 0x54, 0x4c, // acTL len=8 + "acTL"
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, // num_frames=1, num_plays=0
+                0x00, 0x00, 0x00, 0x00, // CRC (dummy)
+            ]);
+        }
+
+        function makeStaticPng() {
+            // signature + IHDR only (no acTL) → static.
+            return new Uint8Array([
+                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+                0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x02, 0x00, 0x00, 0x00,
+            ]);
+        }
+
+        let mock: ImageCompressionMockHandle;
+
+        beforeEach(() => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 100,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(1),
+            });
+        });
+
+        afterEach(() => {
+            uninstallImageCompressionMock();
+        });
+
+        test('animated WebP passes through unchanged', async () => {
+            const bytes = makeAnimatedWebp();
+            const file = new File([bytes], 'anim.webp', { type: 'image/webp' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('anim.webp');
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('APNG (acTL chunk) passes through unchanged', async () => {
+            const bytes = makeApng();
+            const file = new File([bytes], 'anim.png', { type: 'image/png' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('anim.png');
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('GIF passes through by magic bytes even with a non-.gif filename', async () => {
+            const file = new File([makeGif()], 'photo.jpg', { type: 'image/jpeg' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('photo.jpg');
+            expect(mock.toBlobCalls).toHaveLength(0);
+        });
+
+        test('static PNG (no acTL) still proceeds to compression (regression)', async () => {
+            const file = new File([makeStaticPng()], 'still.png', { type: 'image/png' });
+
+            // toBlobBytes (1) is smaller than the original static PNG (29 bytes)
+            // but we only assert that animation detection did NOT short-circuit.
+            await compressImage(file, jpegOptions);
+
+            expect(mock.createImageBitmapCalls).toHaveLength(1);
+        });
+    });
 });
 
 describe('media-compression-review FOLLOWUP WebP alpha detection (imageFormatDetect)', () => {

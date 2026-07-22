@@ -1,6 +1,6 @@
 import { CompressedMedia, ImageCompressionOptions } from './compressionTypes';
 import { passthroughMedia } from './passthrough';
-import { detectImageFormat, hasAlphaChannel } from './imageFormatDetect';
+import { detectImageFormat, hasAlphaChannel, isAnimated } from './imageFormatDetect';
 
 /** Maximum pixel count allowed for decoded images (≈8192×4096). Prevents decompression-bomb OOM. */
 const MAX_IMAGE_PIXELS = 33_177_600;
@@ -116,8 +116,10 @@ export async function compressImage(
     try {
         const format = detectImageFormat(originalData);
 
-        // GIF passthrough: JPEG conversion destroys animation.
-        if (file.name.toLowerCase().endsWith('.gif')) {
+        // Animation / format passthrough (content-based, not filename):
+        //  - GIF: always pass through (preserves frames; matches prior behaviour).
+        //  - Animated WebP (ANIM chunk) / APNG (acTL chunk): JPEG keeps only frame 1.
+        if (format === 'gif' || isAnimated(originalData, format)) {
             return passthroughMedia(originalData, file.name);
         }
 

@@ -134,3 +134,93 @@ export function hasAlphaChannel(
             return false;
     }
 }
+
+function readUint32BE(data: Uint8Array, offset: number): number {
+    return (
+        ((data[offset] << 24) |
+            (data[offset + 1] << 16) |
+            (data[offset + 2] << 8) |
+            data[offset + 3]) >>>
+        0
+    );
+}
+
+/** Walks PNG chunks (skipping the 8-byte signature), invoking onChunk per chunk. */
+function forEachPngChunk(
+    data: Uint8Array,
+    onChunk: (type: string, dataOffset: number, length: number) => boolean | void,
+): void {
+    let offset = 8; // skip signature
+    while (offset + 8 <= data.length) {
+        const length = readUint32BE(data, offset);
+        const type = String.fromCharCode(
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        );
+        const dataOffset = offset + 8;
+        if (onChunk(type, dataOffset, length) === false) {
+            return;
+        }
+        offset = dataOffset + length + 4; // +4 trailing CRC
+    }
+}
+
+/** APNG detection: an `acTL` (animation control) chunk before the first IDAT. */
+function apngIsAnimated(data: Uint8Array): boolean {
+    let animated = false;
+    forEachPngChunk(data, (type) => {
+        if (type === 'acTL') {
+            animated = true;
+            return false; // stop
+        }
+        if (type === 'IDAT') {
+            return false; // acTL always precedes image data; safe to stop
+        }
+    });
+    return animated;
+}
+
+/** Animated WebP detection: presence of an `ANIM` chunk. */
+function webpIsAnimated(data: Uint8Array): boolean {
+    let offset = 12; // skip "RIFF"(4) + size(4) + "WEBP"(4)
+    while (offset + 8 <= data.length) {
+        const type = String.fromCharCode(
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        );
+        const size = readUint32LE(data, offset + 4);
+        if (type === 'ANIM') {
+            return true;
+        }
+        offset = offset + 8 + size + (size % 2); // RIFF chunks are even-padded
+    }
+    return false;
+}
+
+/**
+ * Heuristic animation detection for formats whose JPEG re-encode would keep
+ * only the first frame.
+ *
+ * - `webp`: `ANIM` chunk present (animated WebP).
+ * - `png`: `acTL` chunk present (APNG).
+ * - `gif`: returns false — GIF is handled by the caller as a format-level
+ *   passthrough (all GIFs pass through), so per-frame detection is unnecessary.
+ * - others: false (single-frame).
+ */
+export function isAnimated(
+    data: Uint8Array,
+    format: DetectedImageFormat = detectImageFormat(data),
+): boolean {
+    switch (format) {
+        case 'webp':
+            return webpIsAnimated(data);
+        case 'png':
+            return apngIsAnimated(data);
+        default:
+            return false;
+    }
+}
