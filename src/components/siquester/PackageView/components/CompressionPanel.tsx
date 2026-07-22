@@ -8,6 +8,10 @@ import {
 } from '../../../../state/siquesterSlice';
 import localization from '../../../../model/resources/localization';
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
+import {
+	isAudioCompressionSupported,
+	isVideoCompressionSupported,
+} from '../../../../utils/mediaCompression';
 import Dialog from '../../../common/Dialog/Dialog';
 
 import './CompressionPanel.scss';
@@ -82,12 +86,28 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 					<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 				</div>
 
-				{mediaTypes.map(({ type, label }) => (
+			{mediaTypes.map(({ type, label }) => {
+				const typeUnsupported =
+					(type === 'audio' && !isAudioCompressionSupported()) ||
+					(type === 'video' && !isVideoCompressionSupported());
+				const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
+
+				return (
 					<div
 						key={type}
-						className={`compressionPanel__presets ${!mediaCompression.enabled ? 'compressionPanel__presets--disabled' : ''}`}
+						className={`compressionPanel__presets ${presetsDisabled ? 'compressionPanel__presets--disabled' : ''}`}
 					>
 						<div className='compressionPanel__title'>{label}</div>
+						{type === 'audio' && !isAudioCompressionSupported() ? (
+							<div className='compressionPanel__notice' role='note'>
+								{localization.compressionAudioNotSupported}
+							</div>
+						) : null}
+						{type === 'video' && !isVideoCompressionSupported() ? (
+							<div className='compressionPanel__notice' role='note'>
+								{localization.compressionVideoNotSupported}
+							</div>
+						) : null}
 						{presets.map(({ value, label: presetLabel }) => (
 							<label key={value} className='compressionPanel__preset'>
 								<input
@@ -95,14 +115,15 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 									name={`compressionPreset-${type}`}
 									value={value}
 									checked={mediaCompression.presets[type] === value}
-									disabled={!mediaCompression.enabled}
+									disabled={presetsDisabled}
 									onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
 								/>
 								{presetLabel}
 							</label>
 						))}
 					</div>
-				))}
+				);
+			})}
 
 				<div className='compressionPanel__divider' />
 
