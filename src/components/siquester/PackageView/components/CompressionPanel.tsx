@@ -86,44 +86,44 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 					<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 				</div>
 
-			{mediaTypes.map(({ type, label }) => {
-				const typeUnsupported =
-					(type === 'audio' && !isAudioCompressionSupported()) ||
-					(type === 'video' && !isVideoCompressionSupported());
-				const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
+				{mediaTypes.map(({ type, label }) => {
+					const typeUnsupported =
+						(type === 'audio' && !isAudioCompressionSupported()) ||
+						(type === 'video' && !isVideoCompressionSupported());
+					const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
 
-				return (
-					<div
-						key={type}
-						className={`compressionPanel__presets ${presetsDisabled ? 'compressionPanel__presets--disabled' : ''}`}
-					>
-						<div className='compressionPanel__title'>{label}</div>
-						{type === 'audio' && !isAudioCompressionSupported() ? (
-							<div className='compressionPanel__notice' role='note'>
-								{localization.compressionAudioNotSupported}
-							</div>
-						) : null}
-						{type === 'video' && !isVideoCompressionSupported() ? (
-							<div className='compressionPanel__notice' role='note'>
-								{localization.compressionVideoNotSupported}
-							</div>
-						) : null}
-						{presets.map(({ value, label: presetLabel }) => (
-							<label key={value} className='compressionPanel__preset'>
-								<input
-									type='radio'
-									name={`compressionPreset-${type}`}
-									value={value}
-									checked={mediaCompression.presets[type] === value}
-									disabled={presetsDisabled}
-									onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
-								/>
-								{presetLabel}
-							</label>
-						))}
-					</div>
-				);
-			})}
+					return (
+						<div
+							key={type}
+							className={`compressionPanel__presets ${presetsDisabled ? 'compressionPanel__presets--disabled' : ''}`}
+						>
+							<div className='compressionPanel__title'>{label}</div>
+							{type === 'audio' && typeUnsupported ? (
+								<div className='compressionPanel__notice' role='note'>
+									{localization.compressionAudioNotSupported}
+								</div>
+							) : null}
+							{type === 'video' && typeUnsupported ? (
+								<div className='compressionPanel__notice' role='note'>
+									{localization.compressionVideoNotSupported}
+								</div>
+							) : null}
+							{presets.map(({ value, label: presetLabel }) => (
+								<label key={value} className='compressionPanel__preset'>
+									<input
+										type='radio'
+										name={`compressionPreset-${type}`}
+										value={value}
+										checked={mediaCompression.presets[type] === value}
+										disabled={presetsDisabled}
+										onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
+									/>
+									{presetLabel}
+								</label>
+							))}
+						</div>
+					);
+				})}
 
 				<div className='compressionPanel__divider' />
 

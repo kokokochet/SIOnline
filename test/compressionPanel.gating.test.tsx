@@ -3,7 +3,7 @@
  */
 import '@testing-library/jest-dom';
 import React from 'react';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { renderWithSiquester } from './utils/renderWithSiquester';
 import CompressionPanel from '../src/components/siquester/PackageView/components/CompressionPanel';
 import localization from '../src/model/resources/localization';
@@ -55,10 +55,26 @@ describe('media-compression-review MAJOR: UI does not gate on WebCodecs support 
 	test('disables the audio preset radios when audio is unsupported', () => {
 		audioSupported.mockReturnValue(false);
 		renderPanel();
-		const audioRadios = screen.getAllByRole('radio', { name: /Low|Medium|High/i });
-		// All radios live in one group per type; we assert at least one radio is
-		// disabled and that the notice carries role=note.
-		expect(audioRadios.some(r => (r as HTMLInputElement).disabled)).toBe(true);
+		// Scope to each presets container so the assertion is exact: the 3 audio
+		// radios must all be disabled, while image + video stay enabled (the
+		// disabled set is precisely the audio radios). Previously this used
+		// getAllByRole over all 9 radios + .some, which only proved >=1 disabled.
+		const audioRadios = within(screen.getByText(localization.audio).parentElement!).getAllByRole('radio');
+		expect(audioRadios).toHaveLength(3);
+		expect(audioRadios.every(r => (r as HTMLInputElement).disabled)).toBe(true);
+		const imageRadios = within(screen.getByText(localization.images).parentElement!).getAllByRole('radio');
+		const videoRadios = within(screen.getByText(localization.video).parentElement!).getAllByRole('radio');
+		expect(imageRadios.every(r => !(r as HTMLInputElement).disabled)).toBe(true);
+		expect(videoRadios.every(r => !(r as HTMLInputElement).disabled)).toBe(true);
 		expect(screen.getAllByRole('note').length).toBeGreaterThan(0);
+	});
+
+	test('keeps image preset radios enabled when audio is unsupported', () => {
+		audioSupported.mockReturnValue(false);
+		renderPanel();
+		// Images use canvas (always supported) and must never be gated by WebCodecs.
+		const imageRadios = within(screen.getByText(localization.images).parentElement!).getAllByRole('radio');
+		expect(imageRadios).toHaveLength(3);
+		expect(imageRadios.some(r => (r as HTMLInputElement).disabled)).toBe(false);
 	});
 });

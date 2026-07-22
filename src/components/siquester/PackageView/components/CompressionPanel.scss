@@ -56,6 +56,15 @@
 		margin: 0;
 	}
 
+	.compressionPanel__notice {
+		padding: 6px 10px;
+		border-left: 3px solid #f5a623;
+		background-color: rgba(245, 166, 35, 0.12);
+		color: #ffd591;
+		font-size: 0.85em;
+		border-radius: 2px;
+	}
+
 	.compressionPanel__divider {
 		border-top: 1px solid rgba(128, 128, 128, 0.3);
 	}
