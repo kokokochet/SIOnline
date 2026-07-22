@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import reducer, {
     bulkCompressionCancelRequested,
+    bulkCompressionDialogOpened,
     compressAllPackageMedia,
     defaultMediaCompressionState,
     SIQuesterState,
@@ -341,4 +342,20 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
     expect(state.zip?.file('Images/pic.png')).not.toBeNull();
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
     expect(state.zipRevision).toBe(0);
+});
+
+test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
+    // Defense in depth: even if the UI re-dispatches this action mid-run,
+    // it must not reset phase/cancelRequested and undermine the in-flight run.
+    let state = makeState();
+    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 3 } });
+    state = reducer(state, bulkCompressionCancelRequested());
+    expect(state.bulkCompression?.phase).toBe('running');
+    expect(state.bulkCompression?.cancelRequested).toBe(true);
+
+    state = reducer(state, bulkCompressionDialogOpened());
+
+    expect(state.bulkCompression?.phase).toBe('running');
+    expect(state.bulkCompression?.cancelRequested).toBe(true);
+    expect(state.bulkCompression?.total).toBe(3);
 });

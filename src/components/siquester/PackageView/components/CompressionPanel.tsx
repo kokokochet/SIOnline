@@ -30,6 +30,7 @@ interface CompressionPanelProps {
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
+	const bulk = useAppSelector(state => state.siquester.bulkCompression);
 	const layout = React.useRef<HTMLDivElement>(null);
 
 	const presets: ReadonlyArray<{ value: CompressionPreset; label: string }> = [
@@ -108,6 +109,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 				<button
 					type='button'
 					className='compressionPanel__compressAll standard'
+					disabled={bulk?.phase === 'running'}
 					onClick={() => {
 						appDispatch(bulkCompressionDialogOpened());
 						onClose();

@@ -1335,6 +1335,14 @@ export const siquesterSlice = createSlice({
 			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
 		},
 		bulkCompressionDialogOpened: (state) => {
+			// Re-entry guard: never reopen the confirm dialog while a run is in
+			// flight — clobbering phase here would reset cancelRequested and allow
+			// the UI to look like a fresh start while compressAllPackageMedia is
+			// still running. The thunk's `condition` is the backstop; this is the
+			// UI-state hygiene that keeps the panel honest.
+			if (state.bulkCompression?.phase === 'running') {
+				return;
+			}
 			state.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
 		},
 		bulkCompressionDialogClosed: (state) => {
