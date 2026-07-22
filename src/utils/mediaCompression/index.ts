@@ -4,6 +4,8 @@ import { compressVideo } from './compressVideo';
 import { compressAudio } from './compressAudio';
 
 export { defaultCompressionOptions } from './defaultOptions';
+export { probeMedia } from './probeMedia';
+export type { MediaProbeResult } from './probeMedia';
 export {
     lowPreset,
     mediumPreset,

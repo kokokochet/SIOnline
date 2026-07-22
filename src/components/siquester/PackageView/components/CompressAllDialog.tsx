@@ -6,12 +6,15 @@ import {
 	compressAllPackageMedia,
 	defaultMediaCompressionState,
 } from '../../../../state/siquesterSlice';
-import { selectReferencedMediaCounts } from '../../../../utils/mediaCompression/compressPackageMedia';
+import { selectReferencedMediaCounts, collectMediaReferences } from '../../../../utils/mediaCompression/compressPackageMedia';
 import {
 	isAudioCompressionSupported,
 	isVideoCompressionSupported,
+	probeMedia,
 } from '../../../../utils/mediaCompression';
+import { resolveCompressionOptions } from '../../../../utils/mediaCompression/compressionPresets';
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
+import type { MediaProbeResult } from '../../../../utils/mediaCompression';
 import localization from '../../../../model/resources/localization';
 import Dialog from '../../../common/Dialog/Dialog';
 
@@ -73,6 +76,38 @@ const CompressAllDialog: React.FC = () => {
 
 	const counts = React.useMemo(() => selectReferencedMediaCounts(pack), [pack]);
 
+	const [unsupported, setUnsupported] = React.useState<MediaProbeResult[]>([]);
+
+	React.useEffect(() => {
+		if (!bulk || bulk.phase !== 'confirm' || !pack) {
+			setUnsupported([]);
+			return;
+		}
+		const options = resolveCompressionOptions(mediaCompression.presets);
+		const refs = collectMediaReferences(pack);
+		let cancelled = false;
+		// Result is per-type deterministic (output codec is fixed by the preset);
+		// dedupe by type via a Map to avoid N redundant isConfigSupported calls.
+		const byType = new Map<CompressibleMediaType, string[]>();
+		for (const ref of refs) {
+			const list = byType.get(ref.type) ?? [];
+			list.push(ref.value);
+			byType.set(ref.type, list);
+		}
+		const all: Promise<MediaProbeResult>[] = [];
+		for (const [type, names] of byType.entries()) {
+			const firstFile = new File([new Uint8Array([0])], names[0]);
+			all.push(probeMedia(firstFile, type, options));
+		}
+		Promise.all(all).then(results => {
+			if (cancelled) return;
+			setUnsupported(results.filter(r => !r.supported));
+		}).catch(() => {
+			if (!cancelled) setUnsupported([]);
+		});
+		return () => { cancelled = true; };
+	}, [bulk?.phase, pack, mediaCompression.presets]);
+
 	const phaseRef = React.useRef(bulk?.phase);
 	phaseRef.current = bulk?.phase;
 
@@ -129,6 +164,20 @@ const CompressAllDialog: React.FC = () => {
 						) : null}
 						<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
 						<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
+						{unsupported.length > 0 ? (
+							<div className='compressAllDialog__unsupported'>
+								<div className='compressAllDialog__unsupportedTitle'>
+									{localization.compressionUnsupportedFiles}
+								</div>
+								<ul className='compressAllDialog__unsupportedList'>
+									{unsupported.map(u => (
+										<li key={`${u.type}:${u.codec}`}>
+											{`${getMediaTypeLabel(u.type)} (${u.codec})`}
+										</li>
+									))}
+								</ul>
+							</div>
+						) : null}
 						</>
 					)}
 					<div className='compressAllDialog__buttons'>
