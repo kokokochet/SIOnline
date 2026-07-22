@@ -8,24 +8,27 @@ const WORKER_TIMEOUT_MS = 60_000;
 
 /**
  * Opus native sample rate (RFC 7845) — Opus always operates internally at
- * 48 kHz, so input audio is decoded/resampled to 48 kHz before encoding.
- * Keep in sync with the identical constant in workers/audioCompression.worker.ts
- * (the worker is bundled separately and cannot import this module).
+ * 48 kHz. Kept here for reference and for upload-side callers that compute
+ * durations; the worker carries its own copy (bundled separately, see
+ * workers/audioCompression.worker.ts).
  */
 export const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.
  *
- * Decoding (decodeAudioData) runs on the main thread because OfflineAudioContext
- * is not available in Web Workers. Decoded PCM is transferred to the worker,
- * which encodes to Opus (128 kbps, 48 kHz) and muxes into OGG.
+ * DECODE RUNS IN THE WORKER. The main thread posts the raw encoded bytes
+ * (`{data, options}`) and never materializes PCM — a 200 MB MP3 no longer
+ * peaks at ~3.6 GB on the main thread (review MAJOR Memory/OOM: "Audio PCM
+ * on main thread"). The worker decodes via `OfflineAudioContext.decodeAudioData`,
+ * enforces `MAX_DECODED_AUDIO_BYTES`, then encodes to Opus (options.bitrate,
+ * 48 kHz) and muxes into OGG.
  *
- * Output extension: .opus (already in allowedExtensionsByType.audio).
- * Opus is ~1.5-2× more efficient than MP3 — 128 kbps ≈ MP3 192 kbps.
+ * Output extension: .opus. Opus is ~1.5-2× more efficient than MP3.
  *
- * If WebCodecs AudioEncoder is unavailable, the file is returned uncompressed.
- * Safety check: if compressed is larger than original, returns original.
+ * If WebCodecs AudioEncoder is unavailable, the worker cannot decode (no
+ * AudioContext in worker), the output is empty/larger than original, or the
+ * worker times out, the original file is returned unchanged (passthrough).
  */
 export async function compressAudio(
     file: File,
@@ -43,10 +46,6 @@ export async function compressAudio(
     }
 
     try {
-        // Extract decode + channel-copy into helper so audioBuffer goes out of
-        // scope before awaiting the worker, halving peak PCM memory.
-        const pcmData = await decodeAndExtractPcm(originalData, options);
-
         const worker = createAudioWorker();
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -68,14 +67,12 @@ export async function compressAudio(
                     };
 
                     const request: AudioWorkerRequest = {
-                        channels: pcmData.channels,
-                        numberOfChannels: pcmData.numberOfChannels,
-                        totalFrames: pcmData.totalFrames,
+                        data: originalData.buffer.slice(0) as ArrayBuffer,
                         options,
                     };
 
-                    // Transfer all channel ArrayBuffers (zero-copy)
-                    worker.postMessage(request, pcmData.channels);
+                    // Transfer the encoded input (zero-copy); PCM stays in the worker.
+                    worker.postMessage(request, [request.data]);
                 }),
                 new Promise<ArrayBuffer>((_, reject) => {
                     timeoutId = setTimeout(() => reject(new Error('Audio compression worker timeout')), WORKER_TIMEOUT_MS);
@@ -112,36 +109,4 @@ export async function compressAudio(
         console.warn('Audio compression failed, using original:', err);
         return passthroughMedia(originalData, file.name);
     }
-}
-
-/**
- * Decodes audio to PCM on the main thread (OfflineAudioContext not in workers)
- * and extracts per-channel data as ArrayBuffers for transfer.
- * Extracted into a helper so audioBuffer can be GC'd before the worker runs.
- */
-async function decodeAndExtractPcm(
-    originalData: Uint8Array,
-    options: AudioCompressionOptions,
-): Promise<{ channels: ArrayBuffer[]; numberOfChannels: number; totalFrames: number }> {
-    const audioContext = new OfflineAudioContext(
-        options.channels,
-        1,
-        OPUS_SAMPLE_RATE,
-    );
-    const audioBuffer = await audioContext.decodeAudioData(originalData.buffer.slice(0) as ArrayBuffer);
-
-    const numberOfChannels = Math.min(audioBuffer.numberOfChannels, options.channels);
-    const totalFrames = audioBuffer.length;
-
-    const channels: ArrayBuffer[] = [];
-    for (let ch = 0; ch < numberOfChannels; ch++) {
-        const data = audioBuffer.getChannelData(ch);
-        // Copy to a new ArrayBuffer for transfer (getChannelData returns a view)
-        const buf = new ArrayBuffer(data.byteLength);
-        new Float32Array(buf).set(data);
-        channels.push(buf);
-    }
-
-    // audioBuffer goes out of scope here — freed before worker runs
-    return { channels, numberOfChannels, totalFrames };
 }

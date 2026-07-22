@@ -1,6 +1,14 @@
 
-import { AudioWorkerRequest, AudioWorkerResponse, WorkerAbortMessage } from '../compressionTypes';
+import { AudioWorkerRequest, AudioWorkerResponse, WorkerAbortMessage, AudioCompressionOptions } from '../compressionTypes';
 import { encodeAudioToOpus } from '../audioEncoder';
+import { MAX_DECODED_AUDIO_BYTES } from '../limits';
+
+/**
+ * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz. Duplicated
+ * locally (the worker is bundled separately and cannot import compressAudio.ts
+ * / audioEncoder.ts' private copy). Keep in sync with the other copies.
+ */
+const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -25,11 +33,12 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
         return;
     }
 
-    const { channels, numberOfChannels, totalFrames, options } = e.data;
+    const { data, options } = e.data;
     currentJobRejected = false;
 
     try {
-        const result = await encodeAudioToOpus(channels, numberOfChannels, totalFrames, options);
+        const pcm = await decodePcm(data, options);
+        const result = await encodeAudioToOpus(pcm.channels, pcm.numberOfChannels, pcm.totalFrames, options);
         if (currentJobRejected) {
             return;
         }
@@ -46,3 +55,55 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
         ctx.postMessage(response);
     }
 };
+
+/**
+ * Decodes raw encoded audio bytes to per-channel Float32 PCM inside the worker.
+ *
+ * `decodeAudioData` is available in DedicatedWorkerGlobalScope via
+ * OfflineAudioContext (Chrome 100+, Safari 16+, Firefox 100+) or AudioContext.
+ * We prefer OfflineAudioContext (no live audio graph); fall back to AudioContext.
+ * If neither is present, throw — `compressAudio`'s error handler returns the
+ * original file (passthrough). This keeps the multi-hundred-MB PCM footprint
+ * off the main thread (review MAJOR Memory/OOM).
+ *
+ * Enforces MAX_DECODED_AUDIO_BYTES after decode (best-effort post-decode cap;
+ * primary protection is worker isolation — see limits.ts).
+ */
+async function decodePcm(
+    data: ArrayBuffer,
+    options: AudioCompressionOptions,
+): Promise<{ channels: ArrayBuffer[]; numberOfChannels: number; totalFrames: number }> {
+    const Ctx: (typeof OfflineAudioContext) | (typeof AudioContext) | undefined =
+        (typeof OfflineAudioContext !== 'undefined' ? OfflineAudioContext : undefined) ??
+        (typeof AudioContext !== 'undefined' ? AudioContext : undefined);
+
+    if (!Ctx) {
+        throw new Error('No AudioContext/OfflineAudioContext available in worker for decodeAudioData');
+    }
+
+    // decodeAudioData does not render the context; a 1-frame, 1-channel,
+    // 48 kHz context is the smallest valid configuration.
+    const audioContext = new Ctx(1, 1, OPUS_SAMPLE_RATE);
+    // slice(0): some engines detach the input buffer; keep data reusable.
+    const audioBuffer = await audioContext.decodeAudioData(data.slice(0));
+
+    const numberOfChannels = Math.min(audioBuffer.numberOfChannels, options.channels);
+    const totalFrames = audioBuffer.length;
+
+    const decodedBytes = totalFrames * numberOfChannels * 4; // Float32
+    if (decodedBytes > MAX_DECODED_AUDIO_BYTES) {
+        throw new Error(
+            `Decoded audio too large: ${decodedBytes} bytes > MAX_DECODED_AUDIO_BYTES (${MAX_DECODED_AUDIO_BYTES})`,
+        );
+    }
+
+    const channels: ArrayBuffer[] = [];
+    for (let ch = 0; ch < numberOfChannels; ch++) {
+        const channelData = audioBuffer.getChannelData(ch);
+        const buf = new ArrayBuffer(channelData.byteLength);
+        new Float32Array(buf).set(channelData);
+        channels.push(buf);
+    }
+
+    return { channels, numberOfChannels, totalFrames };
+}

@@ -73,11 +73,18 @@ export type WorkerCompressResponse =
     | { type: 'error'; error: string }
     | { type: 'cancelled' };
 
-/** Message from main thread to audio worker — PCM data (decoded on main thread). */
+/**
+ * Message from main thread to audio worker — raw encoded bytes.
+ *
+ * Decoding (decodeAudioData) runs INSIDE the worker to keep multi-hundred-MB
+ * PCM off the main thread (review MAJOR Memory/OOM: "Audio PCM on main
+ * thread"). The worker probes OfflineAudioContext / AudioContext availability
+ * and throws if neither exists (caller surfaces as passthrough). This is the
+ * post-Plan-03 shape (Section B's `AudioWorkerRequest` post-Plan-03 arm).
+ */
 export interface AudioWorkerRequest {
-    channels: ArrayBuffer[];
-    numberOfChannels: number;
-    totalFrames: number;
+    /** Raw encoded audio bytes (MP3, WAV, OGG, …). Worker decodes via decodeAudioData. */
+    data: ArrayBuffer;
     options: AudioCompressionOptions;
 }
 
