@@ -6,6 +6,7 @@ import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
 import { buildVideoEncoderConfig } from '../videoEncoderConfig';
+import { waitForQueueDrain } from './workerBackpressure';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -210,6 +211,7 @@ async function reencodeVideo(
     return new Promise((resolve, reject) => {
         let encoderClosed = false;
         let decoderClosed = false;
+        let settled = false;
 
         const closeBoth = () => {
             if (!encoderClosed) { encoderClosed = true; encoder.close(); }
@@ -238,13 +240,11 @@ async function reencodeVideo(
                     nextDecodeTimestamp += chunk.duration ?? frameDurationFallback;
                     muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
-                    closeBoth();
-                    reject(err instanceof Error ? err : new Error(String(err)));
+                    if (!settled) { settled = true; closeBoth(); reject(err instanceof Error ? err : new Error(String(err))); }
                 }
             },
             error: (e: DOMException) => {
-                closeBoth();
-                reject(new Error(`VideoEncoder error: ${e.message}`));
+                if (!settled) { settled = true; closeBoth(); reject(new Error(`VideoEncoder error: ${e.message}`)); }
             },
         });
 
@@ -255,45 +255,57 @@ async function reencodeVideo(
                 try {
                     encoder.encode(frame);
                 } catch (err) {
-                    closeBoth();
-                    reject(err instanceof Error ? err : new Error(String(err)));
+                    if (!settled) { settled = true; closeBoth(); reject(err instanceof Error ? err : new Error(String(err))); }
                 } finally {
                     frame.close();
                 }
             },
             error: (e: DOMException) => {
-                closeBoth();
-                reject(new Error(`VideoDecoder error: ${e.message}`));
+                if (!settled) { settled = true; closeBoth(); reject(new Error(`VideoDecoder error: ${e.message}`)); }
             },
         });
 
         decoder.configure(decoderConfig);
 
-        for (let i = 0; i < samples.length; i += 1) {
-            const sample = samples[i];
-            const chunk = new EncodedVideoChunk({
-                type: sample.is_sync ? 'key' : 'delta',
-                timestamp: rebasedTimestamps[i],
-                duration: Math.round((sample.duration * 1_000_000) / track.timescale),
-                data: sample.data!,
-            });
-            decoder.decode(chunk);
-        }
-
-        decoder.flush()
-            .then(() => {
+        // Dual-gate backpressure loop (Resolution 16). Yield while EITHER the
+        // decoder's OR the encoder's native queue is deep. The decoder's
+        // output callback feeds the encoder synchronously
+        // (encoder.encode(frame)); on a software-encode path or a slow hardware
+        // encoder the decoder stays ahead of the encoder and the encoder's
+        // native queue balloons. Gating only the decoder leaves the encoder
+        // queue unchecked — half of review Vector 3 ("decode/encode in tight
+        // loop without decodeQueueSize/encodeQueueSize backpressure"). We
+        // therefore await BOTH gates before each decode. (The encoder gate
+        // cannot live inside the decoder's synchronous output callback — a
+        // plain await is impossible there — so it rides along in this loop.)
+        (async () => {
+            try {
+                for (let i = 0; i < samples.length; i += 1) {
+                    if (settled) { return; }
+                    await waitForQueueDrain(decoder);
+                    await waitForQueueDrain(encoder);
+                    const sample = samples[i];
+                    const chunk = new EncodedVideoChunk({
+                        type: sample.is_sync ? 'key' : 'delta',
+                        timestamp: rebasedTimestamps[i],
+                        duration: Math.round((sample.duration * 1_000_000) / track.timescale),
+                        data: sample.data!,
+                    });
+                    decoder.decode(chunk);
+                }
+                await decoder.flush();
                 if (!decoderClosed) { decoderClosed = true; decoder.close(); }
-                return encoder.flush();
-            })
-            .then(() => {
+                await encoder.flush();
                 if (!encoderClosed) { encoderClosed = true; encoder.close(); }
-                resolve();
-            })
-            .catch((e: DOMException) => {
-                if (!decoderClosed) { decoderClosed = true; decoder.close(); }
-                if (!encoderClosed) { encoderClosed = true; encoder.close(); }
-                reject(new Error(`Flush error: ${e.message}`));
-            });
+                if (!settled) { settled = true; resolve(); }
+            } catch (e) {
+                if (!settled) {
+                    settled = true;
+                    closeBoth();
+                    reject(e instanceof Error ? e : new Error(String(e)));
+                }
+            }
+        })();
     });
 }
 
