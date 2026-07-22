@@ -20,6 +20,8 @@ export { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from './limits';
 export { formatWorkerError, namedError, buildErrorResponse } from './workerErrors';
 export type { WorkerErrorInfo, WorkerErrorResponse } from './workerErrors';
 export { WorkerValidationError, validateAudioWorkerMessage, validateVideoWorkerMessage } from './workerInputValidation';
+export { configureWithCleanup } from './configureWithCleanup';
+export type { ConfigureWithCleanupArgs } from './configureWithCleanup';
 export type {
     CompressibleMediaType,
     CompressedMedia,

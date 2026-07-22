@@ -10,6 +10,7 @@ import { assertAudioMp4Compatible } from '../audioCodecSupport';
 import { buildErrorResponse } from '../workerErrors';
 import { waitForQueueDrain } from './workerBackpressure';
 import { validateVideoWorkerMessage } from '../workerInputValidation';
+import { configureWithCleanup } from '../configureWithCleanup';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -259,8 +260,6 @@ async function reencodeVideo(
             },
         });
 
-        encoder.configure(encoderConfig);
-
         const decoder = new VideoDecoder({
             output: (frame: VideoFrame) => {
                 try {
@@ -281,7 +280,18 @@ async function reencodeVideo(
             },
         });
 
-        decoder.configure(decoderConfig);
+        // Construct both codecs before configuring either: a synchronous throw
+        // from VideoEncoder.configure/VideoDecoder.configure (e.g.
+        // NotSupportedError, malformed config) must close BOTH codecs so native
+        // state is not leaked until worker.terminate(). closeWithCleanup wraps
+        // each close in its own try/catch so a secondary close-throw cannot
+        // mask the original configure error or skip the sibling close.
+        configureWithCleanup({
+            configureEncoder: () => encoder.configure(encoderConfig),
+            configureDecoder: () => decoder.configure(decoderConfig),
+            closeEncoder: () => { if (!encoderClosed) { encoderClosed = true; encoder.close(); } },
+            closeDecoder: () => { if (!decoderClosed) { decoderClosed = true; decoder.close(); } },
+        });
 
         // Dual-gate backpressure loop (Resolution 16). Yield while EITHER the
         // decoder's OR the encoder's native queue is deep. The decoder's
