@@ -1,5 +1,5 @@
 import { defaultCompressionOptions } from '../src/utils/mediaCompression/defaultOptions';
-import { compressionPresets } from '../src/utils/mediaCompression/compressionPresets';
+import { compressionPresets, mediumPreset } from '../src/utils/mediaCompression/compressionPresets';
 import {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -11,22 +11,29 @@ import { compressMedia } from '../src/utils/mediaCompression';
 
 describe('mediaCompression', () => {
     describe('defaultCompressionOptions', () => {
-        test('image defaults match spec: max 800px, JPEG quality 0.8', () => {
-            expect(defaultCompressionOptions.image.maxDimension).toBe(800);
+        test('image defaults match medium preset (max 1200px, JPEG quality 0.8)', () => {
+            expect(defaultCompressionOptions.image.maxDimension).toBe(1200);
             expect(defaultCompressionOptions.image.quality).toBe(0.8);
             expect(defaultCompressionOptions.image.mimeType).toBe('image/jpeg');
         });
 
-        test('audio defaults: 128 kbps Opus (Opus 128k ≈ MP3 192k)', () => {
+        test('audio defaults: 128 kbps Opus', () => {
             expect(defaultCompressionOptions.audio.bitrate).toBe(128_000);
             expect(defaultCompressionOptions.audio.codec).toBe('opus');
             expect(defaultCompressionOptions.audio.channels).toBe(2);
         });
 
-        test('video defaults match spec: max 720px height, 1000 kbps, H.264', () => {
+        test('video defaults: 720px height, 500 kbps, H.264', () => {
             expect(defaultCompressionOptions.video.maxHeight).toBe(720);
-            expect(defaultCompressionOptions.video.bitrate).toBe(1_000_000);
+            expect(defaultCompressionOptions.video.bitrate).toBe(500_000);
             expect(defaultCompressionOptions.video.codec).toMatch(/^avc1\./);
+        });
+
+        test('defaultCompressionOptions IS the medium preset (single source of truth)', () => {
+            // Identity (Object.is) check: defaultOptions.ts re-exports mediumPreset,
+            // so the two must be the exact same reference. Prevents drift between
+            // the defaults module and the presets module.
+            expect(defaultCompressionOptions).toBe(mediumPreset);
         });
     });
 });

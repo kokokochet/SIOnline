@@ -9,32 +9,39 @@ import { CompressionOptions, CompressionPreset } from '../src/utils/mediaCompres
 
 describe('compressionPresets', () => {
     test('lowPreset has aggressive compression values', () => {
-        expect(lowPreset.image.maxDimension).toBe(480);
-        expect(lowPreset.image.quality).toBe(0.6);
+        expect(lowPreset.image.maxDimension).toBe(1000);
+        expect(lowPreset.image.quality).toBe(0.7);
+        expect(lowPreset.image.mimeType).toBe('image/jpeg');
         expect(lowPreset.audio.bitrate).toBe(64_000);
-        expect(lowPreset.video.maxHeight).toBe(480);
-        expect(lowPreset.video.bitrate).toBe(500_000);
+        expect(lowPreset.audio.codec).toBe('opus');
+        expect(lowPreset.audio.channels).toBe(2);
+        expect(lowPreset.video.maxHeight).toBe(720);
+        expect(lowPreset.video.bitrate).toBe(350_000);
+        expect(lowPreset.video.codec).toBe('avc1.64001F');
     });
 
-    test('mediumPreset matches the previous defaults (backward compat)', () => {
-        expect(mediumPreset.image.maxDimension).toBe(800);
+    test('mediumPreset has balanced compression values', () => {
+        expect(mediumPreset.image.maxDimension).toBe(1200);
         expect(mediumPreset.image.quality).toBe(0.8);
         expect(mediumPreset.image.mimeType).toBe('image/jpeg');
         expect(mediumPreset.audio.bitrate).toBe(128_000);
         expect(mediumPreset.audio.codec).toBe('opus');
         expect(mediumPreset.audio.channels).toBe(2);
         expect(mediumPreset.video.maxHeight).toBe(720);
-        expect(mediumPreset.video.bitrate).toBe(1_000_000);
+        expect(mediumPreset.video.bitrate).toBe(500_000);
         expect(mediumPreset.video.codec).toBe('avc1.64001F');
     });
 
     test('highPreset favors quality', () => {
-        expect(highPreset.image.maxDimension).toBe(1280);
-        expect(highPreset.image.quality).toBe(0.92);
+        expect(highPreset.image.maxDimension).toBe(1500);
+        expect(highPreset.image.quality).toBe(0.9);
+        expect(highPreset.image.mimeType).toBe('image/jpeg');
         expect(highPreset.audio.bitrate).toBe(192_000);
+        expect(highPreset.audio.codec).toBe('opus');
+        expect(highPreset.audio.channels).toBe(2);
         expect(highPreset.video.maxHeight).toBe(1080);
-        expect(highPreset.video.bitrate).toBe(2_500_000);
-        // Level 4.0 required for 1080p
+        expect(highPreset.video.bitrate).toBe(1_500_000);
+        // Level 4.0 (avc1.640028) required for 1080p
         expect(highPreset.video.codec).toBe('avc1.640028');
     });
 
@@ -61,6 +68,51 @@ describe('compressionPresets', () => {
             expect(typeof opts.video.bitrate).toBe('number');
             expect(opts.audio.channels === 1 || opts.audio.channels === 2).toBe(true);
         }
+    });
+
+    // Invariants — guard against accidental inversion when values are retuned.
+    // These hold regardless of the exact numbers pinned above, so a legitimate
+    // re-tune (e.g. low 1000 -> 1100) does not require touching these tests,
+    // while an inversion (low suddenly higher than medium) fails loudly.
+    describe('preset ordering invariants', () => {
+        test('image maxDimension is monotonically non-decreasing low -> high', () => {
+            expect(lowPreset.image.maxDimension).toBeLessThanOrEqual(mediumPreset.image.maxDimension);
+            expect(mediumPreset.image.maxDimension).toBeLessThanOrEqual(highPreset.image.maxDimension);
+        });
+
+        test('image quality is monotonically non-decreasing low -> high', () => {
+            expect(lowPreset.image.quality).toBeLessThanOrEqual(mediumPreset.image.quality);
+            expect(mediumPreset.image.quality).toBeLessThanOrEqual(highPreset.image.quality);
+        });
+
+        test('audio bitrate strictly increases low -> high', () => {
+            expect(lowPreset.audio.bitrate).toBeLessThan(mediumPreset.audio.bitrate);
+            expect(mediumPreset.audio.bitrate).toBeLessThan(highPreset.audio.bitrate);
+        });
+
+        test('video bitrate strictly increases low -> high', () => {
+            expect(lowPreset.video.bitrate).toBeLessThan(mediumPreset.video.bitrate);
+            expect(mediumPreset.video.bitrate).toBeLessThan(highPreset.video.bitrate);
+        });
+
+        test('video maxHeight is monotonically non-decreasing low -> high', () => {
+            expect(lowPreset.video.maxHeight).toBeLessThanOrEqual(mediumPreset.video.maxHeight);
+            expect(mediumPreset.video.maxHeight).toBeLessThanOrEqual(highPreset.video.maxHeight);
+        });
+
+        test('low/medium/high are pairwise distinct presets', () => {
+            expect(lowPreset).not.toEqual(mediumPreset);
+            expect(mediumPreset).not.toEqual(highPreset);
+            expect(lowPreset).not.toEqual(highPreset);
+        });
+
+        test('all presets use opus audio codec', () => {
+            expect([lowPreset, mediumPreset, highPreset].map(p => p.audio.codec)).toEqual([
+                'opus',
+                'opus',
+                'opus',
+            ]);
+        });
     });
 
     describe('resolveCompressionOptions', () => {
