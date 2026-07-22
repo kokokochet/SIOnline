@@ -75,5 +75,6 @@ export function validateAudioWorkerMessage(msg: unknown): asserts msg is AudioWo
 export function validateVideoWorkerMessage(msg: unknown): asserts msg is WorkerCompressRequest {
     if (!isObject(msg)) fail('video worker message must be an object');
     if (!(msg.data instanceof ArrayBuffer)) fail('data must be an ArrayBuffer');
+    if (msg.data.byteLength === 0) fail('data.byteLength must be > 0 (got empty buffer)');
     assertVideoOptions(msg.options);
 }

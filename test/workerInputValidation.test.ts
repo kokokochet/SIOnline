@@ -118,5 +118,9 @@ describe('media-compression-review MAJOR: Unvalidated worker input', () => {
         test('throws when data is not an ArrayBuffer', () => {
             expect(() => validateVideoWorkerMessage(validVideoMessage({ data: 'nope' }))).toThrow(/data/);
         });
+
+        test('throws when data.byteLength is 0', () => {
+            expect(() => validateVideoWorkerMessage(validVideoMessage({ data: new ArrayBuffer(0) }))).toThrow(/byteLength/);
+        });
     });
 });
