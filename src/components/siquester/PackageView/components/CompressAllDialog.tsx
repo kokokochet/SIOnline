@@ -49,14 +49,17 @@ function formatSaved(bytes: number): string {
  * Modal dialog for bulk media compression. Driven entirely by
  * `state.siquester.bulkCompression.phase`:
  * - confirm: referenced-file counts + selected presets + irreversibility warning;
- * - running: progress bar + current file + cancel (Escape/backdrop also cancels);
+ * - running: progress bar + current file + cancel (Escape and the × button
+ *   also cancel via onClose);
  * - done / cancelled: result summary;
  * - failed: error message + close.
  *
- * Closing while running requests cancel and stays open with a "Cancelling…"
- * overlay until the thunk acknowledges (phase → cancelled). The Dialog is
- * `dismissable` so Escape fires onClose; during the cancelling window the
- * overlay absorbs further Escape presses (the cancel is already in flight).
+ * Escape and the × button call `onClose`; while `phase === 'running'`, `onClose`
+ * dispatches `cancelBulkCompression()` instead of closing, so the dialog cannot
+ * close mid-run. Repeated Escape during the cancelling window re-requests
+ * cancel (idempotent — the abort controller is already aborted, so it no-ops).
+ * The Dialog has no backdrop, and the "Cancelling…" overlay is purely visual;
+ * it absorbs no input.
  */
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
