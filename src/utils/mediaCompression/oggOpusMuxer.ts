@@ -192,7 +192,11 @@ export function muxOggOpus(
         isEos: false,
     }));
 
-    // Audio data pages: pack multiple packets per page (up to ~8KB or 255 segments)
+    // Audio data pages: pack multiple packets per page. The 8 KiB threshold is a
+    // muxer-side tradeoff between page-table overhead (smaller pages → more
+    // segment-table bytes per byte of audio) and decode/seek latency (larger
+    // pages → more audio buffered before the page is flushed). RFC 3533 does not
+    // mandate a specific page size.
     const maxPageDataSize = 8192;
     const maxSegments = 255;
     let pagePackets: Uint8Array[] = [];

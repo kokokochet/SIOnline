@@ -57,15 +57,18 @@ async function passthrough(file: File): Promise<CompressedMedia> {
 /**
  * Compresses a media file with lossy compression.
  *
- * - Images: canvas + toBlob → JPEG — works everywhere
- * - Video: WebCodecs VideoEncoder → H.264 MP4 — Chrome/Edge only
- * - Audio: WebCodecs AudioEncoder → Opus in OGG — Chrome/Edge only
+ * - Images: canvas + toBlob → JPEG — works everywhere.
+ * - Video: WebCodecs VideoEncoder → H.264 MP4 — runs wherever `VideoEncoder`
+ *   is defined (Chrome/Edge; Safari 16.4+; see `isVideoCompressionSupported`).
+ * - Audio: WebCodecs AudioEncoder → Opus in OGG — runs wherever `AudioEncoder`
+ *   is defined (Chrome/Edge; Safari 26+; see `isAudioCompressionSupported`).
+ * - HTML: text-only, no compression — bytes are re-emitted as-is.
  *
- * Progressive enhancement: when WebCodecs is unavailable (Safari, Tauri-macOS),
+ * Progressive enhancement: when the relevant WebCodecs encoder is unavailable,
  * the file is returned as-is. The editor remains fully functional.
  *
- * Safety check: if the compressed output is larger than the original,
- * the original file is returned unchanged.
+ * Safety check: if the compressed output is the same size or larger than the
+ * original, the original file is returned unchanged.
  *
  * @param file - The media file to compress
  * @param type - The media type ('image', 'audio', 'video', 'html')

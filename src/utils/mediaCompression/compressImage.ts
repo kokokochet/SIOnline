@@ -2,7 +2,7 @@ import { CompressedMedia, ImageCompressionOptions } from './compressionTypes';
 import { passthroughMedia } from './passthrough';
 import { detectImageFormat, hasAlphaChannel, isAnimated, getPngBitDepth } from './imageFormatDetect';
 
-/** Maximum pixel count allowed for decoded images (≈8192×4096). Prevents decompression-bomb OOM. */
+/** Maximum pixel count allowed for decoded images (7680×4320 = 33_177_600, just under 8K UHD). Prevents decompression-bomb OOM. */
 const MAX_IMAGE_PIXELS = 33_177_600;
 
 export function calculateTargetDimensions(
@@ -197,7 +197,7 @@ export async function compressImage(
 
             const compressedData = new Uint8Array(await blob.arrayBuffer());
 
-            // Reject empty or larger-than-original output.
+            // Reject empty output, or output that did not shrink (>= catches "same size").
             if (compressedData.length === 0 || compressedData.length >= originalData.length) {
                 return passthroughMedia(originalData, file.name);
             }

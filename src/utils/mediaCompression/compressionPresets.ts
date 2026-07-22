@@ -46,8 +46,9 @@ export const mediumPreset: CompressionOptions = {
 
 /**
  * High quality preset — favors quality over file size.
- * Images: 1500px, quality 0.9. Audio: 192 kbps. Video: 1080p, 1500 kbps.
- * Uses H.264 Level 4.0 (avc1.640028) which is required for 1080p.
+ * Images: 1500px, quality 0.9. Audio: 192 kbps. Video: 1080p30, 1500 kbps.
+ * Uses H.264 Level 4.0 (avc1.640028), which covers 1080p up to 30 fps.
+ * 1080p60+ would require Level 4.2 (codec string avc1.64002A).
  */
 export const highPreset: CompressionOptions = {
     image: {

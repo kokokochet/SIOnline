@@ -27,9 +27,11 @@ interface CompressionPanelProps {
  * toolbar; the trigger button lives in PackageView and toggles `open`.
  *
  * Closing behaviour mirrors SettingsDialog: the × button (provided by Dialog)
- * and any `mousedown` outside the panel both call `onClose`. Listening on
- * `mousedown` (not `mouseup`) is what lets users interact with form controls
- * inside the panel without dismissing it.
+ * and any `mousedown` outside the panel both call `onClose`. The `hide` handler
+ * uses `layout.contains(target)` so presses inside the panel never close it.
+ * `mousedown` (rather than `click`) is chosen so that an outside-press closes
+ * the panel before the subsequent `click` is delivered to whatever was behind
+ * it (e.g. a toolbar button) — otherwise that button's `click` would fire too.
  */
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
