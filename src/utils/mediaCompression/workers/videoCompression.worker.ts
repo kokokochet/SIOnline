@@ -5,6 +5,7 @@ import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse 
 import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
+import { buildVideoEncoderConfig } from '../videoEncoderConfig';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -166,14 +167,8 @@ async function reencodeVideo(
     }
 
     const framerate = getSourceFramerate(track);
-    const encoderConfig = {
-        codec: options.codec,
-        width: targetWidth,
-        height: targetHeight,
-        bitrate: options.bitrate,
-        framerate,
-        avc: { format: 'avc' as const },
-    };
+    // latencyMode: 'realtime' suppresses B-frame reordering — see videoEncoderConfig.
+    const encoderConfig = buildVideoEncoderConfig(options, targetWidth, targetHeight, framerate);
     const encoderSupport = await VideoEncoder.isConfigSupported(encoderConfig);
     if (!encoderSupport.supported) {
         throw new Error(`VideoEncoder config not supported: ${options.codec} ${targetWidth}x${targetHeight}`);
@@ -212,7 +207,12 @@ async function reencodeVideo(
         const encoder = new VideoEncoder({
             output: (chunk, metadata) => {
                 try {
-                    const compositionTimeOffset = chunk.timestamp - nextDecodeTimestamp;
+                    // Clamp to >= 0: mp4-muxer writes ctts as a version-0 UNSIGNED
+                    // u32, so a negative offset (legal for B-frames when the encoder
+                    // ignores latencyMode:'realtime') wraps to ~4.29 billion and
+                    // corrupts PTS order. Realtime mode should prevent this entirely;
+                    // the clamp is the backstop.
+                    const compositionTimeOffset = Math.max(0, chunk.timestamp - nextDecodeTimestamp);
                     nextDecodeTimestamp += chunk.duration ?? frameDurationFallback;
                     muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
