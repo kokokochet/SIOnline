@@ -100,3 +100,126 @@ describe('audioEncoder output-callback error handling', () => {
         expect(MockAudioEncoder.lastInstance?.closed).toBe(true);
     });
 });
+
+/**
+ * T22: Vector 3 encode-loop backpressure + Resolution 15 name-bearing error
+ * callback. These drive encodeAudioToOpus's own encode loop (not the helper in
+ * isolation), so they live here next to the T11 output-callback tests.
+ */
+describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callback', () => {
+    const originalAudioEncoder = (globalThis as { AudioEncoder?: unknown }).AudioEncoder;
+    const originalAudioData = (globalThis as { AudioData?: unknown }).AudioData;
+
+    interface CapturedInit {
+        output: (chunk: unknown) => void;
+        error: (e: { name: string; message: string }) => void;
+    }
+
+    /**
+     * Mock AudioEncoder whose `encodeQueueSize` is controllable (so the encode
+     * loop's `waitForQueueDrain` gate is observable) and whose `flush` either
+     * resolves or never settles (so Promise.race(flush, errored) is decided by
+     * the error callback, which is the whole point of Resolution 15). The ctor
+     * init is captured so a test can fire the error callback on demand.
+     */
+    function installControllableEncoder(opts: {
+        initialQueueSize: number;
+        neverResolvingFlush?: boolean;
+    }): { setQueueSize(n: number): void; fireError(e: { name: string; message: string }): void } {
+        let queueSize = opts.initialQueueSize;
+        let captured: CapturedInit | null = null;
+
+        class Encoder {
+            constructor(init: CapturedInit) {
+                captured = init;
+            }
+            get encodeQueueSize(): number {
+                return queueSize;
+            }
+            configure(): void {}
+            encode(): void {}
+            flush(): Promise<void> {
+                return opts.neverResolvingFlush ? new Promise<void>(() => {}) : Promise.resolve();
+            }
+            close(): void {}
+            static isConfigSupported(): Promise<{ supported: boolean }> {
+                return Promise.resolve({ supported: true });
+            }
+        }
+
+        (globalThis as { AudioEncoder?: unknown }).AudioEncoder = Encoder as unknown as typeof AudioEncoder;
+        (globalThis as { AudioData?: unknown }).AudioData = class {
+            close(): void {}
+        } as unknown as typeof AudioData;
+
+        return {
+            setQueueSize: (n: number) => {
+                queueSize = n;
+            },
+            fireError: (e: { name: string; message: string }) => captured?.error(e),
+        };
+    }
+
+    afterEach(() => {
+        (globalThis as { AudioEncoder?: unknown }).AudioEncoder = originalAudioEncoder;
+        (globalThis as { AudioData?: unknown }).AudioData = originalAudioData;
+        jest.restoreAllMocks();
+    });
+
+    test('encode loop awaits waitForQueueDrain(encoder) before encoding (Vector 3 backpressure)', async () => {
+        const backpressure = await import('../src/utils/mediaCompression/workers/workerBackpressure');
+        const drainSpy = jest.spyOn(backpressure, 'waitForQueueDrain');
+
+        const ctrl = installControllableEncoder({ initialQueueSize: 100 });
+
+        // Queue above the threshold forces the helper to yield. encode is a
+        // no-op (no output callback), so the function ultimately rejects with
+        // 'No audio data encoded'; here we only assert the loop CALLED the
+        // helper on the encoder before reaching encode.
+        const pending = encodeAudioToOpus([new ArrayBuffer(4)], 1, 1, options);
+        // Attach a handler immediately: the loop (having no output) rejects
+        // while the poll below is still yielding microtasks, and Node 26
+        // crashes the worker on an unhandled rejection.
+        const settled = pending.then(
+            () => 'resolved',
+            () => 'rejected',
+        );
+
+        // isConfigSupported resolves on a microtask; poll until the loop has
+        // invoked waitForQueueDrain. Pre-T22 the helper is never called from
+        // the encode loop, so the poll exhausts and the expectation fails (RED).
+        for (let i = 0; i < 50 && drainSpy.mock.calls.length === 0; i++) {
+            await Promise.resolve();
+        }
+        expect(drainSpy).toHaveBeenCalled();
+
+        // Release the yield so the pending promise can settle (drop the queue,
+        // let flush resolve → empty packets → reject) instead of hanging.
+        ctrl.setQueueSize(0);
+        await settled;
+    });
+
+    test('error callback rejects with a name-bearing message (Resolution 15)', async () => {
+        // flush never resolves: Promise.race(flush, errored) MUST be decided by
+        // rejectOuter firing in the error callback — a bare throw in the
+        // WebCodecs error callback would NOT reject the async function's
+        // promise and a later flush() would surface a generic InvalidStateError.
+        const ctrl = installControllableEncoder({ initialQueueSize: 0, neverResolvingFlush: true });
+
+        const pending = encodeAudioToOpus([new ArrayBuffer(4)], 1, 1, options);
+        // Attach the handler synchronously to avoid an unhandled-rejection
+        // window once the error callback fires.
+        const errP = pending.catch((e: unknown) => e);
+
+        // Let the loop run (queueSize 0 → no yield) then fire the encoder error
+        // callback with a DOMException-shaped object carrying a `.name`.
+        await Promise.resolve();
+        ctrl.fireError({ name: 'NotSupportedError', message: 'codec rejected' });
+
+        const err = await errP;
+        expect(err).toBeInstanceOf(Error);
+        // Message MUST preserve DOMException.name (R15). Pre-T22 the callback
+        // rejected with only `${e.message}`, omitting the name → exact-match RED.
+        expect((err as Error).message).toBe('AudioEncoder error: NotSupportedError: codec rejected');
+    });
+});
