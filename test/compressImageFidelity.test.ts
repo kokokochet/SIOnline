@@ -6,6 +6,10 @@ import {
 } from './helpers/imageCompressionMock';
 import { compressImage, calculateTargetDimensions } from '../src/utils/mediaCompression/compressImage';
 import { ImageCompressionOptions } from '../src/utils/mediaCompression/compressionTypes';
+import {
+    hasAlphaChannel,
+    detectImageFormat,
+} from '../src/utils/mediaCompression/imageFormatDetect';
 
 const jpegOptions: ImageCompressionOptions = {
     maxDimension: 800,
@@ -183,5 +187,154 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.toBlobCalls[0].mimeType).toBe('image/jpeg');
             expect(mock.fillRectCalls).toHaveLength(1); // white fill applied
         });
+    });
+});
+
+describe('media-compression-review FOLLOWUP WebP alpha detection (imageFormatDetect)', () => {
+    // -- byte fixture helpers -------------------------------------------------
+
+    /** Concatenates Uint8Arrays into a single buffer. */
+    function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+        let total = 0;
+        for (const a of arrays) {
+            total += a.length;
+        }
+        const out = new Uint8Array(total);
+        let pos = 0;
+        for (const a of arrays) {
+            out.set(a, pos);
+            pos += a.length;
+        }
+        return out;
+    }
+
+    /** Minimal RIFF/WEBP container header (12 bytes); file size left zero (unused by the walker). */
+    const WEBP_HEADER = new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, // "RIFF"
+        0x00, 0x00, 0x00, 0x00, // file size
+        0x57, 0x45, 0x42, 0x50, // "WEBP"
+    ]);
+
+    /**
+     * VP8X extended-format chunk. `flags` lands at the first payload byte
+     * (offset 20); bit 0x10 there is the alpha flag the walker reads.
+     */
+    function makeWebpVp8x(flags: number): Uint8Array {
+        return concatBytes(
+            WEBP_HEADER,
+            new Uint8Array([
+                0x56, 0x50, 0x38, 0x58, // "VP8X"
+                0x0a, 0x00, 0x00, 0x00, // payload size = 10
+                flags, // flags byte 0 (offset 20, dataStart)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // rest of 10-byte payload
+            ]),
+        );
+    }
+
+    /**
+     * VP8L (lossless) chunk. The walker reads the packed alpha hint at payload
+     * offset +4 (byte 24, dataStart+4); bit 0x10 there is "alpha used".
+     * Preceding bytes hold the 0x2f signature + width/height bit fields.
+     */
+    function makeWebpVp8l(alphaHint: number): Uint8Array {
+        return concatBytes(
+            WEBP_HEADER,
+            new Uint8Array([
+                0x56, 0x50, 0x38, 0x4c, // "VP8L"
+                0x00, 0x00, 0x00, 0x00, // payload size (unused by the walker)
+                0x2f, // signature byte (offset 20, dataStart)
+                0x00, 0x00, 0x00, // width/height bit fields (offsets 21-23)
+                alphaHint, // alpha hint (offset 24, dataStart+4)
+            ]),
+        );
+    }
+
+    // -- detection ------------------------------------------------------------
+
+    test('detectImageFormat returns "webp" for a RIFF/WEBP container', () => {
+        expect(detectImageFormat(makeWebpVp8x(0x10))).toBe('webp');
+        expect(detectImageFormat(makeWebpVp8l(0x10))).toBe('webp');
+    });
+
+    // -- VP8X alpha -----------------------------------------------------------
+
+    test('VP8X extended chunk with alpha flag (bit 0x10) reports alpha', () => {
+        expect(hasAlphaChannel(makeWebpVp8x(0x10))).toBe(true);
+    });
+
+    test('VP8X extended chunk without the alpha flag is opaque', () => {
+        expect(hasAlphaChannel(makeWebpVp8x(0x00))).toBe(false);
+    });
+
+    // -- VP8L alpha -----------------------------------------------------------
+
+    test('VP8L lossless chunk with alpha hint (bit 0x10) reports alpha', () => {
+        expect(hasAlphaChannel(makeWebpVp8l(0x10))).toBe(true);
+    });
+
+    test('VP8L lossless chunk without the alpha hint is opaque', () => {
+        expect(hasAlphaChannel(makeWebpVp8l(0x00))).toBe(false);
+    });
+
+    // -- lossy VP8 (no alpha) -------------------------------------------------
+
+    test('lossy VP8 chunk carries no alpha channel', () => {
+        // "VP8 " (note the trailing space) is neither VP8X nor VP8L, so the
+        // walker skips it and reaches end-of-buffer without an alpha signal.
+        const lossy = concatBytes(
+            WEBP_HEADER,
+            new Uint8Array([
+                0x56, 0x50, 0x38, 0x20, // "VP8 "
+                0x00, 0x00, 0x00, 0x00, // payload size = 0
+                0x00, // a payload byte so the chunk header parses
+            ]),
+        );
+        expect(hasAlphaChannel(lossy)).toBe(false);
+    });
+
+    // -- truncation safety (the bounds-sensitive invariant) -------------------
+
+    test('truncated WebP below a chunk header returns false (no throw)', () => {
+        // RIFF + size + WEBP + 2 stray bytes: offset (12) + 8 > length (14), so
+        // the chunk loop never starts. Safe default, no out-of-bounds read.
+        const truncated = new Uint8Array([
+            0x52, 0x49, 0x46, 0x46, // "RIFF"
+            0x00, 0x00, 0x00, 0x00, // size
+            0x57, 0x45, 0x42, 0x50, // "WEBP"
+            0x56, 0x50, // start of a chunk type, cut immediately
+        ]);
+        expect(() => hasAlphaChannel(truncated)).not.toThrow();
+        expect(hasAlphaChannel(truncated)).toBe(false);
+    });
+
+    test('WebP with a VP8X chunk header but no flags byte returns false (no OOB)', () => {
+        // Header(12) + "VP8X"(4) + size(4) = 20 bytes. The flags byte lives at
+        // dataStart (20), which is not < length (20): the guard returns false.
+        const headerOnly = new Uint8Array([
+            0x52, 0x49, 0x46, 0x46, // "RIFF"
+            0x00, 0x00, 0x00, 0x00, // size
+            0x57, 0x45, 0x42, 0x50, // "WEBP"
+            0x56, 0x50, 0x38, 0x58, // "VP8X"
+            0x00, 0x00, 0x00, 0x00, // size = 0
+        ]);
+        expect(() => hasAlphaChannel(headerOnly)).not.toThrow();
+        expect(hasAlphaChannel(headerOnly)).toBe(false);
+    });
+
+    test('truncated PNG at or before the color-type byte returns false (no throw)', () => {
+        // Signature(8) + IHDR length(4) + "IHDR"(4) + width(4) + height(4)
+        // + bitDepth(1) = 25 bytes. The color-type byte lives at offset 25 and
+        // is absent, so pngHasAlpha returns false via its length guard.
+        const truncatedPng = new Uint8Array([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
+            0x00, 0x00, 0x00, 0x0d, // IHDR length = 13
+            0x49, 0x48, 0x44, 0x52, // "IHDR"
+            0x00, 0x00, 0x00, 0x01, // width = 1
+            0x00, 0x00, 0x00, 0x01, // height = 1
+            0x08, // bitDepth (offset 24) - color type at offset 25 missing
+        ]);
+        expect(detectImageFormat(truncatedPng)).toBe('png');
+        expect(() => hasAlphaChannel(truncatedPng)).not.toThrow();
+        expect(hasAlphaChannel(truncatedPng)).toBe(false);
     });
 });
