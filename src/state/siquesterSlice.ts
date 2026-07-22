@@ -429,6 +429,18 @@ export const compressAllPackageMedia = createAsyncThunk(
 
 		return { applied: files.length > 0 };
 	},
+	{
+		// Re-entry guard: refuse to start a second concurrent run. Without this,
+		// reopening CompressionPanel mid-run clobbers phase to 'confirm' (see
+		// bulkCompressionDialogOpened) and Start dispatches a second thunk that
+		// races the in-flight one on the same zip/pack. condition returns false
+		// -> RTK dispatches a rejected action with meta.condition === true, which
+		// the rejected extraReducer must ignore (see below).
+		condition: (_, thunkAPI) => {
+			const phase = (thunkAPI.getState() as { siquester: SIQuesterState }).siquester.bulkCompression?.phase;
+			return phase !== 'running';
+		},
+	},
 );
 
 export const siquesterSlice = createSlice({
@@ -1467,7 +1479,14 @@ export const siquesterSlice = createSlice({
 		builder.addCase(loadPackageStatistics.rejected, (state) => {
 			state.packageStatsLoading = false;
 		});
-		builder.addCase(compressAllPackageMedia.rejected, (state) => {
+		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
+			// A condition-rejection means the thunk never started (re-entry guard
+			// refused a second concurrent run). Leave the active run's phase
+			// untouched — flipping it to 'cancelled' here would silently abort
+			// the in-flight run.
+			if (action.meta.condition) {
+				return;
+			}
 			// Defensive: an unexpected throw after bulkCompressionStarted would
 			// otherwise leave phase='running' forever. bulkMediaCompressed never
 			// dispatched, so the package is untouched (all-or-nothing contract).

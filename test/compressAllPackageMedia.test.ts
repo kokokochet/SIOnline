@@ -298,3 +298,47 @@ test('rejected thunk after Started transitions phase to cancelled and applies no
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
     expect(state.zipRevision).toBe(0);
 });
+
+test('re-entry guard: a second invocation while phase is running is skipped and leaves the run untouched', async () => {
+    // The bug: while a run is in flight (phase === 'running'), reopening the
+    // panel and clicking Start again would dispatch a SECOND concurrent thunk
+    // against the same zip/pack. The condition guard must refuse the second
+    // invocation deterministically.
+    mockedCompressMedia.mockImplementation(async (file: File) => ({
+        data: new Uint8Array([9, 9]),
+        fileName: `${file.name.replace(/\.[^.]+$/, '')}.out`,
+        originalSize: 100,
+        compressedSize: 2,
+        wasCompressed: true,
+    }));
+
+    let state = makeState();
+    // Simulate an in-flight run: a first thunk has already dispatched Started.
+    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
+    expect(state.bulkCompression?.phase).toBe('running');
+
+    const dispatch = jest.fn((action: any) => {
+        state = reducer(state, action);
+        return action;
+    });
+    const getState = () => ({ siquester: state });
+
+    await compressAllPackageMedia()(dispatch, getState, undefined);
+
+    // The thunk body never executed: compressMedia was not called, and no
+    // Started/Progress/Finished/MediaCompressed actions were dispatched by the
+    // second invocation.
+    expect(mockedCompressMedia).not.toHaveBeenCalled();
+    const types = actionTypes(dispatch);
+    expect(types).not.toContain('siquester/bulkCompressionStarted');
+    expect(types).not.toContain('siquester/bulkCompressionProgress');
+    expect(types).not.toContain('siquester/bulkMediaCompressed');
+    expect(types).not.toContain('siquester/bulkCompressionFinished');
+
+    // The in-flight run's phase is NOT clobbered to 'cancelled' by the
+    // condition-rejection (the rejected reducer must ignore condition-rejections).
+    expect(state.bulkCompression?.phase).toBe('running');
+    expect(state.zip?.file('Images/pic.png')).not.toBeNull();
+    expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
+    expect(state.zipRevision).toBe(0);
+});
