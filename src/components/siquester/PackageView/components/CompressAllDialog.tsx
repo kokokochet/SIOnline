@@ -7,6 +7,10 @@ import {
 	defaultMediaCompressionState,
 } from '../../../../state/siquesterSlice';
 import { selectReferencedMediaCounts } from '../../../../utils/mediaCompression/compressPackageMedia';
+import {
+	isAudioCompressionSupported,
+	isVideoCompressionSupported,
+} from '../../../../utils/mediaCompression';
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
 import localization from '../../../../model/resources/localization';
 import Dialog from '../../../common/Dialog/Dialog';
@@ -112,9 +116,19 @@ const CompressAllDialog: React.FC = () => {
 										{`${getMediaTypeLabel(type)}: ${counts[type]} — ${getPresetLabel(mediaCompression.presets[type])}`}
 									</li>
 								))}
-							</ul>
-							<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
-							<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
+						</ul>
+						{counts.audio > 0 && !isAudioCompressionSupported() ? (
+							<div className='compressAllDialog__notice' role='note'>
+								{localization.compressionAudioNotSupported}
+							</div>
+						) : null}
+						{counts.video > 0 && !isVideoCompressionSupported() ? (
+							<div className='compressAllDialog__notice' role='note'>
+								{localization.compressionVideoNotSupported}
+							</div>
+						) : null}
+						<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
+						<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
 						</>
 					)}
 					<div className='compressAllDialog__buttons'>
