@@ -48,4 +48,29 @@ describe('getRebasedTimestamps', () => {
     test('returns empty array for empty input', () => {
         expect(getRebasedTimestamps([], 15360)).toEqual([]);
     });
+
+    test('media-compression-review MAJOR: throws on timescale === 0 (no silent NaN)', () => {
+        expect(() => getRebasedTimestamps([{ cts: 0 }, { cts: 1024 }], 0)).toThrow(/timescale/);
+    });
+
+    test('throws on negative timescale', () => {
+        expect(() => getRebasedTimestamps([{ cts: 0 }], -100)).toThrow(/timescale/);
+    });
+
+    test('throws on NaN timescale', () => {
+        expect(() => getRebasedTimestamps([{ cts: 0 }], NaN)).toThrow(/timescale/);
+    });
+
+    test('throws on Infinity timescale', () => {
+        expect(() => getRebasedTimestamps([{ cts: 0 }], Infinity)).toThrow(/timescale/);
+    });
+
+    test('the timescale throw carries a programmatic name', () => {
+        try {
+            getRebasedTimestamps([{ cts: 0 }], 0);
+            throw new Error('expected throw');
+        } catch (e) {
+            expect((e as Error).name).toBe('InvalidStateError');
+        }
+    });
 });

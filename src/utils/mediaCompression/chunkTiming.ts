@@ -19,6 +19,18 @@ export function getRebasedTimestamps(
     samples: Array<Pick<Sample, 'cts'>>,
     timescale: number,
 ): number[] {
+    // Guard against corrupt track metadata: dividing by a zero/negative/non-finite
+    // timescale produces NaN timestamps that silently corrupt the output.
+    // The sibling videoFramerate.ts already gates the zero case; this mirrors it
+    // (review MAJOR: "timescale === 0 unguarded").
+    if (!Number.isFinite(timescale) || timescale <= 0) {
+        const err = new Error(
+            `Cannot rebase timestamps: track timescale must be a positive finite number (got ${timescale})`,
+        );
+        err.name = 'InvalidStateError';
+        throw err;
+    }
+
     const firstCts = samples.length > 0 ? samples[0].cts : 0;
     return samples.map((sample) => Math.round(((sample.cts - firstCts) * 1_000_000) / timescale));
 }
