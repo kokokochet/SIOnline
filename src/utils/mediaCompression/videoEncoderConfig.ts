@@ -14,8 +14,10 @@ import { VideoCompressionOptions } from './compressionTypes';
  * cumulative decode timestamp and the resulting negative
  * `compositionTimeOffset` is written by mp4-muxer into a version-0 unsigned
  * `ctts` entry — wrapping `-33334` to `4294933962` and corrupting PTS order on
- * Safari / QuickTime / Edge. Realtime mode keeps presentation and decode order
- * identical so the offset never goes negative.
+ * Safari / QuickTime / Edge. `latencyMode: 'realtime'` is a platform hint, not
+ * a guarantee: encoders SHOULD suppress B-frame reordering, but not every
+ * backend honors it. This is why the muxer-side `compositionTimeOffset` clamp
+ * (T8) exists as defense-in-depth against negative offsets.
  */
 export function buildVideoEncoderConfig(
     options: VideoCompressionOptions,
@@ -36,9 +38,10 @@ export function buildVideoEncoderConfig(
 
 /**
  * Minimal structural alias of the DOM `VideoEncoderConfig`. We avoid importing
- * the global type directly so the return shape is explicit and stable across
- * lib/webcodecs drift (see review: tsconfig.test.json excludes
- * @types/dom-webcodecs, prod and test otherwise share lib.dom).
+ * the global type directly so the return shape is explicit and stable regardless
+ * of which WebCodecs type declarations are in scope: prod `tsconfig.json` ships
+ * `lib: ["es2020","dom",...]` with no WebCodecs lib, while `tsconfig.test.json`
+ * pulls `dom-webcodecs` in via its `types` array.
  */
 export interface VideoEncoderConfig {
     codec: string;
