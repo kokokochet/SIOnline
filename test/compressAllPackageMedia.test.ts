@@ -83,7 +83,7 @@ test('compresses all referenced media and applies results in one dispatch', asyn
     expect(finalState.zip?.file('Audio/song.out')).not.toBeNull();
     expect(finalState.zipRevision).toBe(1);
     expect(finalState.bulkCompression?.phase).toBe('done');
-    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 2, skippedCount: 0, savedBytes: 196 });
+    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 2, skippedCount: 0, savedBytes: 196, errors: [] });
 });
 
 test('skips files that fail compression and keeps the package valid', async () => {
@@ -107,7 +107,7 @@ test('skips files that fail compression and keeps the package valid', async () =
     // Successful file applied.
     expect(finalState.zip?.file('Audio/song.opus')).not.toBeNull();
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
-    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99 });
+    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99, errors: [] });
 });
 
 test('passthrough results keep originals and apply nothing', async () => {
@@ -127,7 +127,7 @@ test('passthrough results keep originals and apply nothing', async () => {
     const finalState = harness.getFinalState();
     expect(finalState.zipRevision).toBe(0);
     expect(finalState.bulkCompression?.phase).toBe('done');
-    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 0, skippedCount: 2, savedBytes: 0 });
+    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 0, skippedCount: 2, savedBytes: 0, errors: [] });
 });
 
 test.each(['beforeFirstFile', 'afterLastFile'] as const)('cancel (%s) discards staged results and leaves the package untouched', async (mode) => {
@@ -223,7 +223,7 @@ test('skips referenced files missing from the zip', async () => {
     // The successful file was applied: new entry written, old entry removed.
     expect(finalState.zip?.file('Images/pic.jpg')).not.toBeNull();
     expect(finalState.zip?.file('Images/pic.png')).toBeNull();
-    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99 });
+    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99, errors: [] });
     // The missing-file reference was pre-existing; it is left as-is.
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual(['audio:song.mp3']);
 });

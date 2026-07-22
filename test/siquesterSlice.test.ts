@@ -468,7 +468,7 @@ describe('siquesterSlice', () => {
 		expect(state.bulkCompression?.completed).toBe(2);
 		expect(state.bulkCompression?.currentFile).toBe('a.png');
 
-		state = reducer(state, bulkCompressionFinished({ summary: { compressedCount: 4, skippedCount: 1, savedBytes: 1024 } }));
+		state = reducer(state, bulkCompressionFinished({ summary: { compressedCount: 4, skippedCount: 1, savedBytes: 1024, errors: [] } }));
 		expect(state.bulkCompression?.phase).toBe('done');
 		expect(state.bulkCompression?.summary?.compressedCount).toBe(4);
 

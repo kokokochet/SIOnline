@@ -25,6 +25,16 @@ import {
 	StagedMediaFile,
 } from '../utils/mediaCompression/compressPackageMedia';
 
+/** A single file-level failure recorded during a bulk compression run. ADDED (T3). */
+export interface BulkCompressionFileError {
+	type: CompressibleMediaType;
+	fileName: string;
+	/** Programmatic tag, e.g. DOMException.name ('NotSupportedError'). */
+	name: string;
+	/** Human-readable failure detail. */
+	message: string;
+}
+
 /** Summary of a finished bulk compression run. */
 export interface BulkCompressionSummary {
 	/** Files actually re-encoded and replaced. */
@@ -33,9 +43,25 @@ export interface BulkCompressionSummary {
 	skippedCount: number;
 	/** Total bytes saved across compressed files. */
 	savedBytes: number;
+	errors: BulkCompressionFileError[]; // ADDED (T3) — failed files (also counted in skippedCount)
 }
 
-export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled';
+export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled' | 'failed'; // 'failed' ADDED (T3)
+
+/**
+ * Payload of the `bulkCompressionFailed` action. ADDED (T3) as the canonical
+ * contract; the reducer/action creator itself lands in T17 (Plan 02 Task 6).
+ * Per Resolution #1: `reason` is written to `state.bulkCompression.failedReason`
+ * (there is no `state.bulkCompression.error` field).
+ */
+export type BulkCompressionFailedPayload = {
+	/** Failure discriminant: 'setup' | 'compression-disabled' | 'all-files-failed'. */
+	type: string;
+	summary: BulkCompressionSummary;
+	errors: BulkCompressionFileError[];
+	/** Written to state.bulkCompression.failedReason by the T17 reducer. */
+	reason?: string;
+};
 
 /** Bulk compression dialog/progress state machine. Per-session, never persisted. */
 export interface BulkCompressionState {
@@ -45,6 +71,7 @@ export interface BulkCompressionState {
 	currentFile?: string;
 	cancelRequested: boolean;
 	summary?: BulkCompressionSummary;
+	failedReason?: string; // ADDED (T3) — not `error` (Resolution #1)
 }
 
 export interface SIQuesterState {
@@ -397,7 +424,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 		}
 
 		thunkAPI.dispatch(bulkCompressionFinished({
-			summary: { compressedCount: files.length, skippedCount, savedBytes },
+			summary: { compressedCount: files.length, skippedCount, savedBytes, errors: [] },
 		}));
 
 		return { applied: files.length > 0 };
