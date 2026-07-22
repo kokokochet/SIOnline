@@ -11,6 +11,7 @@ import reducer, {
 	bulkCompressionStarted,
 	defaultMediaCompressionState,
 } from '../src/state/siquesterSlice';
+import { Package } from '../src/model/siquester/package';
 import CompressAllDialog from '../src/components/siquester/PackageView/components/CompressAllDialog';
 
 function makeStore(overrides: Partial<SIQuesterState> = {}): ReturnType<typeof configureStore> {
@@ -23,6 +24,46 @@ function makeStore(overrides: Partial<SIQuesterState> = {}): ReturnType<typeof c
 			} as SIQuesterState,
 		},
 	});
+}
+
+/** Minimal package referencing one image, so the confirm screen shows its warning block. */
+function makePackWithImageRef(): Package {
+	return {
+		name: 'Test',
+		version: '1',
+		id: 'test',
+		restriction: '',
+		date: '',
+		publisher: '',
+		difficulty: 0,
+		language: 'ru',
+		tags: [],
+		isQualityMarked: false,
+		rounds: [
+			{
+				name: 'Round',
+				type: 'standart',
+				themes: [
+					{
+						name: 'Theme',
+						questions: [
+							{
+								price: 1,
+								params: {
+									question: {
+										items: [
+											{ type: 'image', value: 'foo.png', isRef: true, placement: 'screen' },
+										],
+									},
+								},
+								right: { answer: [] },
+							},
+						],
+					},
+				],
+			},
+		],
+	};
 }
 
 describe('CompressAllDialog', () => {
@@ -67,6 +108,20 @@ describe('CompressAllDialog', () => {
 
 		expect(screen.getByText(/disk full/)).toBeInTheDocument();
 		expect(screen.getAllByRole('button', { name: /close/i }).length).toBeGreaterThanOrEqual(1);
+	});
+
+	test('renders the history-impact disclosure in the confirm phase (T42)', () => {
+		const store = makeStore({
+			pack: makePackWithImageRef(),
+			bulkCompression: { phase: 'confirm', total: 1, completed: 0, cancelRequested: false },
+		});
+		render(
+			<Provider store={store}>
+				<CompressAllDialog />
+			</Provider>,
+		);
+
+		expect(screen.getByText(/clear your Redo history/i)).toBeInTheDocument();
 	});
 });
 

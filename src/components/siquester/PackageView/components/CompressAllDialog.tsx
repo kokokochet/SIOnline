@@ -114,6 +114,7 @@ const CompressAllDialog: React.FC = () => {
 								))}
 							</ul>
 							<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
+							<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
 						</>
 					)}
 					<div className='compressAllDialog__buttons'>
