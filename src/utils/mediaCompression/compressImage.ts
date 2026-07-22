@@ -119,7 +119,8 @@ export async function compressImage(
             return passthroughMedia(originalData, file.name);
         }
 
-        const bitmap = await createImageBitmap(file);
+        // imageOrientation:'from-image' honors EXIF orientation (portrait phone photos).
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
         let bitmapClosed = false;
 
         try {
