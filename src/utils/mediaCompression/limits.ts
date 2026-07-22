@@ -20,7 +20,7 @@ export const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200 MB
  * duration × sampleRate × channels × 4 before calling decodeAudioData) is a
  * follow-up.
  *
- * 1 GiB of Float32 PCM ≈ 5.8 minutes of 48 kHz stereo (the SIGame use-case
+ * 1 GiB of Float32 PCM ≈ 46 minutes of 48 kHz stereo (the SIGame use-case
  * ceiling). Bytes = totalFrames × channels × 4.
  */
 export const MAX_DECODED_AUDIO_BYTES = 1024 * 1024 * 1024; // 1 GiB

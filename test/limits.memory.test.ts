@@ -9,7 +9,7 @@ describe('media-compression-review MAJOR Memory/OOM: limits', () => {
     });
 
     test('MAX_DECODED_AUDIO_BYTES bounds decoded PCM to a safe ceiling', () => {
-        // 1 GiB of Float32 PCM ≈ 5.8 min of 48 kHz stereo — covers typical
+        // 1 GiB of Float32 PCM ≈ 46 min of 48 kHz stereo — covers typical
         // SIGame audio clips while blocking the multi-GB decodes that crash
         // tabs. Enforced in audioCompression.worker.ts after decodeAudioData.
         expect(MAX_DECODED_AUDIO_BYTES).toBe(1024 * 1024 * 1024);
