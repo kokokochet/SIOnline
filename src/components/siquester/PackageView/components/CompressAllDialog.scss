@@ -55,4 +55,21 @@
 		text-overflow: ellipsis;
 		max-width: 380px;
 	}
+
+	&__cancelling {
+		margin-top: 12px;
+		font-style: italic;
+		color: #9aa3ad;
+	}
+
+	&__failed {
+		margin: 8px 0;
+		color: #d4503a;
+	}
+
+	&__errorDetail {
+		margin-top: 4px;
+		font-size: 0.9em;
+		color: #9aa3ad;
+	}
 }

@@ -1,8 +1,8 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
-	bulkCompressionCancelRequested,
 	bulkCompressionDialogClosed,
+	cancelBulkCompression,
 	compressAllPackageMedia,
 	defaultMediaCompressionState,
 } from '../../../../state/siquesterSlice';
@@ -49,9 +49,14 @@ function formatSaved(bytes: number): string {
  * Modal dialog for bulk media compression. Driven entirely by
  * `state.siquester.bulkCompression.phase`:
  * - confirm: referenced-file counts + selected presets + irreversibility warning;
- * - running: progress bar + current file + cancel;
- * - done / cancelled: result summary.
- * Closing the dialog while running is treated as a cancel request.
+ * - running: progress bar + current file + cancel (Escape/backdrop also cancels);
+ * - done / cancelled: result summary;
+ * - failed: error message + close.
+ *
+ * Closing while running requests cancel and stays open with a "Cancelling…"
+ * overlay until the thunk acknowledges (phase → cancelled). The Dialog is
+ * `dismissable` so Escape fires onClose; during the cancelling window the
+ * overlay absorbs further Escape presses (the cancel is already in flight).
  */
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
@@ -66,10 +71,12 @@ const CompressAllDialog: React.FC = () => {
 	}
 
 	const total = counts.image + counts.audio + counts.video;
+	const isCancelling = bulk.phase === 'running' && bulk.cancelRequested;
 
 	const onClose = () => {
 		if (bulk.phase === 'running') {
-			appDispatch(bulkCompressionCancelRequested());
+			// cancelBulkCompression sets the flag AND aborts the in-flight file (T12).
+			appDispatch(cancelBulkCompression());
 			return;
 		}
 
@@ -77,7 +84,7 @@ const CompressAllDialog: React.FC = () => {
 	};
 
 	return (
-		<Dialog title={localization.compressAllMedia} onClose={onClose} className='compressAllDialog'>
+		<Dialog id='compressAllDialog' title={localization.compressAllMedia} onClose={onClose} className='compressAllDialog' dismissable>
 			{bulk.phase === 'confirm' ? (
 				<div className='compressAllDialog__confirm'>
 					{total === 0 ? (
@@ -128,20 +135,26 @@ const CompressAllDialog: React.FC = () => {
 						/>
 					</div>
 					<div className='compressAllDialog__currentFile' title={bulk.currentFile}>{bulk.currentFile}</div>
-					<div className='compressAllDialog__buttons'>
-						<button
-							type='button'
-							className='standard'
-							onClick={() => appDispatch(bulkCompressionCancelRequested())}
-						>
-							{localization.cancel}
-						</button>
-					</div>
+					{isCancelling ? (
+						<div className='compressAllDialog__cancelling' role='status' aria-live='polite'>
+							{localization.compressionCancelling}
+						</div>
+					) : (
+						<div className='compressAllDialog__buttons'>
+							<button
+								type='button'
+								className='standard'
+								onClick={() => appDispatch(cancelBulkCompression())}
+							>
+								{localization.cancel}
+							</button>
+						</div>
+					)}
 				</div>
 			) : null}
 
 			{bulk.phase === 'done' && bulk.summary ? (
-				<div className='compressAllDialog__done'>
+				<div className='compressAllDialog__done' role='status' aria-live='polite'>
 					{localization.formatString(
 						localization.compressionDoneSummary,
 						bulk.summary.compressedCount,
@@ -155,8 +168,18 @@ const CompressAllDialog: React.FC = () => {
 			) : null}
 
 			{bulk.phase === 'cancelled' ? (
-				<div className='compressAllDialog__cancelled'>
+				<div className='compressAllDialog__cancelled' role='status' aria-live='polite'>
 					{localization.compressionCancelled}
+					<div className='compressAllDialog__buttons'>
+						<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
+					</div>
+				</div>
+			) : null}
+
+			{bulk.phase === 'failed' ? (
+				<div className='compressAllDialog__failed' role='alert'>
+					{localization.compressionFailed}
+					{bulk.failedReason ? <div className='compressAllDialog__errorDetail'>{bulk.failedReason}</div> : null}
 					<div className='compressAllDialog__buttons'>
 						<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
 					</div>
