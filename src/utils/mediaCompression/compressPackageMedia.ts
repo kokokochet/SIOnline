@@ -251,6 +251,75 @@ export function renameMediaReferences(pack: Package, renames: Map<string, string
 }
 
 /**
+ * Applies staged compressed files to a zip with all-or-nothing atomicity.
+ *
+ * JSZip is a class instance that Immer cannot draft — mutations to `zip.files`
+ * persist even if the surrounding Immer reducer throws. To honor the
+ * all-or-nothing contract documented on `bulkMediaCompressed`, this helper
+ * snapshots the `files` map and restores it on any throw.
+ *
+ * A shallow `{...zip.files}` clone is sufficient because JSZip never mutates an
+ * existing `ZipObject`: `file()` assigns a brand-new object to a key
+ * (`node_modules/jszip/lib/object.js:88`) and `remove()` deletes a key (`:288`,
+ * `:295`). Restoring the snapshot therefore brings back the exact pre-call
+ * key→ZipObject references; new objects created mid-loop become unreachable.
+ * This is the same mechanism the slice's `undo()` already relies on.
+ *
+ * @returns Rename map `${type}:${oldValue}` → `newValue` (identity renames
+ * excluded), for the caller to feed to `renameMediaReferences`.
+ * @throws Rethrows any error from the write/remove cycle AFTER restoring the
+ * snapshot, so the caller's Immer draft is discarded and state stays consistent.
+ */
+export function applyStagedFilesToZip(
+    zip: JSZip,
+    files: StagedMediaFile[],
+): Map<string, string> {
+    const snapshot = { ...zip.files };
+
+    try {
+        // Write all new entries first.
+        for (const file of files) {
+            const folder = getMediaFolderName(file.type);
+
+            if (folder) {
+                zip.file(`${folder}/${file.newValue}`, file.data);
+            }
+        }
+
+        // Then remove the superseded originals (raw + URI-encoded variant),
+        // never the just-written target. Identity renames also remove the
+        // URI-encoded original so no duplicate is left behind.
+        const renames = new Map<string, string>();
+
+        for (const file of files) {
+            const folder = getMediaFolderName(file.type);
+
+            if (!folder) {
+                continue;
+            }
+
+            const writeTarget = `${folder}/${file.newValue}`;
+
+            for (const oldPath of [`${folder}/${file.oldValue}`, `${folder}/${encodeURIComponent(file.oldValue)}`]) {
+                if (oldPath !== writeTarget) {
+                    zip.remove(oldPath);
+                }
+            }
+
+            if (file.newValue !== file.oldValue) {
+                renames.set(`${file.type}:${file.oldValue}`, file.newValue);
+            }
+        }
+
+        return renames;
+    } catch (err) {
+        // All-or-nothing: leave the zip byte-identical to its pre-call state.
+        (zip as unknown as { files: typeof snapshot }).files = snapshot;
+        throw err;
+    }
+}
+
+/**
  * Returns the `${type}:${value}` keys of referenced media files missing from
  * the zip. An empty result means the package media is intact. Used by tests to
  * assert package integrity after a bulk apply.

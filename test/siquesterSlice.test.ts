@@ -21,6 +21,7 @@ import reducer, {
 	bulkMediaCompressed,
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
+import { applyStagedFilesToZip } from '../src/utils/mediaCompression/compressPackageMedia';
 import JSZip from 'jszip';
 
 describe('siquesterSlice', () => {
@@ -541,6 +542,56 @@ describe('siquesterSlice', () => {
 		expect(nextState.pack!.logo).toBe('@pic.jpg');
 		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
 		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
+	});
+
+	describe('media-compression-review MAJOR #apply-atomicity', () => {
+		test('applyStagedFilesToZip restores zip.files on a mid-apply throw (all-or-nothing)', () => {
+			// Imported at top of file: add `applyStagedFilesToZip` to the
+			// existing `from '../src/utils/mediaCompression/compressPackageMedia'`
+			// import.
+			const zip = new JSZip();
+			zip.file('Images/my a.png', new Uint8Array([1, 2, 3]));
+			zip.file('Images/b.png', new Uint8Array([4, 5, 6]));
+
+			const filesBefore = { ...zip.files };
+			// NOTE: file A uses a URI-special oldValue ('my a.png') so its raw and
+			// URI-encoded remove paths differ ('Images/my a.png' vs
+			// 'Images/my%20a.png'); this produces two genuinely distinct remove
+			// calls for file A. File B ('b.png') has identical raw/encoded paths.
+			const files = [
+				{ type: 'image' as const, oldValue: 'my a.png', newValue: 'my a.jpg', data: new Uint8Array([10]) },
+				{ type: 'image' as const, oldValue: 'b.png', newValue: 'b.jpg', data: new Uint8Array([11]) },
+			];
+
+			// Inject a throw on the THIRD remove call — file B's first remove
+			// (file A's two removes at calls 1 and 2 have already succeeded, so
+			// file A's original entry is genuinely deleted by then). Without
+			// snapshot/restore the zip would be left half-applied (file A gone,
+			// file B untouched). We capture the real `remove` before the spy
+			// overrides it so calls 1 and 2 genuinely mutate — proving a real
+			// mutation happened before the throw and was rolled back.
+			const realRemove = zip.remove.bind(zip);
+			let removeCalls = 0;
+			jest.spyOn(zip, 'remove').mockImplementation((path: string) => {
+				removeCalls += 1;
+				if (removeCalls === 3) {
+					throw new Error('injected mid-apply');
+				}
+				return realRemove(path);
+			});
+
+			expect(() => applyStagedFilesToZip(zip, files)).toThrow('injected mid-apply');
+
+			// All-or-nothing: both original entries present, neither write survived.
+			// file A's restoration is the real rollback proof — it was deleted by
+			// call 1 and only the snapshot/restore brings it back.
+			expect(zip.file('Images/my a.png')).not.toBeNull();
+			expect(zip.file('Images/my a.jpg')).toBeNull();
+			expect(zip.file('Images/b.png')).not.toBeNull();
+			expect(zip.file('Images/b.jpg')).toBeNull();
+			// The files map is restored to the exact pre-call key set.
+			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		});
 	});
 });
 
