@@ -3,6 +3,7 @@ import { AudioWorkerRequest, AudioWorkerResponse, WorkerAbortMessage, AudioCompr
 import { encodeAudioToOpus } from '../audioEncoder';
 import { buildErrorResponse } from '../workerErrors';
 import { MAX_DECODED_AUDIO_BYTES } from '../limits';
+import { validateAudioWorkerMessage } from '../workerInputValidation';
 
 /**
  * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz. Duplicated
@@ -34,10 +35,12 @@ ctx.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>)
         return;
     }
 
-    const { data, options } = e.data;
     currentJobRejected = false;
 
     try {
+        validateAudioWorkerMessage(e.data);
+        const { data, options } = e.data;
+
         const pcm = await decodePcm(data, options);
         if (currentJobRejected) {
             return; // abort arrived during decode; skip encode

@@ -9,6 +9,7 @@ import { buildVideoEncoderConfig } from '../videoEncoderConfig';
 import { assertAudioMp4Compatible } from '../audioCodecSupport';
 import { buildErrorResponse } from '../workerErrors';
 import { waitForQueueDrain } from './workerBackpressure';
+import { validateVideoWorkerMessage } from '../workerInputValidation';
 
 /**
  * Minimal worker scope type — avoids `/// <reference lib="webworker" />` which
@@ -37,10 +38,12 @@ ctx.onmessage = async (e: MessageEvent<WorkerCompressRequest | WorkerAbortMessag
         return;
     }
 
-    const { data, options } = e.data;
     currentJobRejected = false;
 
     try {
+        validateVideoWorkerMessage(e.data);
+        const { data, options } = e.data;
+
         const result = await compressVideoData(data, options as VideoCompressionOptions);
         if (currentJobRejected) {
             return;

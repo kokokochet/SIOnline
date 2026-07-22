@@ -19,6 +19,7 @@ export { UnsupportedAudioCodecError, assertAudioMp4Compatible } from './audioCod
 export { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from './limits';
 export { formatWorkerError, namedError, buildErrorResponse } from './workerErrors';
 export type { WorkerErrorInfo, WorkerErrorResponse } from './workerErrors';
+export { WorkerValidationError, validateAudioWorkerMessage, validateVideoWorkerMessage } from './workerInputValidation';
 export type {
     CompressibleMediaType,
     CompressedMedia,
