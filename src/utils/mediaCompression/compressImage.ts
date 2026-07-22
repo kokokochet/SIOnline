@@ -104,11 +104,23 @@ export async function compressImage(
             return passthroughMedia(originalData, file.name);
         }
 
+        // Decompression-bomb guard (pre-decode): parse PNG IHDR / JPEG SOF
+        // dimensions from the raw bytes and reject oversized images BEFORE
+        // createImageBitmap allocates the full raster. A crafted 40000x40000
+        // PNG would otherwise OOM the tab (~6.4 GB) before the post-decode
+        // check below could run.
+        const probed = parseImageDimensions(originalData);
+        if (probed !== null && probed.width * probed.height > MAX_IMAGE_PIXELS) {
+            return passthroughMedia(originalData, file.name);
+        }
+
         const bitmap = await createImageBitmap(file);
         let bitmapClosed = false;
 
         try {
-            // Decompression-bomb guard: reject crafted images with excessive pixel counts.
+            // Decompression-bomb guard (post-decode): fallback for formats the
+            // pre-decode prober cannot parse (returned null) — still enforced
+            // here once the real raster dimensions are known.
             if (bitmap.width * bitmap.height > MAX_IMAGE_PIXELS) {
                 return passthroughMedia(originalData, file.name);
             }
