@@ -4,7 +4,7 @@ import {
     uninstallImageCompressionMock,
     ImageCompressionMockHandle,
 } from './helpers/imageCompressionMock';
-import { compressImage } from '../src/utils/mediaCompression/compressImage';
+import { compressImage, calculateTargetDimensions } from '../src/utils/mediaCompression/compressImage';
 import { ImageCompressionOptions } from '../src/utils/mediaCompression/compressionTypes';
 
 const jpegOptions: ImageCompressionOptions = {
@@ -64,6 +64,56 @@ describe('media-compression-review MAJOR Image corruption', () => {
             expect(mock.createImageBitmapCalls[0].options).toEqual({
                 imageOrientation: 'from-image',
             });
+        });
+    });
+
+    describe('#img-6 calculateTargetDimensions guards zero dimensions', () => {
+        test('returns null when input width is 0', () => {
+            expect(calculateTargetDimensions(0, 100, 800)).toBeNull();
+        });
+
+        test('returns null when input height is 0', () => {
+            expect(calculateTargetDimensions(100, 0, 800)).toBeNull();
+        });
+
+        test('returns null when maxDimension is 0', () => {
+            expect(calculateTargetDimensions(100, 100, 0)).toBeNull();
+        });
+
+        test('returns null when downscale produces a zero height', () => {
+            // height/width*max = 1/10000*800 = 0.08 → Math.round(0) = 0
+            expect(calculateTargetDimensions(10000, 1, 800)).toBeNull();
+        });
+
+        test('returns null when downscale produces a zero width', () => {
+            expect(calculateTargetDimensions(1, 10000, 800)).toBeNull();
+        });
+
+        test('still scales valid landscape inputs (regression)', () => {
+            expect(calculateTargetDimensions(1600, 1200, 800)).toEqual({ width: 800, height: 600 });
+        });
+    });
+
+    describe('#img-6 compressImage passes through on zero output dimensions', () => {
+        let mock: ImageCompressionMockHandle;
+
+        afterEach(() => {
+            uninstallImageCompressionMock();
+        });
+
+        test('passes through when the decoded bitmap has zero width', async () => {
+            mock = installImageCompressionMock({
+                bitmapWidth: 0,
+                bitmapHeight: 100,
+                toBlobBytes: new Uint8Array(1),
+            });
+            const file = new File([new Uint8Array(10)], 'edge.jpg', { type: 'image/jpeg' });
+
+            const result = await compressImage(file, jpegOptions);
+
+            expect(result.wasCompressed).toBe(false);
+            expect(result.fileName).toBe('edge.jpg');
+            expect(mock.toBlobCalls).toHaveLength(0);
         });
     });
 });

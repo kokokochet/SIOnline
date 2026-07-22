@@ -8,22 +8,31 @@ export function calculateTargetDimensions(
     width: number,
     height: number,
     maxDimension: number,
-): { width: number; height: number } {
+): { width: number; height: number } | null {
+    if (width <= 0 || height <= 0 || maxDimension <= 0) {
+        return null;
+    }
+
+    let targetWidth: number;
+    let targetHeight: number;
+
     if (width <= maxDimension && height <= maxDimension) {
-        return { width, height };
+        targetWidth = width;
+        targetHeight = height;
+    } else if (width >= height) {
+        targetWidth = maxDimension;
+        targetHeight = Math.round((height / width) * maxDimension);
+    } else {
+        targetWidth = Math.round((width / height) * maxDimension);
+        targetHeight = maxDimension;
     }
 
-    if (width >= height) {
-        return {
-            width: maxDimension,
-            height: Math.round((height / width) * maxDimension),
-        };
+    // Rounding can collapse a near-zero aspect ratio to 0 → refuse to encode.
+    if (targetWidth <= 0 || targetHeight <= 0) {
+        return null;
     }
 
-    return {
-        width: Math.round((width / height) * maxDimension),
-        height: maxDimension,
-    };
+    return { width: targetWidth, height: targetHeight };
 }
 
 /**
@@ -131,11 +140,15 @@ export async function compressImage(
                 return passthroughMedia(originalData, file.name);
             }
 
-            const { width: targetWidth, height: targetHeight } = calculateTargetDimensions(
+            const target = calculateTargetDimensions(
                 bitmap.width,
                 bitmap.height,
                 options.maxDimension,
             );
+            if (!target) {
+                return passthroughMedia(originalData, file.name);
+            }
+            const { width: targetWidth, height: targetHeight } = target;
 
             const canvas = document.createElement('canvas');
             canvas.width = targetWidth;
