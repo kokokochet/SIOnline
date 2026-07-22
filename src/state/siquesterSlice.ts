@@ -373,7 +373,9 @@ export const cancelBulkCompression = createAsyncThunk(
  * Safety contract — the package is never left in a broken state:
  * - each file is processed in isolation; any failure skips that file;
  * - results are staged in memory and applied by a single
- *   `bulkMediaCompressed` dispatch (all-or-nothing);
+ *   `bulkMediaCompressed` dispatch (all-or-nothing: a mid-apply throw restores
+ *   both `state.pack` (Immer) and `state.zip` (files-map snapshot), and one
+ *   composite Undo entry reverts the whole apply);
  * - cancelling discards staged results, leaving the package untouched;
  * - a mid-run package swap aborts the apply (the dialog is not modal, and
  *   staged results must never be written into a different zip).
