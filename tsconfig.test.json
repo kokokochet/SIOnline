@@ -7,7 +7,17 @@
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
     "types": ["jest", "node", "dom-webcodecs", "@testing-library/jest-dom"],
-    // mp4box 2.4.1 "types" points to a missing .d.ts; real types live behind conditional "exports" that legacy "node" resolution ignores
+    // mp4box@2.4.1 ships a broken package.json: the legacy `main`
+    // (./dist/mp4box.all.js) and `types` (./dist/mp4box.all.d.ts) fields point
+    // at files that DO NOT EXIST in the published tarball — only .cjs/.mjs and
+    // .d.cts/.d.mts are present. The conditional `exports` map is the only
+    // correct path. `moduleResolution: "node"` (required here for ts-jest /
+    // CommonJS emit) ignores `exports`, so without this shim every
+    // `from 'mp4box'` import resolves to the .cjs with an implicit `any`.
+    // 2.4.1 is the latest published version, so bumping cannot fix it; this
+    // shim is the correct minimal workaround and is guarded by
+    // `npm run typecheck:test`. Do not delete without confirming upstream
+    // fixed the legacy `types` field.
     "paths": {
       "mp4box": ["./node_modules/mp4box/dist/mp4box.all.d.cts"]
     }
