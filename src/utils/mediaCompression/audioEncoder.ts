@@ -29,8 +29,6 @@ export async function encodeAudioToOpus(
     options: AudioCompressionOptions,
 ): Promise<Uint8Array> {
     const encodedPackets: { data: Uint8Array; timestamp: number; duration: number }[] = [];
-    const chunkDuration = 20; // ms per AudioData chunk
-    const chunkFrameCount = Math.floor((OPUS_SAMPLE_RATE * chunkDuration) / 1000);
 
     // Capture the reject fn so the WebCodecs `error` callback — invoked from
     // the implementation's OWN dispatch context, NOT from this async call
@@ -100,34 +98,10 @@ export async function encodeAudioToOpus(
         // Extract channel data from transferred ArrayBuffers.
         const channelData: Float32Array[] = channels.map(buf => new Float32Array(buf));
 
-        // Feed PCM to encoder in chunks, yielding while the encoder's native
-        // queue is deep. Prevents the tight-loop OOM documented in review
-        // MAJOR Memory/OOM (Worker OOM → silent skip).
-        for (let offset = 0; offset < totalFrames; offset += chunkFrameCount) {
-            await waitForQueueDrain(encoder);
-            const frameCount = Math.min(chunkFrameCount, totalFrames - offset);
-
-            // Build planar float32 buffer (f32-planar format) — bulk copy via .set()
-            const planarData = new Float32Array(frameCount * numberOfChannels);
-            for (let ch = 0; ch < numberOfChannels; ch++) {
-                planarData.set(channelData[ch].subarray(offset, offset + frameCount), ch * frameCount);
-            }
-
-            const audioData = new AudioData({
-                format: 'f32-planar',
-                sampleRate: OPUS_SAMPLE_RATE,
-                numberOfFrames: frameCount,
-                numberOfChannels,
-                timestamp: Math.round((offset / OPUS_SAMPLE_RATE) * 1_000_000),
-                data: planarData,
-            });
-
-            try {
-                encoder.encode(audioData);
-            } finally {
-                audioData.close();
-            }
-        }
+        // Feed PCM to the encoder. Extracted into `feedPcmToOpus` so the
+        // per-chunk try/finally (close AudioData even when encode throws) and
+        // the T22 backpressure gate are unit-testable in isolation.
+        await feedPcmToOpus(encoder, channelData, totalFrames, numberOfChannels);
 
         // Race the error signal against flush, with `errored` FIRST: if the
         // encoder errored during the loop (or an output-callback throw called
@@ -146,5 +120,61 @@ export async function encodeAudioToOpus(
         return muxOggOpus(encodedPackets, OPUS_SAMPLE_RATE, numberOfChannels);
     } finally {
         encoder.close();
+    }
+}
+
+/**
+ * Feeds planar PCM to the AudioEncoder in fixed-size (20ms) chunks.
+ *
+ * Each chunk's AudioData is closed in a `finally` so a throw from
+ * `encoder.encode()` (e.g. InvalidStateError) cannot leak native AudioData —
+ * the symmetry that the video worker already has for VideoFrame.
+ *
+ * Before each encode the loop awaits `waitForQueueDrain(encoder)` (T22 Vector 3
+ * backpressure): a long input would otherwise queue hundreds of chunks in a
+ * tight loop, peak native memory and OOM. Keeping the drain inside the
+ * extracted helper preserves that guarantee after the refactor (the plan's
+ * original extraction predates T22 and omitted it).
+ *
+ * Exported (and intentionally minimal in its dependencies) so the leak guard
+ * can be unit-tested without spinning up the full WebCodecs encoder pipeline.
+ *
+ * @internal - exercised directly only by tests; production callers go through encodeAudioToOpus.
+ */
+export async function feedPcmToOpus(
+    encoder: { encode(audioData: AudioData): void; encodeQueueSize?: number },
+    channelData: Float32Array[],
+    totalFrames: number,
+    numberOfChannels: number,
+): Promise<void> {
+    const chunkDuration = 20; // ms per AudioData chunk
+    const chunkFrameCount = Math.floor((OPUS_SAMPLE_RATE * chunkDuration) / 1000);
+
+    for (let offset = 0; offset < totalFrames; offset += chunkFrameCount) {
+        // Vector 3 backpressure (T22): yield while the encoder's native queue
+        // is deep to bound peak memory on long inputs.
+        await waitForQueueDrain(encoder);
+        const frameCount = Math.min(chunkFrameCount, totalFrames - offset);
+
+        // Build planar float32 buffer (f32-planar format) — bulk copy via .set()
+        const planarData = new Float32Array(frameCount * numberOfChannels);
+        for (let ch = 0; ch < numberOfChannels; ch += 1) {
+            planarData.set(channelData[ch].subarray(offset, offset + frameCount), ch * frameCount);
+        }
+
+        const audioData = new AudioData({
+            format: 'f32-planar',
+            sampleRate: OPUS_SAMPLE_RATE,
+            numberOfFrames: frameCount,
+            numberOfChannels,
+            timestamp: Math.round((offset / OPUS_SAMPLE_RATE) * 1_000_000),
+            data: planarData,
+        });
+
+        try {
+            encoder.encode(audioData);
+        } finally {
+            audioData.close();
+        }
     }
 }
