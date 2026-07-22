@@ -43,10 +43,10 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 		{ value: 'high', label: localization.compressionHigh },
 	];
 
-	const mediaTypes: ReadonlyArray<{ type: CompressibleMediaType; label: string }> = [
-		{ type: 'image', label: localization.images },
-		{ type: 'audio', label: localization.audio },
-		{ type: 'video', label: localization.video },
+	const mediaTypes: ReadonlyArray<{ type: CompressibleMediaType; legend: string }> = [
+		{ type: 'image', legend: localization.compressionPresetImages },
+		{ type: 'audio', legend: localization.compressionPresetAudio },
+		{ type: 'video', legend: localization.compressionPresetVideo },
 	];
 
 	const hide = React.useCallback((e: Event): void => {
@@ -86,44 +86,45 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 					<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 				</div>
 
-				{mediaTypes.map(({ type, label }) => {
-					const typeUnsupported =
-						(type === 'audio' && !isAudioCompressionSupported()) ||
-						(type === 'video' && !isVideoCompressionSupported());
-					const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
+			{mediaTypes.map(({ type, legend }) => {
+				const typeUnsupported =
+					(type === 'audio' && !isAudioCompressionSupported()) ||
+					(type === 'video' && !isVideoCompressionSupported());
+				const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
 
-					return (
-						<div
-							key={type}
-							className={`compressionPanel__presets ${presetsDisabled ? 'compressionPanel__presets--disabled' : ''}`}
-						>
-							<div className='compressionPanel__title'>{label}</div>
-							{type === 'audio' && typeUnsupported ? (
-								<div className='compressionPanel__notice' role='note'>
-									{localization.compressionAudioNotSupported}
-								</div>
-							) : null}
-							{type === 'video' && typeUnsupported ? (
-								<div className='compressionPanel__notice' role='note'>
-									{localization.compressionVideoNotSupported}
-								</div>
-							) : null}
-							{presets.map(({ value, label: presetLabel }) => (
-								<label key={value} className='compressionPanel__preset'>
-									<input
-										type='radio'
-										name={`compressionPreset-${type}`}
-										value={value}
-										checked={mediaCompression.presets[type] === value}
-										disabled={presetsDisabled}
-										onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
-									/>
-									{presetLabel}
-								</label>
-							))}
-						</div>
-					);
-				})}
+				return (
+					<fieldset
+						key={type}
+						className={`compressionPanel__presets ${presetsDisabled ? 'compressionPanel__presets--disabled' : ''}`}
+						disabled={presetsDisabled}
+					>
+						<legend className='compressionPanel__title'>{legend}</legend>
+						{type === 'audio' && typeUnsupported ? (
+							<div className='compressionPanel__notice' role='note'>
+								{localization.compressionAudioNotSupported}
+							</div>
+						) : null}
+						{type === 'video' && typeUnsupported ? (
+							<div className='compressionPanel__notice' role='note'>
+								{localization.compressionVideoNotSupported}
+							</div>
+						) : null}
+						{presets.map(({ value, label: presetLabel }) => (
+							<label key={value} className='compressionPanel__preset'>
+								<input
+									type='radio'
+									name={`compressionPreset-${type}`}
+									value={value}
+									checked={mediaCompression.presets[type] === value}
+									disabled={presetsDisabled}
+									onChange={() => appDispatch(setMediaCompressionPreset({ type, preset: value }))}
+								/>
+								{presetLabel}
+							</label>
+						))}
+					</fieldset>
+				);
+			})}
 
 				<div className='compressionPanel__divider' />
 

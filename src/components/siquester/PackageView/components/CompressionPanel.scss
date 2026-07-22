@@ -28,6 +28,13 @@
 	}
 
 	.compressionPanel__presets {
+		// fieldset reset: the group is now a <fieldset> instead of a <div>, so
+		// neutralize the UA border/margin/padding/min-width to keep the change a
+		// visual no-op.
+		border: 0;
+		margin: 0;
+		padding: 0;
+		min-inline-size: 0; // Firefox: prevents fieldset from forcing a min-width
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
@@ -51,9 +58,13 @@
 	}
 
 	.compressionPanel__title {
+		// legend reset: <legend> is inline by default with UA padding/margin;
+		// restore the block heading look the old <div> had.
+		display: block;
+		padding: 0;
+		margin: 0 0 0.5rem 0;
 		font-weight: 600;
 		font-size: 0.95em;
-		margin: 0;
 	}
 
 	.compressionPanel__notice {

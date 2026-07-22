@@ -55,15 +55,16 @@ describe('media-compression-review MAJOR: UI does not gate on WebCodecs support 
 	test('disables the audio preset radios when audio is unsupported', () => {
 		audioSupported.mockReturnValue(false);
 		renderPanel();
-		// Scope to each presets container so the assertion is exact: the 3 audio
-		// radios must all be disabled, while image + video stay enabled (the
-		// disabled set is precisely the audio radios). Previously this used
-		// getAllByRole over all 9 radios + .some, which only proved >=1 disabled.
-		const audioRadios = within(screen.getByText(localization.audio).parentElement!).getAllByRole('radio');
+		// Scope to each presets group (now a <fieldset> named via its legend) so
+		// the assertion is exact: the 3 audio radios must all be disabled, while
+		// image + video stay enabled (the disabled set is precisely the audio
+		// radios). Previously this used getAllByRole over all 9 radios + .some,
+		// which only proved >=1 disabled.
+		const audioRadios = within(screen.getByRole('group', { name: localization.compressionPresetAudio })).getAllByRole('radio');
 		expect(audioRadios).toHaveLength(3);
 		expect(audioRadios.every(r => (r as HTMLInputElement).disabled)).toBe(true);
-		const imageRadios = within(screen.getByText(localization.images).parentElement!).getAllByRole('radio');
-		const videoRadios = within(screen.getByText(localization.video).parentElement!).getAllByRole('radio');
+		const imageRadios = within(screen.getByRole('group', { name: localization.compressionPresetImages })).getAllByRole('radio');
+		const videoRadios = within(screen.getByRole('group', { name: localization.compressionPresetVideo })).getAllByRole('radio');
 		expect(imageRadios.every(r => !(r as HTMLInputElement).disabled)).toBe(true);
 		expect(videoRadios.every(r => !(r as HTMLInputElement).disabled)).toBe(true);
 		expect(screen.getAllByRole('note').length).toBeGreaterThan(0);
@@ -73,7 +74,7 @@ describe('media-compression-review MAJOR: UI does not gate on WebCodecs support 
 		audioSupported.mockReturnValue(false);
 		renderPanel();
 		// Images use canvas (always supported) and must never be gated by WebCodecs.
-		const imageRadios = within(screen.getByText(localization.images).parentElement!).getAllByRole('radio');
+		const imageRadios = within(screen.getByRole('group', { name: localization.compressionPresetImages })).getAllByRole('radio');
 		expect(imageRadios).toHaveLength(3);
 		expect(imageRadios.some(r => (r as HTMLInputElement).disabled)).toBe(false);
 	});
