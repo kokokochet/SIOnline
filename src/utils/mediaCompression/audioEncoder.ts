@@ -63,7 +63,13 @@ export async function encodeAudioToOpus(
                     duration: chunk.duration ?? 0,
                 });
             } catch (e) {
-                rejectOuter(e instanceof Error ? e : new Error(String(e)));
+                // Reject raw: a DOMException (e.g. copyTo on a detached buffer
+                // throws InvalidStateError) is NOT instanceof Error, so wrapping
+                // as `new Error(String(e))` would drop `.name`. rejectOuter feeds
+                // Promise.race → encodeAudioToOpus throw → the worker's
+                // buildErrorResponse, which preserves `.name` (mirrors the
+                // error callback's rejectOuter(e) below).
+                rejectOuter(e);
             }
         },
         error: (e: DOMException) => {

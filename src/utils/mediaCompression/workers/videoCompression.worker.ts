@@ -242,7 +242,13 @@ async function reencodeVideo(
                     nextDecodeTimestamp += chunk.duration ?? frameDurationFallback;
                     muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
-                    if (!settled) { settled = true; closeBoth(); reject(err instanceof Error ? err : new Error(String(err))); }
+                    // Reject raw: a DOMException (e.g. muxer addVideoChunk failure)
+                    // is NOT instanceof Error, so wrapping as `new Error(String(err))`
+                    // would reset `.name` to 'Error' and drop the only stable
+                    // diagnostic. The outer onmessage catch routes through
+                    // buildErrorResponse (Error + DOMException + fallback), which
+                    // preserves `.name`. Mirrors the error-callback `reject(e)` below.
+                    if (!settled) { settled = true; closeBoth(); reject(err); }
                 }
             },
             error: (e: DOMException) => {
@@ -257,7 +263,12 @@ async function reencodeVideo(
                 try {
                     encoder.encode(frame);
                 } catch (err) {
-                    if (!settled) { settled = true; closeBoth(); reject(err instanceof Error ? err : new Error(String(err))); }
+                    // Reject raw: encoder.encode(frame) can throw synchronously as
+                    // a DOMException (e.g. InvalidStateError), which is NOT
+                    // instanceof Error — wrapping would drop `.name`. The outer
+                    // onmessage catch → buildErrorResponse preserves it. Mirrors
+                    // the encoder output-callback and error-callback rejects.
+                    if (!settled) { settled = true; closeBoth(); reject(err); }
                 } finally {
                     frame.close();
                 }
