@@ -77,9 +77,26 @@
 		color: #d4503a;
 	}
 
-	&__errorDetail {
+	&__failedReason {
 		margin-top: 4px;
 		font-size: 0.9em;
+		color: #9aa3ad;
+	}
+
+	&__partial {
+		margin-top: 8px;
+		padding: 6px 10px;
+		border-left: 3px solid #f5a623;
+		background-color: rgba(245, 166, 35, 0.12);
+		color: #ffd591;
+		font-size: 0.85em;
+		border-radius: 2px;
+	}
+
+	&__errorList {
+		margin: 8px 0 0;
+		padding-left: 20px;
+		font-size: 0.85em;
 		color: #9aa3ad;
 	}
 }

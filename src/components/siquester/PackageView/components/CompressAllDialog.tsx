@@ -183,19 +183,24 @@ const CompressAllDialog: React.FC = () => {
 				</div>
 			) : null}
 
-			{bulk.phase === 'done' && bulk.summary ? (
-				<div className='compressAllDialog__done' role='status' aria-live='polite'>
-					{localization.formatString(
-						localization.compressionDoneSummary,
-						bulk.summary.compressedCount,
-						bulk.summary.compressedCount + bulk.summary.skippedCount,
-						formatSaved(bulk.summary.savedBytes),
-					)}
-					<div className='compressAllDialog__buttons'>
-						<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
+		{bulk.phase === 'done' && bulk.summary ? (
+			<div className='compressAllDialog__done' role='status' aria-live='polite'>
+				{localization.formatString(
+					localization.compressionDoneSummary,
+					bulk.summary.compressedCount,
+					bulk.summary.compressedCount + bulk.summary.skippedCount,
+					formatSaved(bulk.summary.savedBytes),
+				)}
+				{bulk.summary.errors.length > 0 ? (
+					<div className='compressAllDialog__partial' role='note'>
+						{localization.formatString(localization.compressionPartialWarning, bulk.summary.errors.length)}
 					</div>
+				) : null}
+				<div className='compressAllDialog__buttons'>
+					<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
 				</div>
-			) : null}
+			</div>
+		) : null}
 
 			{bulk.phase === 'cancelled' ? (
 				<div className='compressAllDialog__cancelled' role='status' aria-live='polite'>
@@ -206,15 +211,30 @@ const CompressAllDialog: React.FC = () => {
 				</div>
 			) : null}
 
-			{bulk.phase === 'failed' ? (
-				<div className='compressAllDialog__failed' role='alert'>
-					{localization.compressionFailed}
-					{bulk.failedReason ? <div className='compressAllDialog__errorDetail'>{bulk.failedReason}</div> : null}
-					<div className='compressAllDialog__buttons'>
-						<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
-					</div>
+		{bulk.phase === 'failed' ? (
+			<div className='compressAllDialog__failed' role='alert'>
+				{bulk.summary && bulk.summary.errors.length > 0
+					? localization.formatString(
+						localization.compressionFailedSummary,
+						bulk.summary.errors.length,
+						bulk.summary.compressedCount + bulk.summary.skippedCount,
+					)
+					: localization.compressionFailed}
+				{bulk.failedReason ? (
+					<div className='compressAllDialog__failedReason'>{bulk.failedReason}</div>
+				) : null}
+				{bulk.summary && bulk.summary.errors.length > 0 ? (
+					<ul className='compressAllDialog__errorList'>
+						{bulk.summary.errors.map((err, idx) => (
+							<li key={`${err.type}:${err.fileName}:${idx}`}>{`${err.fileName} — ${err.name}`}</li>
+						))}
+					</ul>
+				) : null}
+				<div className='compressAllDialog__buttons'>
+					<button type='button' className='standard' onClick={onClose}>{localization.close}</button>
 				</div>
-			) : null}
+			</div>
+		) : null}
 		</Dialog>
 	);
 };

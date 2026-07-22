@@ -57,11 +57,14 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
     /**
      * Settles compressAudio's in-flight Promise.race so `await pending`
      * resolves into passthrough instead of hanging on the 60s worker timeout.
-     * The capturing mock's `terminate` is a no-op stub (Step 1), so we fire an
-     * `error` response which the main-thread handler rejects into passthrough.
+     * The capturing mock's `terminate` is a no-op stub (Step 1). We fire a
+     * 'done' response whose output is not smaller than the input, so the host
+     * resolves via passthrough. (T49 changed the host to THROW on worker
+     * errors rather than passthrough; a 'done' keeps this test focused on its
+     * off-main-thread decode assertion instead of error handling.)
      */
     function settle(worker: CapturingWorker): void {
-        worker.onmessage?.({ data: { type: 'error', error: 'test-settled' } } as MessageEvent<AudioWorkerResponse>);
+        worker.onmessage?.({ data: { type: 'done', data: new ArrayBuffer(8) } } as MessageEvent<AudioWorkerResponse>);
     }
 
     test('compressAudio does NOT construct OfflineAudioContext or call decodeAudioData on the main thread', async () => {

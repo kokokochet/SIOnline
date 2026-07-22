@@ -3,6 +3,7 @@ import { isVideoCompressionSupported } from './featureDetection';
 import { createVideoWorker } from './workerFactory';
 import { passthroughMedia } from './passthrough';
 import { abortRace } from './abortUtils';
+import { namedError } from './workerErrors';
 
 /** Maximum time to wait for the compression worker before giving up. */
 const WORKER_TIMEOUT_MS = 60_000;
@@ -10,8 +11,12 @@ const WORKER_TIMEOUT_MS = 60_000;
 /**
  * Compresses a video file using a WebCodecs worker.
  *
- * When WebCodecs is unavailable, the worker errors, the output is not smaller,
- * or the worker times out, the original file is returned unchanged (passthrough).
+ * Passthrough (returns the original unchanged) when WebCodecs is unavailable
+ * or the compressed output is not smaller than the input. Decode/encode
+ * failures and worker timeouts REJECT with a named error (preserving
+ * `DOMException.name`) so callers can surface them: the bulk thunk records a
+ * per-file error, and ScreensView shows the compressionFailed toast (the
+ * intended single-file policy). AbortError propagates for cancel handling.
  */
 export async function compressVideo(
     file: File,
@@ -28,68 +33,58 @@ export async function compressVideo(
         return passthroughMedia(originalData, file.name);
     }
 
+    const worker = createVideoWorker();
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-        const worker = createVideoWorker();
+        const compressedBuffer = await Promise.race([
+            new Promise<ArrayBuffer>((resolve, reject) => {
+                worker.onmessage = (e: MessageEvent<WorkerCompressResponse>) => {
+                    if (e.data.type === 'done' && e.data.data) {
+                        resolve(e.data.data);
+                    } else if (e.data.type === 'error') {
+                        reject(namedError(e.data.name ?? 'Error', e.data.error));
+                    } else if (e.data.type === 'cancelled') {
+                        reject(new DOMException('Aborted', 'AbortError'));
+                    }
+                };
 
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
-        try {
-            const compressedBuffer = await Promise.race([
-                new Promise<ArrayBuffer>((resolve, reject) => {
-                    worker.onmessage = (e: MessageEvent<WorkerCompressResponse>) => {
-                        if (e.data.type === 'done' && e.data.data) {
-                            resolve(e.data.data);
-                        } else if (e.data.type === 'error') {
-                            reject(new Error(e.data.error));
-                        } else if (e.data.type === 'cancelled') {
-                            reject(new DOMException('Aborted', 'AbortError'));
-                        }
-                    };
+                worker.onerror = (e: ErrorEvent) => {
+                    // Prevent the uncaught worker error from reaching the
+                    // window error handlers (dev-server overlay) — the
+                    // compression failure is handled gracefully via reject.
+                    e.preventDefault();
+                    reject(namedError('Error', e.message || 'Worker error'));
+                };
 
-                    worker.onerror = (e: ErrorEvent) => {
-                        // Prevent the uncaught worker error from reaching the
-                        // window error handlers (dev-server overlay) — the
-                        // compression failure is handled gracefully via reject.
-                        e.preventDefault();
-                        reject(new Error(e.message || 'Worker error'));
-                    };
+                const request: WorkerCompressRequest = {
+                    data: originalData.buffer.slice(0) as ArrayBuffer,
+                    options,
+                };
 
-                    const request: WorkerCompressRequest = {
-                        data: originalData.buffer.slice(0) as ArrayBuffer,
-                        options,
-                    };
+                worker.postMessage(request, [request.data]);
+            }),
+            new Promise<ArrayBuffer>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
+            }),
+            abortRace(signal, worker),
+        ]);
 
-                    worker.postMessage(request, [request.data]);
-                }),
-                new Promise<ArrayBuffer>((_, reject) => {
-                    timeoutId = setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
-                }),
-                abortRace(signal, worker),
-            ]);
+        const compressedData = new Uint8Array(compressedBuffer);
 
-            const compressedData = new Uint8Array(compressedBuffer);
-
-            if (compressedData.length === 0 || compressedData.length >= originalData.length) {
-                return passthroughMedia(originalData, file.name);
-            }
-
-            return {
-                data: compressedData,
-                fileName: file.name,
-                originalSize: originalData.length,
-                compressedSize: compressedData.length,
-                wasCompressed: true,
-            };
-        } finally {
-            if (timeoutId) { clearTimeout(timeoutId); }
-            worker.terminate();
+        if (compressedData.length === 0 || compressedData.length >= originalData.length) {
+            return passthroughMedia(originalData, file.name);
         }
-    } catch (err) {
-        // Abort must propagate so the thunk's loop re-checks cancelRequested
-        // instead of treating this file as a normal passthrough/skip.
-        if ((err as Error)?.name === 'AbortError') {
-            throw err;
-        }
-        console.warn('Video compression failed, using original:', err);
-        return passthroughMedia(originalData, file.name);
+
+        return {
+            data: compressedData,
+            fileName: file.name,
+            originalSize: originalData.length,
+            compressedSize: compressedData.length,
+            wasCompressed: true,
+        };
+    } finally {
+        if (timeoutId) { clearTimeout(timeoutId); }
+        worker.terminate();
     }
 }

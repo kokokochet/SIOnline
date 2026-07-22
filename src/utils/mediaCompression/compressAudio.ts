@@ -3,6 +3,7 @@ import { isAudioCompressionSupported } from './featureDetection';
 import { createAudioWorker } from './workerFactory';
 import { passthroughMedia } from './passthrough';
 import { abortRace } from './abortUtils';
+import { namedError } from './workerErrors';
 
 const WORKER_TIMEOUT_MS = 60_000;
 
@@ -26,9 +27,12 @@ export const OPUS_SAMPLE_RATE = 48000;
  *
  * Output extension: .opus. Opus is ~1.5-2× more efficient than MP3.
  *
- * If WebCodecs AudioEncoder is unavailable, the worker cannot decode (no
- * AudioContext in worker), the output is empty/larger than original, or the
- * worker times out, the original file is returned unchanged (passthrough).
+ * Passthrough (returns the original unchanged) when WebCodecs AudioEncoder is
+ * unavailable or the compressed output is empty/larger than the original.
+ * Decode/encode failures and worker timeouts REJECT with a named error
+ * (preserving `DOMException.name`) so callers can surface them: the bulk thunk
+ * records a per-file error, and ScreensView shows the compressionFailed toast
+ * (the intended single-file policy). AbortError propagates for cancel handling.
  */
 export async function compressAudio(
     file: File,
@@ -45,68 +49,60 @@ export async function compressAudio(
         return passthroughMedia(originalData, file.name);
     }
 
+    const worker = createAudioWorker();
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-        const worker = createAudioWorker();
+        const compressedBuffer = await Promise.race([
+            new Promise<ArrayBuffer>((resolve, reject) => {
+                worker.onmessage = (e: MessageEvent<AudioWorkerResponse>) => {
+                    if (e.data.type === 'done' && e.data.data) {
+                        resolve(e.data.data);
+                    } else if (e.data.type === 'error') {
+                        reject(namedError(e.data.name ?? 'Error', e.data.error));
+                    } else if (e.data.type === 'cancelled') {
+                        reject(new DOMException('Aborted', 'AbortError'));
+                    }
+                };
 
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
-        try {
-            const compressedBuffer = await Promise.race([
-                new Promise<ArrayBuffer>((resolve, reject) => {
-                    worker.onmessage = (e: MessageEvent<AudioWorkerResponse>) => {
-                        if (e.data.type === 'done' && e.data.data) {
-                            resolve(e.data.data);
-                        } else if (e.data.type === 'error') {
-                            reject(new Error(e.data.error));
-                        } else if (e.data.type === 'cancelled') {
-                            reject(new DOMException('Aborted', 'AbortError'));
-                        }
-                    };
+                worker.onerror = (e: ErrorEvent) => {
+                    reject(namedError('Error', e.message || 'Worker error'));
+                };
 
-                    worker.onerror = (e: ErrorEvent) => {
-                        reject(new Error(e.message || 'Worker error'));
-                    };
+                const request: AudioWorkerRequest = {
+                    data: originalData.buffer.slice(0) as ArrayBuffer,
+                    options,
+                };
 
-                    const request: AudioWorkerRequest = {
-                        data: originalData.buffer.slice(0) as ArrayBuffer,
-                        options,
-                    };
+                // Transfer the encoded input (zero-copy); PCM stays in the worker.
+                worker.postMessage(request, [request.data]);
+            }),
+            new Promise<ArrayBuffer>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('Audio compression worker timeout')), WORKER_TIMEOUT_MS);
+            }),
+            abortRace(signal, worker),
+        ]);
 
-                    // Transfer the encoded input (zero-copy); PCM stays in the worker.
-                    worker.postMessage(request, [request.data]);
-                }),
-                new Promise<ArrayBuffer>((_, reject) => {
-                    timeoutId = setTimeout(() => reject(new Error('Audio compression worker timeout')), WORKER_TIMEOUT_MS);
-                }),
-                abortRace(signal, worker),
-            ]);
+        const compressedData = new Uint8Array(compressedBuffer);
 
-            const compressedData = new Uint8Array(compressedBuffer);
-
-            // Safety check: reject empty or larger-than-original output
-            if (compressedData.length === 0 || compressedData.length >= originalData.length) {
-                return passthroughMedia(originalData, file.name);
-            }
-
-            // Change extension to .opus (Opus in OGG container)
-            const baseName = file.name.replace(/\.[^.]+$/, '');
-            const newFileName = `${baseName}.opus`;
-
-            return {
-                data: compressedData,
-                fileName: newFileName,
-                originalSize: originalData.length,
-                compressedSize: compressedData.length,
-                wasCompressed: true,
-            };
-        } finally {
-            if (timeoutId) { clearTimeout(timeoutId); }
-            worker.terminate();
+        // Safety check: reject empty or larger-than-original output
+        if (compressedData.length === 0 || compressedData.length >= originalData.length) {
+            return passthroughMedia(originalData, file.name);
         }
-    } catch (err) {
-        if ((err as Error)?.name === 'AbortError') {
-            throw err;
-        }
-        console.warn('Audio compression failed, using original:', err);
-        return passthroughMedia(originalData, file.name);
+
+        // Change extension to .opus (Opus in OGG container)
+        const baseName = file.name.replace(/\.[^.]+$/, '');
+        const newFileName = `${baseName}.opus`;
+
+        return {
+            data: compressedData,
+            fileName: newFileName,
+            originalSize: originalData.length,
+            compressedSize: compressedData.length,
+            wasCompressed: true,
+        };
+    } finally {
+        if (timeoutId) { clearTimeout(timeoutId); }
+        worker.terminate();
     }
 }

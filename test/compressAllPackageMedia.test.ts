@@ -109,7 +109,13 @@ test('skips files that fail compression and keeps the package valid', async () =
     // Successful file applied.
     expect(finalState.zip?.file('Audio/song.opus')).not.toBeNull();
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
-    expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99, errors: [] });
+    expect(finalState.bulkCompression?.summary).toEqual({
+        compressedCount: 1,
+        skippedCount: 1,
+        savedBytes: 99,
+        errors: [{ type: 'image', fileName: 'pic.png', name: 'Error', message: 'boom' }],
+    });
+    expect(finalState.bulkCompression?.phase).toBe('done');
 });
 
 test('passthrough results keep originals and apply nothing', async () => {
@@ -496,6 +502,26 @@ test('thunk is a defensive no-op that transitions to phase "failed" when compres
     const finalState = harness.getFinalState();
     expect(finalState.bulkCompression?.phase).toBe('failed');
     expect(finalState.bulkCompression?.failedReason).toBe('compression-disabled');
+    // Package untouched.
+    expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
+    expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();
+});
+
+test('all-files-failed transitions to phase "failed" with collected errors', async () => {
+    // Both referenced files reject -> compressedCount 0, errors length 2.
+    mockedCompressMedia.mockRejectedValue(new Error('encode failed'));
+
+    const harness = createHarness(makeState());
+    await compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
+
+    const types = actionTypes(harness.dispatch);
+    expect(types).not.toContain('siquester/bulkMediaCompressed');
+    expect(types).toContain('siquester/bulkCompressionFailed');
+
+    const finalState = harness.getFinalState();
+    expect(finalState.bulkCompression?.phase).toBe('failed');
+    expect(finalState.bulkCompression?.summary?.errors).toHaveLength(2);
+    expect(finalState.bulkCompression?.summary?.errors?.[0]).toMatchObject({ name: 'Error', message: 'encode failed' });
     // Package untouched.
     expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
     expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();

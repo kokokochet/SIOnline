@@ -424,6 +424,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 			const staged: StagedMediaFile[] = [];
 			let skippedCount = 0;
 			let savedBytes = 0;
+			const errors: BulkCompressionFileError[] = [];
 
 			const isCancelRequested = () => getSiqState().bulkCompression?.cancelRequested === true;
 
@@ -478,11 +479,19 @@ export const compressAllPackageMedia = createAsyncThunk(
 				} catch (err) {
 					// AbortError: the cancel flag is already set; fall through
 					// to the loop-top check on the next iteration (or the
-					// post-loop check for the last file). Other errors skip
-					// the file (existing per-file isolation contract).
+					// post-loop check for the last file). Other errors are
+					// recorded for surfacing (named-throw from the host
+					// preserves the programmatic name, e.g. NotSupportedError).
 					if ((err as Error)?.name !== 'AbortError') {
+						const name = err && typeof err === 'object' && 'name' in err
+							? String((err as { name: unknown }).name)
+							: 'Error';
+						const message = err instanceof Error ? err.message : String(err);
+						errors.push({ type: ref.type, fileName: ref.value, name, message });
 						console.warn(`Bulk compression skipped ${ref.type}:${ref.value}:`, err);
 					}
+					// Preserve the compressedCount + skippedCount === total invariant:
+					// a failed file (and an aborted file) is also counted as skipped.
 					skippedCount += 1;
 				}
 			}
@@ -505,13 +514,26 @@ export const compressAllPackageMedia = createAsyncThunk(
 				newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
 			}));
 
+			const summary: BulkCompressionSummary = {
+				compressedCount: files.length,
+				skippedCount,
+				savedBytes,
+				errors,
+			};
+
+			// Every reachable file failed: surface as failed so the user is not told
+			// "done". Mixed (some succeeded, some failed) still reports done, but the
+			// summary carries the errors as a warning (see CompressAllDialog).
+			if (errors.length > 0 && files.length === 0) {
+				thunkAPI.dispatch(bulkCompressionFailed({ type: 'all-files-failed', summary, errors }));
+				return { applied: false };
+			}
+
 			if (files.length > 0) {
 				thunkAPI.dispatch(bulkMediaCompressed({ files }));
 			}
 
-			thunkAPI.dispatch(bulkCompressionFinished({
-				summary: { compressedCount: files.length, skippedCount, savedBytes, errors: [] },
-			}));
+			thunkAPI.dispatch(bulkCompressionFinished({ summary }));
 
 			return { applied: files.length > 0 };
 		} catch (err) {
@@ -1498,6 +1520,9 @@ export const siquesterSlice = createSlice({
 		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
 			// Covers both the confirm-strand (pre-Started throw) and a running-phase
 			// throw. The dialog renders a 'failed' branch with this reason.
+			// T49: persist the summary so the 'all-files-failed' branch can render
+			// the per-file error list (setup/compression-disabled carry an empty
+			// placeholder summary). The rejected extraReducer path has no summary.
 			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
 			if (!state.bulkCompression) {
 				state.bulkCompression = {
@@ -1506,10 +1531,12 @@ export const siquesterSlice = createSlice({
 					completed: 0,
 					cancelRequested: false,
 					failedReason: reason,
+					summary: action.payload.summary,
 				};
 			} else {
 				state.bulkCompression.phase = 'failed';
 				state.bulkCompression.failedReason = reason;
+				state.bulkCompression.summary = action.payload.summary;
 			}
 		},
 		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
