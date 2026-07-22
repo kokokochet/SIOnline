@@ -66,4 +66,6 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 	);
 });
 
+Dialog.displayName = 'Dialog';
+
 export default Dialog;
