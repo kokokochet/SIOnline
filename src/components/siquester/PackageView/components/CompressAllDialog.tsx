@@ -16,6 +16,7 @@ import { resolveCompressionOptions } from '../../../../utils/mediaCompression/co
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
 import type { MediaProbeResult } from '../../../../utils/mediaCompression';
 import localization from '../../../../model/resources/localization';
+import { getCompressionDoneSummaryKey, formatSavedBytes } from '../../../../utils/mediaCompression/compressionI18n';
 import Dialog from '../../../common/Dialog/Dialog';
 
 import './CompressAllDialog.scss';
@@ -46,10 +47,6 @@ function getPresetLabel(preset: CompressionPreset): string {
 		default:
 			return preset;
 	}
-}
-
-function formatSaved(bytes: number): string {
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
@@ -135,7 +132,14 @@ const CompressAllDialog: React.FC = () => {
 	};
 
 	return (
-		<Dialog id='compressAllDialog' title={localization.compressAllMedia} onClose={onClose} className='compressAllDialog' dismissable>
+		<Dialog
+			id='compressAllDialog'
+			title={localization.compressAllMedia}
+			onClose={onClose}
+			className='compressAllDialog'
+			dismissable
+			modal
+		>
 			{bulk.phase === 'confirm' ? (
 				<div className='compressAllDialog__confirm'>
 					{total === 0 ? (
@@ -231,12 +235,14 @@ const CompressAllDialog: React.FC = () => {
 
 		{bulk.phase === 'done' && bulk.summary ? (
 			<div className='compressAllDialog__done' role='status' aria-live='polite'>
-				{localization.formatString(
-					localization.compressionDoneSummary,
-					bulk.summary.compressedCount,
+			{localization.formatString(
+				(localization as unknown as Record<string, string>)[getCompressionDoneSummaryKey(
 					bulk.summary.compressedCount + bulk.summary.skippedCount,
-					formatSaved(bulk.summary.savedBytes),
-				)}
+				)],
+				bulk.summary.compressedCount,
+				bulk.summary.compressedCount + bulk.summary.skippedCount,
+				formatSavedBytes(bulk.summary.savedBytes, localization.getLanguage(), localization.unitMB),
+			)}
 				{bulk.summary.errors.length > 0 ? (
 					<div className='compressAllDialog__partial' role='note'>
 						{localization.formatString(localization.compressionPartialWarning, bulk.summary.errors.length)}
