@@ -1,21 +1,8 @@
 /**
- * Manual mock for the `mediabunny` library, used by the media-compression
- * compressors (`compressVideo`/`compressAudio`) and `conversionRun` in unit
- * tests. Real Mediabunny needs WebCodecs + actual decoding, which jsdom can't
- * provide, so the compressors are tested against this controllable stand-in.
- *
- * Usage in a test file:
- *
- *   import {
- *       mockMediabunny, setConversionResult, getLastConversion, resetMediabunnyMock,
- *   } from './helpers/mediabunnyMock';
- *   jest.mock('mediabunny', () => mockMediabunny());
- *
- * `jest.mock` factories are hoisted above imports and may only reference
- * bindings whose names start with "mock" — hence the export name `mockMediabunny`.
- *
- * Tests steer behavior by calling `setConversionResult({...})` BEFORE invoking
- * the compressor; the next `Conversion.init` snapshots those values.
+ * Mediabunny mock for the media-compression compressors. Real Mediabunny needs
+ * WebCodecs (absent in jsdom), so compressors run against this stand-in.
+ * `jest.mock` factories are hoisted and may only reference bindings whose names
+ * start with "mock" — hence `mockMediabunny`.
  */
 
 export interface ConversionResultState {
@@ -60,7 +47,6 @@ export function getLastConversion(): MockConversion | undefined {
     return lastConversion;
 }
 
-/** Resets all mock state between tests. */
 export function resetMediabunnyMock(): void {
     state = defaultState();
     lastConversion = undefined;
@@ -74,7 +60,6 @@ export class ConversionCanceledError extends Error {
     }
 }
 
-/** The mocked `Conversion` instance returned by `Conversion.init`. */
 export class MockConversion {
     readonly isValid: boolean;
     readonly discardedTracks: { track: { type: string } }[];
@@ -123,11 +108,6 @@ function makeClass(): { new (...args: unknown[]): unknown } {
     return class { constructor(..._args: unknown[]) {} };
 }
 
-/**
- * The mock module factory. The export name MUST start with "mock" so that
- * `jest.mock('mediabunny', () => mockMediabunny())` satisfies jest's hoisting
- * rule for out-of-scope references.
- */
 export function mockMediabunny(): Record<string, unknown> {
     return {
         Input: makeClass(),

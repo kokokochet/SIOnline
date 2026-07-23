@@ -1,14 +1,8 @@
-// test/helpers/imageCompressionMock.ts
 /**
- * Test-only mock for the browser image-compression pipeline.
- *
- * The Jest test environment is `node` (no jsdom), so `document`,
- * `HTMLCanvasElement`, and `createImageBitmap` are all absent. This helper
- * installs minimal fakes that let `compressImage()` exercise its real canvas
- * path so tests can assert on bitmap options, toBlob MIME, and fill/draw calls.
- *
- * Install with `installImageCompressionMock()` (typically in `beforeEach`);
- * remove with `uninstallImageCompressionMock()` (in `afterEach`).
+ * Mock for the browser image-compression pipeline. Jest env is `node` (no
+ * jsdom), so `document`, `HTMLCanvasElement`, and `createImageBitmap` are
+ * absent; this installs minimal fakes so `compressImage()` can exercise its
+ * real canvas path. Install in `beforeEach`, remove in `afterEach`.
  */
 
 export interface ImageCompressionMockConfig {
@@ -18,8 +12,7 @@ export interface ImageCompressionMockConfig {
     bitmapHeight?: number;
     /**
      * Bytes the fake `canvas.toBlob` yields. Default `new Uint8Array([1])`
-     * (1 byte — smaller than typical originals so the size guard passes).
-     * Pass `null` to simulate a `toBlob` failure (null Blob).
+     * (1 byte — below typical originals so the size guard passes); `null` simulates failure.
      */
     toBlobBytes?: Uint8Array | null;
 }
@@ -36,13 +29,10 @@ export interface ToBlobCall {
 
 export interface ImageCompressionMockHandle {
     readonly bitmap: { width: number; height: number; close: jest.Mock };
-    /** Every call to `createImageBitmap`, capturing `(file, options)`. */
     readonly createImageBitmapCalls: CreateImageBitmapCall[];
     /** Every call to `canvas.toBlob`, capturing `(mimeType, quality)`. */
     readonly toBlobCalls: ToBlobCall[];
-    /** Every call to `ctx.fillRect`. */
     readonly fillRectCalls: Array<{ x: number; y: number; w: number; h: number }>;
-    /** Every call to `ctx.drawImage`. */
     readonly drawImageCalls: Array<unknown[]>;
     /** Replace the bytes the next `toBlob` call yields (or null to fail). */
     setToBlobBytes(bytes: Uint8Array | null): void;

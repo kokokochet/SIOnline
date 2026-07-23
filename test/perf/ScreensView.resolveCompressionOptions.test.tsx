@@ -10,8 +10,8 @@ test('resolveCompressionOptions allocates a fresh object every call (the bug)', 
     const presets: MediaCompressionPresets = { image: 'medium', audio: 'low', video: 'low' };
     const a = resolveCompressionOptions(presets);
     const b = resolveCompressionOptions(presets);
-    expect(a).not.toBe(b);           // fresh allocation
-    expect(a).toEqual(b);            // but equal by value
+    expect(a).not.toBe(b);
+    expect(a).toEqual(b);
 });
 
 test('useMemo over presets gives referential stability across renders', () => {

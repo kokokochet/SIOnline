@@ -42,9 +42,8 @@ test('MediaItem does not re-render when an unrelated siquester slice changes', (
     render(
         <Provider store={store}>
             <React.Profiler id="MediaItem" onRender={onRender}>
-                {/* isRef=false so the effect's `if (zip && isRef)` guard skips
-                    the async zip load — loadItem never runs, the only commits
-                    are the ones driven by store updates. */}
+                {/* isRef=false skips the `if (zip && isRef)` async zip load,
+                    so commits are driven only by store updates. */}
                 <MediaItem src="external.png" type="image" isRef={false} />
             </React.Profiler>
         </Provider>,
@@ -56,7 +55,7 @@ test('MediaItem does not re-render when an unrelated siquester slice changes', (
     store.dispatch(siquesterSlice.actions.bulkCompressionProgress({ completed: 2, currentFile: 'y.png' }));
     store.dispatch(siquesterSlice.actions.bulkCompressionProgress({ completed: 3, currentFile: 'z.png' }));
 
-    // After the fix: narrow selectors return === across these dispatches,
-    // react-redux v8's Object.is check skips the commit, updateCommits stays 0.
+    // Narrow selectors return === across these dispatches; react-redux v8's
+    // Object.is check skips the commit, so updateCommits stays 0.
     expect(updateCommits).toBe(0);
 });

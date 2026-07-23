@@ -9,10 +9,9 @@ import { configureStore, createSlice } from '@reduxjs/toolkit';
 import JSZip from 'jszip';
 import MediaView from '../../src/components/siquester/PackageView/components/MediaView/MediaView';
 
-// MediaView reads `useAppSelector(state => state.siquester.zipRevision)` at
-// MediaView.tsx:40, so the render must be wrapped in a Redux <Provider> with a
-// minimal store exposing `siquester.zipRevision` — otherwise the component
-// throws "Could not find react-redux context" on mount (review fix CC2).
+// MediaView reads `useAppSelector(state => state.siquester.zipRevision)`
+// (MediaView.tsx:40), so it must be wrapped in a Redux <Provider> exposing
+// `siquester.zipRevision`, or it throws "Could not find react-redux context".
 const mediaViewSlice = createSlice({
     name: 'siquester',
     initialState: { zipRevision: 0 },
@@ -26,7 +25,6 @@ test('MediaView does not flash an empty list when mediaFiles are recomputed', as
 
     let emptyStateSeen = false;
     const onRender: React.ProfilerOnRenderCallback = () => {
-        // no-op; we read the DOM after each flush below
     };
 
     const store = configureStore({ reducer: { siquester: mediaViewSlice.reducer } });
@@ -41,7 +39,7 @@ test('MediaView does not flash an empty list when mediaFiles are recomputed', as
 
     await Promise.resolve();
 
-    // Re-render with the same zip. The fix must not flash empty between renders.
+    // Re-render with the same zip: must not flash empty between renders.
     rerender(
         <Provider store={store}>
             <React.Profiler id="MediaView" onRender={onRender}>

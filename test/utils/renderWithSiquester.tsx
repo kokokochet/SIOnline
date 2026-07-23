@@ -27,10 +27,9 @@ function createStore(siquesterOverride: Partial<SIQuesterState> | undefined) {
 }
 
 /**
- * Renders a component inside a Redux <Provider> whose store carries ONLY the
- * siquester slice. Use for components that call useAppSelector(state =>
- * state.siquester.*) — the real rootReducer is intentionally avoided because
- * store.ts constructs browser/network clients at import time.
+ * Renders inside a Redux <Provider> carrying ONLY the siquester slice. The real
+ * rootReducer is avoided because store.ts constructs browser/network clients at
+ * import time.
  */
 export function renderWithSiquester(
 	ui: React.ReactElement,
