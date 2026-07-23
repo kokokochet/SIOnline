@@ -57,6 +57,10 @@ export async function compressAudio(
                 };
 
                 worker.onerror = (e: ErrorEvent) => {
+                    // Prevent the uncaught worker error from reaching the
+                    // window error handlers (dev-server overlay) — the
+                    // compression failure is handled gracefully via reject.
+                    e.preventDefault();
                     reject(namedError('Error', e.message || 'Worker error'));
                 };
 
