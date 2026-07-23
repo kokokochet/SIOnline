@@ -41,7 +41,7 @@ describe('compressionPresets', () => {
         expect(highPreset.audio.channels).toBe(2);
         expect(highPreset.video.maxHeight).toBe(1080);
         expect(highPreset.video.bitrate).toBe(1_500_000);
-        // AVC base codec; Mediabunny selects profile/level for the target resolution.
+        // AVC base codec; Mediabunny picks profile/level for the target resolution.
         expect(highPreset.video.codec).toBe('avc');
     });
 
@@ -70,10 +70,7 @@ describe('compressionPresets', () => {
         }
     });
 
-    // Invariants — guard against accidental inversion when values are retuned.
-    // These hold regardless of the exact numbers pinned above, so a legitimate
-    // re-tune (e.g. low 1000 -> 1100) does not require touching these tests,
-    // while an inversion (low suddenly higher than medium) fails loudly.
+    // Invariants: guard against accidental inversion; survive legitimate re-tunes but fail on low>medium.
     describe('preset ordering invariants', () => {
         test('image maxDimension is monotonically non-decreasing low -> high', () => {
             expect(lowPreset.image.maxDimension).toBeLessThanOrEqual(mediumPreset.image.maxDimension);

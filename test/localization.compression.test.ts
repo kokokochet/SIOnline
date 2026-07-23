@@ -1,20 +1,11 @@
 import localization from '../src/model/resources/localization';
 import { getCompressionDoneSummaryKey } from '../src/utils/mediaCompression/compressionI18n';
 
-// Snapshot the raw locale dictionaries exactly once at module load.
-// localized-strings only fills fallbacks for the *active* language on
-// setLanguage, so at fresh import (active = en) sr/ru/uz are still pristine
-// and getContent() reflects the authored key sets — this is what makes the
-// parity check a valid "missing keys" regression guard.
+// getContent() at fresh import (active=en) keeps sr/ru/uz pristine, so key-set parity is a valid missing-keys guard.
 const content = localization.getContent();
 
-// The compression keys. Parity is scoped to this array, NOT full-keyset
-// equality: en/ru/sr/uz have divergent non-compression key sets by design
-// (`stake`, `noStake`, `yourScore` are absent from sr/uz), so full parity
-// would fail on gaps unrelated to compression. `compressionQuality` is
-// intentionally excluded (no component references it).
+// Parity scoped to compression keys; sr/uz intentionally omit some non-compression keys.
 const COMPRESSION_KEYS = [
-	// (a) Original feature keys (pre-existing in en/ru, missing from sr/uz):
 	'compressing',
 	'compressionFailed',
 	'compressMedia',
@@ -28,7 +19,6 @@ const COMPRESSION_KEYS = [
 	'compressionStart',
 	'compressionNoMedia',
 	'compressionProgress',
-	// (b) Plural split + unit + legends:
 	'compressionDoneSummary',
 	'compressionDoneSummary2',
 	'compressionDoneSummary5',
@@ -37,7 +27,6 @@ const COMPRESSION_KEYS = [
 	'compressionPresetImages',
 	'compressionPresetAudio',
 	'compressionPresetVideo',
-	// (c) Cross-plan keys (translated into sr/uz):
 	'compressionCancelling',
 	'compressionHistoryNote',
 	'compressionAudioNotSupported',
@@ -52,10 +41,6 @@ const LOCALES = ['en', 'ru', 'sr', 'uz'] as const;
 
 describe('locale key parity', () => {
 	it('every locale exposes the same compression keys', () => {
-		// Scoped to COMPRESSION_KEYS (not full-keyset equality): sr/uz are
-		// intentionally missing some non-compression keys (`stake`, `noStake`,
-		// `yourScore`). The non-empty-string guard in the next test locks the
-		// value for every COMPRESSION_KEY.
 		for (const lang of LOCALES) {
 			for (const key of COMPRESSION_KEYS) {
 				expect(Object.prototype.hasOwnProperty.call(content[lang], key)).toBe(true);
@@ -81,8 +66,7 @@ describe('locale key parity', () => {
 		expect(getCompressionDoneSummaryKey(21)).toBe('compressionDoneSummary'); // ends in 1, not 11
 		expect(getCompressionDoneSummaryKey(22)).toBe('compressionDoneSummary2'); // ends in 2-4, not 12-14
 		expect(getCompressionDoneSummaryKey(0)).toBe('compressionDoneSummary5');  // zero -> many
-		// Pins the intentional divergence from TimeHelpers' buggy `!= 11` (absolute):
-		// 111/211 must be MANY (TimeHelpers would wrongly return 'one').
+		// Diverges from TimeHelpers' buggy absolute !=11: 111/211 must be MANY.
 		expect(getCompressionDoneSummaryKey(111)).toBe('compressionDoneSummary5');
 		expect(getCompressionDoneSummaryKey(211)).toBe('compressionDoneSummary5');
 	});

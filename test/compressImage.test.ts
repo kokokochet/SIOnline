@@ -52,8 +52,6 @@ describe('parseImageDimensions', () => {
     });
 });
 
-// Re-exercise the pre-existing pure helper to lock in its contract while we are
-// in this file (no behavior change expected).
 describe('calculateTargetDimensions (unchanged)', () => {
     test('scales down landscape image to maxDimension', () => {
         expect(calculateTargetDimensions(1600, 1200, 800)).toEqual({ width: 800, height: 600 });
@@ -72,14 +70,11 @@ describe('compressImage decompression-bomb guard', () => {
     });
 
     test('returns passthrough for an oversized PNG WITHOUT calling createImageBitmap', async () => {
-        // createImageBitmap is the expensive step that allocates the full raster.
-        // The guard must reject before it is ever invoked. We assert the spy is
-        // never called — if it is, the bomb would already have OOMed in a browser.
+        // createImageBitmap allocates the full raster; guard must reject before it's invoked.
         const createBitmapMock = jest.fn();
         (globalThis as { createImageBitmap?: unknown }).createImageBitmap = createBitmapMock;
 
-        // 40000x40000 PNG = ~1.6e9 pixels, far above MAX_IMAGE_PIXELS (33_177_600).
-        // Built via the same IHDR helper as the dimension-parsing test.
+        // 40000x40000 PNG ~ 1.6e9 pixels, far above MAX_IMAGE_PIXELS (33_177_600).
         const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
         const length = [0x00, 0x00, 0x00, 0x0d];
         const type = [0x49, 0x48, 0x44, 0x52];
@@ -95,15 +90,11 @@ describe('compressImage decompression-bomb guard', () => {
         expect(createBitmapMock).not.toHaveBeenCalled();
         expect(result.wasCompressed).toBe(false);
         expect(result.fileName).toBe('bomb.png');
-        // Passthrough preserves original bytes.
         expect(result.data.length).toBe(bytes.length);
     });
 
     test('lets a normally-sized PNG through to the existing pipeline', async () => {
-        // Smoke test: the guard must NOT short-circuit legitimate images. The
-        // jest node env has no real canvas/toBlob, so compressImage falls back
-        // to passthrough via its outer try/catch — the point is that it does NOT
-        // reject on the pre-decode guard for a 100x100 image.
+        // Guard must not short-circuit legit images; jsdom lacks canvas/toBlob so it falls back to passthrough — no pre-decode rejection.
         const createBitmapMock = jest.fn().mockResolvedValue({
             width: 100,
             height: 100,
@@ -116,7 +107,6 @@ describe('compressImage decompression-bomb guard', () => {
 
         await compressImage(file, mediumPreset.image);
 
-        // A legitimate image reaches createImageBitmap (the guard did not fire).
         expect(createBitmapMock).toHaveBeenCalledTimes(1);
     });
 });

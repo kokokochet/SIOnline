@@ -30,9 +30,7 @@ describe('mediaCompression', () => {
         });
 
         test('defaultCompressionOptions IS the medium preset (single source of truth)', () => {
-            // Identity (Object.is) check: defaultOptions.ts re-exports mediumPreset,
-            // so the two must be the exact same reference. Prevents drift between
-            // the defaults module and the presets module.
+            // defaultOptions.ts re-exports mediumPreset; Object.is prevents drift.
             expect(defaultCompressionOptions).toBe(mediumPreset);
         });
     });

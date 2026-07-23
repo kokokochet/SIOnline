@@ -38,13 +38,10 @@ describe('CompressAllDialog live regions', () => {
 			completed: 2,
 			currentFile: null,
 			cancelRequested: false,
-			// `errors` is required by BulkCompressionSummary; the verbatim fixture
-			// omits it, which would crash the render before the summary is reached.
+			// errors is required by BulkCompressionSummary; omitting it would crash before the summary renders.
 			summary: { compressedCount: 2, skippedCount: 0, savedBytes: 1572864, errors: [] },
 		});
-		// The live region is a regression guard. The genuine red->green here is
-		// the plural form: compressedCount=2 must render the FEW form -> plural
-		// "files" (en).
+		// compressedCount=2 must pick the plural FEW form.
 		const statuses = document.querySelectorAll('[role="status"][aria-live="polite"]');
 		expect(statuses.length).toBeGreaterThan(0);
 		const doneStatus = Array.from(statuses).find((s) => /files?/i.test(s.textContent ?? ''));

@@ -62,8 +62,7 @@ describe('CompressAllDialog does not warn on unsupported codec', () => {
 	test('confirm screen lists unsupported types from the pre-flight probe', async () => {
 		probeMedia.mockResolvedValue({ type: 'audio', supported: false, codec: 'opus', reason: 'AudioEncoder unavailable' });
 		renderDialog(makePackWithAudio());
-		// The pre-flight runs in an effect; wait for the per-type list to appear.
-		// The UI dedupes by type and renders "Audio (opus)", not per-file names.
+		// Pre-flight runs in an effect; UI dedupes by type, not per-file.
 		const item = await screen.findByText(/Audio \(opus\)/i, undefined, { timeout: 2000 });
 		expect(item).toBeInTheDocument();
 		expect(screen.getByText(/cannot be compressed with the selected codec/i)).toBeInTheDocument();

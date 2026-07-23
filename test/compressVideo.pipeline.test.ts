@@ -6,23 +6,14 @@ import {
     resetMediabunnyMock,
 } from './helpers/mediabunnyMock';
 
-// The factory requires the helper module inline rather than closing over the
-// imported binding: under ts-jest + TypeScript 6 the named import compiles to a
-// `const` in the temporal dead zone when jest's hoisted `jest.mock` factory
-// first runs (the compressVideo import chain triggers `require('mediabunny')`
-// before that const is initialized). The inline require resolves to the SAME
-// cached module instance, so the module-level `state`/`lastConversion`
-// singletons stay shared with the control helpers imported above.
+// Inline require (not import): ts-jest hoists jest.mock before the named import initializes (TDZ); same cached module, state shared with helpers.
 jest.mock('mediabunny', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { mockMediabunny } = require('./helpers/mediabunnyMock');
     return mockMediabunny();
 });
 
-/**
- * Drains the microtask queue so the async compressor advances past its
- * `Conversion.init` await and into `execute()` before assertions run.
- */
+// Drains microtasks so execute() runs before assertions.
 function flushPromises(): Promise<void> {
     return new Promise((resolve) => setImmediate(resolve));
 }
@@ -35,8 +26,6 @@ describe('compressVideo (Mediabunny Conversion pipeline)', () => {
     const originalVideoEncoder = (globalThis as Record<string, unknown>).VideoEncoder;
 
     beforeEach(() => {
-        // compressVideo gates on isVideoCompressionSupported(); force true so
-        // the conversion pipeline is entered.
         (globalThis as Record<string, unknown>).VideoEncoder =
             class MockVideoEncoder {} as unknown as typeof VideoEncoder;
         resetMediabunnyMock();
@@ -72,7 +61,6 @@ describe('compressVideo (Mediabunny Conversion pipeline)', () => {
         expect(result.wasCompressed).toBe(false);
         expect(result.data.length).toBe(64);
         expect(result.fileName).toBe('in.mp4');
-        // execute() must not run for an invalid conversion.
         expect(getLastConversion()?.executeCalled).toBe(false);
     });
 
@@ -127,7 +115,7 @@ describe('compressVideo (Mediabunny Conversion pipeline)', () => {
         const file = makeFile(100);
 
         const promise = compressVideo(file, defaultCompressionOptions.video, controller.signal);
-        await flushPromises(); // advance to the pending execute()
+        await flushPromises();
 
         controller.abort();
 
@@ -143,7 +131,6 @@ describe('compressVideo (Mediabunny Conversion pipeline)', () => {
         await expect(
             compressVideo(file, defaultCompressionOptions.video, controller.signal),
         ).rejects.toMatchObject({ name: 'AbortError' });
-        // No Conversion should have been created.
         expect(getLastConversion()).toBeUndefined();
     });
 

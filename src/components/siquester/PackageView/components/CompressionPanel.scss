@@ -28,9 +28,7 @@
 	}
 
 	.compressionPanel__presets {
-		// fieldset reset: the group is now a <fieldset> instead of a <div>, so
-		// neutralize the UA border/margin/padding/min-width to keep the change a
-		// visual no-op.
+		// fieldset reset: neutralize UA border/margin/padding/min-width (visual no-op vs the old <div>).
 		border: 0;
 		margin: 0;
 		padding: 0;
@@ -58,8 +56,7 @@
 	}
 
 	.compressionPanel__title {
-		// legend reset: <legend> is inline by default with UA padding/margin;
-		// restore the block heading look the old <div> had.
+		// legend reset: restore the block heading look the old <div> had.
 		display: block;
 		padding: 0;
 		margin: 0 0 0.5rem 0;

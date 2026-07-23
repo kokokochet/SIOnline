@@ -1,4 +1,3 @@
-// test/compressImageFidelity.test.ts
 import {
     installImageCompressionMock,
     uninstallImageCompressionMock,
@@ -25,7 +24,7 @@ describe('image corruption', () => {
             mock = installImageCompressionMock({
                 bitmapWidth: 1000,
                 bitmapHeight: 1000,
-                toBlobBytes: new Uint8Array(50), // smaller than the 100-byte original
+                toBlobBytes: new Uint8Array(50),
             });
         });
 
@@ -122,8 +121,6 @@ describe('image corruption', () => {
     });
 
     describe('transparency is preserved (alpha-aware format)', () => {
-        // Minimal PNG: signature + IHDR (length 13) with the given color type.
-        // Note: return type inferred (Uint8Array<ArrayBuffer>) so it's a valid BlobPart.
         function makePngIhdr(colorType: number, bitDepth = 8) {
             return new Uint8Array([
                 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
@@ -154,9 +151,9 @@ describe('image corruption', () => {
             const result = await compressImage(file, jpegOptions);
 
             expect(result.wasCompressed).toBe(true);
-            expect(result.fileName).toBe('logo.png'); // kept .png, not .jpg
+            expect(result.fileName).toBe('logo.png');
             expect(mock.toBlobCalls[0].mimeType).toBe('image/png');
-            expect(mock.fillRectCalls).toHaveLength(0); // no white fill
+            expect(mock.fillRectCalls).toHaveLength(0);
         });
 
         test('gray+alpha PNG (color type 4) is re-encoded as PNG', async () => {
@@ -185,7 +182,7 @@ describe('image corruption', () => {
             await compressImage(file, jpegOptions);
 
             expect(mock.toBlobCalls[0].mimeType).toBe('image/jpeg');
-            expect(mock.fillRectCalls).toHaveLength(1); // white fill applied
+            expect(mock.fillRectCalls).toHaveLength(1);
         });
     });
 
@@ -281,8 +278,7 @@ describe('image corruption', () => {
         test('static PNG (no acTL) still proceeds to compression (regression)', async () => {
             const file = new File([makeStaticPng()], 'still.png', { type: 'image/png' });
 
-            // toBlobBytes (1) is smaller than the original static PNG (29 bytes)
-            // but we only assert that animation detection did NOT short-circuit.
+            // Only assert animation detection didn't short-circuit (toBlobBytes 1 < PNG 29 bytes).
             await compressImage(file, jpegOptions);
 
             expect(mock.createImageBitmapCalls).toHaveLength(1);
@@ -327,10 +323,7 @@ describe('image corruption', () => {
         });
 
         test('SVGZ (gzipped SVG, gzip magic bytes 0x1f 0x8b) passes through unchanged', async () => {
-            // Gzip magic bytes (0x1f 0x8b) followed by 30 zero bytes — an
-            // SVGZ-shaped payload that has no `<svg` text and no image
-            // signature, so without the gzip-magic guard it would fall through
-            // to createImageBitmap and rasterize on gunzip-capable browsers.
+            // SVGZ: gzip magic + zeros, no <svg/image signature; without the gzip-magic guard it would rasterize.
             const svgz = new Uint8Array([0x1f, 0x8b, ...new Uint8Array(30)]);
             const file = new File([svgz], 'icon.svgz', { type: 'image/svg+xml' });
 
@@ -418,9 +411,6 @@ describe('image corruption', () => {
 });
 
 describe('WebP alpha detection (imageFormatDetect)', () => {
-    // -- byte fixture helpers -------------------------------------------------
-
-    /** Concatenates Uint8Arrays into a single buffer. */
     function concatBytes(...arrays: Uint8Array[]): Uint8Array {
         let total = 0;
         for (const a of arrays) {
@@ -435,17 +425,14 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         return out;
     }
 
-    /** Minimal RIFF/WEBP container header (12 bytes); file size left zero (unused by the walker). */
+    /** 12-byte RIFF/WEBP header; size left zero (unused by walker). */
     const WEBP_HEADER = new Uint8Array([
         0x52, 0x49, 0x46, 0x46, // "RIFF"
         0x00, 0x00, 0x00, 0x00, // file size
         0x57, 0x45, 0x42, 0x50, // "WEBP"
     ]);
 
-    /**
-     * VP8X extended-format chunk. `flags` lands at the first payload byte
-     * (offset 20); bit 0x10 there is the alpha flag the walker reads.
-     */
+    /** VP8X: flags at offset 20, bit 0x10 = alpha flag. */
     function makeWebpVp8x(flags: number): Uint8Array {
         return concatBytes(
             WEBP_HEADER,
@@ -458,11 +445,7 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         );
     }
 
-    /**
-     * VP8L (lossless) chunk. The walker reads the packed alpha hint at payload
-     * offset +4 (byte 24, dataStart+4); bit 0x10 there is "alpha used".
-     * Preceding bytes hold the 0x2f signature + width/height bit fields.
-     */
+    /** VP8L: alpha hint at offset 24 (dataStart+4), bit 0x10 = alpha used; 0x2f sig precedes. */
     function makeWebpVp8l(alphaHint: number): Uint8Array {
         return concatBytes(
             WEBP_HEADER,
@@ -476,14 +459,10 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         );
     }
 
-    // -- detection ------------------------------------------------------------
-
     test('detectImageFormat returns "webp" for a RIFF/WEBP container', () => {
         expect(detectImageFormat(makeWebpVp8x(0x10))).toBe('webp');
         expect(detectImageFormat(makeWebpVp8l(0x10))).toBe('webp');
     });
-
-    // -- VP8X alpha -----------------------------------------------------------
 
     test('VP8X extended chunk with alpha flag (bit 0x10) reports alpha', () => {
         expect(hasAlphaChannel(makeWebpVp8x(0x10))).toBe(true);
@@ -493,8 +472,6 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         expect(hasAlphaChannel(makeWebpVp8x(0x00))).toBe(false);
     });
 
-    // -- VP8L alpha -----------------------------------------------------------
-
     test('VP8L lossless chunk with alpha hint (bit 0x10) reports alpha', () => {
         expect(hasAlphaChannel(makeWebpVp8l(0x10))).toBe(true);
     });
@@ -503,11 +480,8 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         expect(hasAlphaChannel(makeWebpVp8l(0x00))).toBe(false);
     });
 
-    // -- lossy VP8 (no alpha) -------------------------------------------------
-
     test('lossy VP8 chunk carries no alpha channel', () => {
-        // "VP8 " (note the trailing space) is neither VP8X nor VP8L, so the
-        // walker skips it and reaches end-of-buffer without an alpha signal.
+        // "VP8 " (trailing space) is neither VP8X nor VP8L; walker skips it, no alpha signal.
         const lossy = concatBytes(
             WEBP_HEADER,
             new Uint8Array([
@@ -519,11 +493,8 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         expect(hasAlphaChannel(lossy)).toBe(false);
     });
 
-    // -- truncation safety (the bounds-sensitive invariant) -------------------
-
     test('truncated WebP below a chunk header returns false (no throw)', () => {
-        // RIFF + size + WEBP + 2 stray bytes: offset (12) + 8 > length (14), so
-        // the chunk loop never starts. Safe default, no out-of-bounds read.
+        // 12 + 8 > length 14: chunk loop never starts. Safe default, no OOB read.
         const truncated = new Uint8Array([
             0x52, 0x49, 0x46, 0x46, // "RIFF"
             0x00, 0x00, 0x00, 0x00, // size
@@ -535,8 +506,7 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
     });
 
     test('WebP with a VP8X chunk header but no flags byte returns false (no OOB)', () => {
-        // Header(12) + "VP8X"(4) + size(4) = 20 bytes. The flags byte lives at
-        // dataStart (20), which is not < length (20): the guard returns false.
+        // length 20 == dataStart 20: flags byte absent, guard returns false.
         const headerOnly = new Uint8Array([
             0x52, 0x49, 0x46, 0x46, // "RIFF"
             0x00, 0x00, 0x00, 0x00, // size
@@ -549,9 +519,7 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
     });
 
     test('truncated PNG at or before the color-type byte returns false (no throw)', () => {
-        // Signature(8) + IHDR length(4) + "IHDR"(4) + width(4) + height(4)
-        // + bitDepth(1) = 25 bytes. The color-type byte lives at offset 25 and
-        // is absent, so pngHasAlpha returns false via its length guard.
+        // length 25: color-type byte at offset 25 absent, length guard returns false.
         const truncatedPng = new Uint8Array([
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
             0x00, 0x00, 0x00, 0x0d, // IHDR length = 13

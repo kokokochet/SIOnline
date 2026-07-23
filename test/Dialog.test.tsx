@@ -39,8 +39,7 @@ describe('Dialog', () => {
         fireEvent.keyDown(window, { key: 'Escape' });
 
         expect(onClose).toHaveBeenCalledTimes(1);
-        // dismissable no longer drives aria-modal; a dismissable-only dialog
-        // does NOT claim modality.
+        // dismissable alone does not set aria-modal.
         expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-modal');
     });
 });

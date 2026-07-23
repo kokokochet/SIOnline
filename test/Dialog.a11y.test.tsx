@@ -15,7 +15,6 @@ describe('Dialog', () => {
 				<p>body</p>
 			</Dialog>,
 		);
-		// role + aria-labelledby resolve the <h1> title as the accessible name.
 		const dialog = getByRole('dialog', { name: 'Compression settings' });
 		expect(dialog).toBeInTheDocument();
 	});
@@ -47,12 +46,11 @@ describe('Dialog', () => {
 			</Dialog>,
 		);
 
-		// Focus moved into the dialog on open.
 		const dialog = document.querySelector('[role="dialog"]');
 		expect(dialog).not.toBeNull();
 		expect(dialog!.contains(document.activeElement)).toBe(true);
 
-		// Closing (unmount) restores focus to the trigger (WCAG 2.4.3).
+		// Unmount restores focus to the trigger (WCAG 2.4.3).
 		unmount();
 		expect(document.activeElement).toBe(trigger);
 
@@ -69,13 +67,11 @@ describe('Dialog', () => {
 		const firstBtn = container.querySelectorAll('button')[0];
 		const lastBtn = container.querySelectorAll('button')[2];
 
-		// The close button (X) is the first focusable, so first interactive after
-		// the header is 'a'. Tabbing past the last focusable wraps to the first.
 		lastBtn.focus();
 		expect(document.activeElement).toBe(lastBtn);
 
-		fireEvent.keyDown(window, { key: 'Tab' }); // Tab from last -> wraps to first
-		// First focusable is the close (X) button (it is rendered before children).
+		fireEvent.keyDown(window, { key: 'Tab' });
+		// Close (X) renders before children, so Tab past the last focusable wraps to it.
 		const closeButton = container.querySelector('.dialog_closeButton') as HTMLElement;
 		expect(document.activeElement).toBe(closeButton);
 	});

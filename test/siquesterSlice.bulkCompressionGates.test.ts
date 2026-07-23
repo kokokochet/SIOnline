@@ -6,7 +6,7 @@ import reducer, {
     BulkCompressionSummary,
 } from '../src/state/siquesterSlice';
 
-// Post-Phase-2, BulkCompressionSummary requires an `errors` field.
+// errors field is required by the type.
 const summary: BulkCompressionSummary = { compressedCount: 5, skippedCount: 1, savedBytes: 12345, errors: [] };
 
 function runningState(): SIQuesterState {
@@ -27,8 +27,7 @@ describe('bulkCompressionFinished gate (running → done only)', () => {
         expect(state.bulkCompression?.phase).toBe('done');
         expect(state.bulkCompression?.completed).toBe(10);
         expect(state.bulkCompression?.summary).toEqual(summary);
-        // currentFile is cleared on Finished (review fix #5 / CC8) — pinned so
-        // the cleanup line cannot be silently removed.
+        // currentFile cleared on Finished; pinned as a regression guard.
         expect(state.bulkCompression?.currentFile).toBeUndefined();
     });
 

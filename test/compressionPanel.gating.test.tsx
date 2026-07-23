@@ -8,7 +8,7 @@ import { renderWithSiquester } from './utils/renderWithSiquester';
 import CompressionPanel from '../src/components/siquester/PackageView/components/CompressionPanel';
 import localization from '../src/model/resources/localization';
 
-// Mock the barrel so we can flip feature detection per test without touching globals.
+// Mock the barrel to flip feature detection per test.
 jest.mock('../src/utils/mediaCompression', () => {
 	const actual = jest.requireActual('../src/utils/mediaCompression');
 	return {
@@ -55,11 +55,7 @@ describe('UI does not gate on WebCodecs support (CompressionPanel)', () => {
 	test('disables the audio preset radios when audio is unsupported', () => {
 		audioSupported.mockReturnValue(false);
 		renderPanel();
-		// Scope to each presets group (now a <fieldset> named via its legend) so
-		// the assertion is exact: the 3 audio radios must all be disabled, while
-		// image + video stay enabled (the disabled set is precisely the audio
-		// radios). Previously this used getAllByRole over all 9 radios + .some,
-		// which only proved >=1 disabled.
+		// Scope per fieldset: exact audio-radio disabled set (old getAllByRole over all 9 only proved >=1 disabled).
 		const audioRadios = within(screen.getByRole('group', { name: localization.compressionPresetAudio })).getAllByRole('radio');
 		expect(audioRadios).toHaveLength(3);
 		expect(audioRadios.every(r => (r as HTMLInputElement).disabled)).toBe(true);
@@ -73,7 +69,7 @@ describe('UI does not gate on WebCodecs support (CompressionPanel)', () => {
 	test('keeps image preset radios enabled when audio is unsupported', () => {
 		audioSupported.mockReturnValue(false);
 		renderPanel();
-		// Images use canvas (always supported) and must never be gated by WebCodecs.
+		// Images use canvas (always supported), never WebCodecs-gated.
 		const imageRadios = within(screen.getByRole('group', { name: localization.compressionPresetImages })).getAllByRole('radio');
 		expect(imageRadios).toHaveLength(3);
 		expect(imageRadios.some(r => (r as HTMLInputElement).disabled)).toBe(false);

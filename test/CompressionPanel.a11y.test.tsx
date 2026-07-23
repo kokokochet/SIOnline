@@ -9,10 +9,6 @@ import { Provider } from 'react-redux';
 import CompressionPanel from '../src/components/siquester/PackageView/components/CompressionPanel';
 import localization from '../src/model/resources/localization';
 
-// CompressionPanel reads state.siquester.mediaCompression and dispatches into
-// the siquester slice, so we wrap it in a real store with the slice's default
-// state. We don't need the full app reducer — just the siquester branch.
-// (SCSS is auto-mocked via package.json jest.moduleNameMapper -> test/styleMock.js.)
 function renderPanel(open: boolean) {
 	// Lazy-require to avoid importing the whole reducer graph at module load.
 	// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -36,7 +32,6 @@ describe('CompressionPanel preset groups', () => {
 	});
 
 	it('renders three fieldset groups, one per media type, each with a unique legend', () => {
-		// English is the default locale at fresh import.
 		renderPanel(true);
 		const groups = document.querySelectorAll('fieldset');
 		expect(groups.length).toBe(3);
@@ -54,7 +49,6 @@ describe('CompressionPanel preset groups', () => {
 		const groups = document.querySelectorAll('fieldset');
 		expect(groups.length).toBe(3);
 		groups.forEach((group) => {
-			// Each fieldset has a legend and at least one radio.
 			expect(group.querySelector('legend')).not.toBeNull();
 			expect(group.querySelectorAll('input[type="radio"]').length).toBe(3);
 		});

@@ -26,7 +26,7 @@ function makeStore(overrides: Partial<SIQuesterState> = {}): ReturnType<typeof c
 	});
 }
 
-/** Minimal package referencing one image, so the confirm screen shows its warning block. */
+/** One image ref so the confirm-screen warning block renders. */
 function makePackWithImageRef(): Package {
 	return {
 		name: 'Test',
@@ -80,16 +80,13 @@ describe('CompressAllDialog', () => {
 		});
 		expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
-		// Escape triggers onClose → during running that dispatches the cancel thunk.
 		fireEvent.keyDown(window, { key: 'Escape' });
 
-		// Still mounted (phase is still 'running'); overlay visible.
 		expect(screen.getByText(/Cancelling/i)).toBeInTheDocument();
 		expect((store.getState() as any).siquester.bulkCompression.cancelRequested).toBe(true);
 	});
 
 	test('renders the failed phase with the error message and a Close button', () => {
-		// Set the failed phase directly via preloadedState to exercise the failed UI branch.
 		const store = makeStore({
 			bulkCompression: {
 				phase: 'failed',
@@ -152,10 +149,8 @@ describe('CompressAllDialog unmount', () => {
 			</Provider>,
 		);
 
-		// confirm phase — no run started.
 		unmount();
 
-		// No bulk state was ever created; nothing to cancel.
 		expect((store.getState() as any).siquester.bulkCompression).toBeUndefined();
 	});
 });

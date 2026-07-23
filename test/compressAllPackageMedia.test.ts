@@ -43,7 +43,6 @@ function makeState(): SIQuesterState {
     return { pack, zip, mediaCompression: { ...defaultMediaCompressionState, enabled: true }, zipRevision: 0, history: { past: [], future: [] } };
 }
 
-/** Mini-store: dispatched actions are applied through the real reducer. */
 function createHarness(initial: SIQuesterState) {
     let state = initial;
     const dispatch = jest.fn((action: any) => {
@@ -79,7 +78,6 @@ test('compresses all referenced media and applies results in one dispatch', asyn
     expect(types).toContain('siquester/bulkCompressionFinished');
 
     const finalState = harness.getFinalState();
-    // Package integrity: every referenced file exists in the zip.
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
     expect(finalState.zip?.file('Images/pic.out')).not.toBeNull();
     expect(finalState.zip?.file('Audio/song.out')).not.toBeNull();
@@ -103,10 +101,8 @@ test('skips files that fail compression and keeps the package valid', async () =
     await compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
 
     const finalState = harness.getFinalState();
-    // Failed file: original entry and reference kept.
     expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
     expect(finalState.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
-    // Successful file applied.
     expect(finalState.zip?.file('Audio/song.opus')).not.toBeNull();
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
     expect(finalState.bulkCompression?.summary).toEqual({
@@ -156,8 +152,7 @@ test.each(['beforeFirstFile', 'afterLastFile'] as const)('cancel (%s) discards s
             progressSeen += 1;
         }
 
-        // beforeFirstFile pins the in-loop cancel check; afterLastFile pins the
-        // post-loop check (makeState has 2 referenced files).
+        // beforeFirstFile = in-loop check; afterLastFile = post-loop check (2 files).
         const shouldCancel = mode === 'beforeFirstFile'
             ? action.type === 'siquester/bulkCompressionStarted'
             : action.type === 'siquester/bulkCompressionProgress' && progressSeen === 2;
@@ -193,7 +188,7 @@ test('does not apply staged results when the package is swapped mid-run', async 
     const dispatch = jest.fn((action: any) => {
         state = reducer(state, action);
 
-        // Simulate opening another package mid-run (the dialog is not modal).
+        // Dialog is not modal: another package can open mid-run.
         if (action.type === 'siquester/bulkCompressionProgress') {
             state = { ...state, zip: new JSZip() };
         }
@@ -228,18 +223,15 @@ test('skips referenced files missing from the zip', async () => {
     expect(actionTypes(harness.dispatch)).toContain('siquester/bulkMediaCompressed');
 
     const finalState = harness.getFinalState();
-    // The successful file was applied: new entry written, old entry removed.
     expect(finalState.zip?.file('Images/pic.jpg')).not.toBeNull();
     expect(finalState.zip?.file('Images/pic.png')).toBeNull();
     expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99, errors: [] });
-    // The missing-file reference was pre-existing; it is left as-is.
+    // Missing-file ref was pre-existing, left as-is.
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual(['audio:song.mp3']);
 });
 
 test('rename plan resolves a literal-% collision without breaking the package', async () => {
-    // pic.out's compressed target name literally equals the URI-encoded form of
-    // the existing 'my photo.png' entry. planRenames must bump pic to a unique
-    // name so the apply cannot delete my photo's fresh entry.
+    // pic's target 'my%20photo.png' collides with the URI-encoded form of existing 'my photo.png'.
     const initial = makeState();
     initial.zip!.file('Images/my%20photo.png', new Uint8Array([7, 7, 7]));
     initial.pack!.rounds[0].themes[0].questions[0].params.question!.items.push(
@@ -249,8 +241,7 @@ test('rename plan resolves a literal-% collision without breaking the package', 
     let call = 0;
     mockedCompressMedia.mockImplementation(async (file: File) => {
         call += 1;
-        // pic.png -> 'my%20photo.png' (collides with the encoded form of 'my photo.png')
-        // my photo.png -> 'my photo.jpg'
+        // pic.png -> 'my%20photo.png', my photo.png -> 'my photo.jpg'
         const target = file.name === 'pic.png' ? 'my%20photo.png' : 'my photo.jpg';
         return {
             data: new Uint8Array([call]),
@@ -266,21 +257,12 @@ test('rename plan resolves a literal-% collision without breaking the package', 
 
     const finalState = harness.getFinalState();
     expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
-    // makeState provides pic.png + song.mp3, and this test adds 'my photo.png';
-    // all three are compressed (the mock's else branch also catches song.mp3).
+    // 3 files: pic.png, song.mp3, plus added 'my photo.png'.
     expect(finalState.bulkCompression?.summary?.compressedCount).toBe(3);
 });
 
 test('rejected thunk after Started transitions phase to failed and applies nothing', async () => {
-    // The thunk's only explicit throw is BEFORE bulkCompressionStarted (the
-    // !zip/!pack guard). If anything throws AFTER Started — a future refactor,
-    // an Immer invariant, an OOM in a pure helper — phase would stick at
-    // 'running' forever (Cancel only flips cancelRequested, which a dead thunk
-    // never reads). The rejected extraReducer closes that gap. We exercise it
-    // directly because forcing a real post-Started throw is brittle: the
-    // per-file try/catch swallows compressMedia rejections, so even all-failing
-    // mocks reach Finished. Dispatching the rejected lifecycle action through
-    // the real reducer is the deterministic way to cover running->failed.
+    // A post-Started throw would strand phase='running'; forced directly since per-file try/catch swallows compressMedia rejections.
     const { compressAllPackageMedia: thunk } = await import('../src/state/siquesterSlice');
 
     let state: SIQuesterState = makeState();
@@ -290,29 +272,22 @@ test('rejected thunk after Started transitions phase to failed and applies nothi
     });
     const getState = () => ({ siquester: state });
 
-    // Drive the thunk normally so Started dispatches against the real reducer,
-    // then simulate a mid-run rejection via the rejected action creator.
     state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
     expect(state.bulkCompression?.phase).toBe('running');
 
-    // thunk.rejected signature in RTK 2.x: (error, requestId, arg, payload?, meta?).
-    // arg is void for this thunk, so undefined.
+    // RTK 2.x thunk.rejected(error, requestId, arg, ...); arg is void here.
     const rejectedAction = thunk.rejected(new Error('unexpected'), 'fakeReqId', undefined);
     state = reducer(state, rejectedAction as any);
 
     expect(state.bulkCompression?.phase).toBe('failed');
     expect(state.bulkCompression?.failedReason).toBe('unexpected');
-    // All-or-nothing: bulkMediaCompressed never dispatched, package untouched.
     expect(state.zip?.file('Images/pic.png')).not.toBeNull();
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
     expect(state.zipRevision).toBe(0);
 });
 
 test('re-entry guard: a second invocation while phase is running is skipped and leaves the run untouched', async () => {
-    // The bug: while a run is in flight (phase === 'running'), reopening the
-    // panel and clicking Start again would dispatch a SECOND concurrent thunk
-    // against the same zip/pack. The condition guard must refuse the second
-    // invocation deterministically.
+    // A second Start while phase='running' must be refused by the condition guard.
     mockedCompressMedia.mockImplementation(async (file: File) => ({
         data: new Uint8Array([9, 9]),
         fileName: `${file.name.replace(/\.[^.]+$/, '')}.out`,
@@ -322,7 +297,6 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
     }));
 
     let state = makeState();
-    // Simulate an in-flight run: a first thunk has already dispatched Started.
     state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
     expect(state.bulkCompression?.phase).toBe('running');
 
@@ -334,9 +308,6 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
 
     await compressAllPackageMedia()(dispatch, getState, undefined);
 
-    // The thunk body never executed: compressMedia was not called, and no
-    // Started/Progress/Finished/MediaCompressed actions were dispatched by the
-    // second invocation.
     expect(mockedCompressMedia).not.toHaveBeenCalled();
     const types = actionTypes(dispatch);
     expect(types).not.toContain('siquester/bulkCompressionStarted');
@@ -344,8 +315,7 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
     expect(types).not.toContain('siquester/bulkMediaCompressed');
     expect(types).not.toContain('siquester/bulkCompressionFinished');
 
-    // The in-flight run's phase is NOT clobbered to 'cancelled' by the
-    // condition-rejection (the rejected reducer must ignore condition-rejections).
+    // condition-rejection must not clobber the in-flight phase.
     expect(state.bulkCompression?.phase).toBe('running');
     expect(state.zip?.file('Images/pic.png')).not.toBeNull();
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
@@ -353,8 +323,7 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
 });
 
 test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
-    // Defense in depth: even if the UI re-dispatches this action mid-run,
-    // it must not reset phase/cancelRequested and undermine the in-flight run.
+    // Defense in depth: re-dispatch mid-run must not reset phase/cancelRequested.
     let state = makeState();
     state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 3 } });
     state = reducer(state, bulkCompressionCancelRequested());
@@ -369,12 +338,10 @@ test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
 });
 
 test('aborting mid-file cancels within a tick instead of encoding to completion', async () => {
-    // Mock compressMedia as slow (30s) but responsive to the AbortSignal.
+    // Slow (30s) but AbortSignal-responsive mock.
     mockedCompressMedia.mockImplementation(
         async (_file: File, _type: any, _opts: any, signal?: AbortSignal) => {
-            // Mirror the real compressMedia pre-check: an already-aborted signal
-            // rejects immediately (the abort may race ahead of this call because
-            // the thunk yields at the JSZip entry read before reaching us).
+            // Already-aborted signal rejects at once (abort can race ahead past the JSZip entry read).
             if (signal?.aborted) {
                 throw new DOMException('Aborted', 'AbortError');
             }
@@ -385,7 +352,6 @@ test('aborting mid-file cancels within a tick instead of encoding to completion'
                     reject(new DOMException('Aborted', 'AbortError'));
                 }, { once: true });
             });
-            // Should never reach here within the test timeout.
             return { data: new Uint8Array([1]), fileName: 'x.out', originalSize: 10, compressedSize: 1, wasCompressed: true };
         },
     );
@@ -393,7 +359,6 @@ test('aborting mid-file cancels within a tick instead of encoding to completion'
     const harness = createHarness(makeState());
     const started = Date.now();
 
-    // Kick off the thunk; once Started dispatches, abort.
     const promise = compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
     await new Promise<void>(r => {
         const check = () => {
@@ -412,19 +377,14 @@ test('aborting mid-file cancels within a tick instead of encoding to completion'
     expect(types).not.toContain('siquester/bulkMediaCompressed');
     expect(elapsed).toBeLessThan(1000);
     expect(harness.getFinalState().bulkCompression?.phase).toBe('cancelled');
-    // Package untouched.
     expect(harness.getFinalState().zip?.file('Images/pic.png')).not.toBeNull();
 });
 
 test('opening another package mid-run cancels instead of wiping bulkCompression to undefined', async () => {
-    // Slow compressMedia so the run is in-flight when openFile.fulfilled fires.
+    // Slow mock so the run is in-flight when openFile.fulfilled fires.
     let resolveFirst: () => void;
     mockedCompressMedia.mockImplementation(async (_file: File, _type: any, _opts: any, signal?: AbortSignal) => {
-        // The abort is triggered inside the progress-dispatch callback, which
-        // runs synchronously BEFORE compressMedia is reached (the thunk awaits
-        // entry.async between them). By the time we get here the signal is
-        // already aborted, so a listener-only mock would miss it — check the
-        // flag upfront, matching the real compressMedia contract.
+        // Abort fires in the progress callback before compressMedia (thunk awaits entry.async); a listener-only mock would miss it.
         if (signal?.aborted) {
             throw new DOMException('Aborted', 'AbortError');
         }
@@ -445,12 +405,7 @@ test('opening another package mid-run cancels instead of wiping bulkCompression 
                 type: 'siquester/openFile/fulfilled',
                 payload: { zip: new JSZip(), pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }) },
             });
-            // CRITICAL — deadlock fix: the real `openFile` thunk body calls
-            // `abortActiveBulkCompression()` at its top (Step 3b). Simulating
-            // only the `fulfilled` reducer does NOT run the thunk body, so the
-            // mocked compressMedia would hang on its 30s timer forever (test
-            // deadlock). Invoke the abort here to unblock the signal race so
-            // the test can settle.
+            // Simulating only the fulfilled reducer skips the real openFile thunk, so call abortActiveBulkCompression() to unblock the 30s mock timer.
             abortActiveBulkCompression();
         }
         return action;
@@ -459,15 +414,14 @@ test('opening another package mid-run cancels instead of wiping bulkCompression 
 
     await compressAllPackageMedia()(dispatch, getState, undefined);
 
-    // Old behaviour: bulkCompression became undefined → isCancelRequested() false.
-    // New behaviour: cancelRequested true, phase cancelled.
+    // New behaviour: cancelRequested true, phase cancelled (was: undefined).
     expect(state.bulkCompression?.phase).toBe('cancelled');
     expect(state.bulkCompression?.cancelRequested).toBe(true);
     const types = actionTypes(dispatch);
     expect(types).toContain('siquester/bulkCompressionCancelled');
     expect(types).not.toContain('siquester/bulkMediaCompressed');
 
-    // Let the mocked compressMedia settle so jest doesn't complain about stray ticks.
+    // Let the mock settle to avoid stray-tick warnings.
     if (resolveFirst!) resolveFirst!();
 });
 
@@ -485,8 +439,7 @@ test('a pre-loop throw dispatches bulkCompressionFailed instead of stranding on 
 });
 
 test('thunk is a defensive no-op that transitions to phase "failed" when compression is disabled', async () => {
-    // enabled === false. The UI disables the trigger; this guards the case where
-    // the thunk is somehow dispatched anyway.
+    // UI disables the trigger; guard the case it's dispatched anyway.
     const initial = makeState();
     initial.mediaCompression = { enabled: false, presets: { image: 'medium', audio: 'low', video: 'low' } };
     initial.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
@@ -502,7 +455,6 @@ test('thunk is a defensive no-op that transitions to phase "failed" when compres
     const finalState = harness.getFinalState();
     expect(finalState.bulkCompression?.phase).toBe('failed');
     expect(finalState.bulkCompression?.failedReason).toBe('compression-disabled');
-    // Package untouched.
     expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
     expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();
 });
@@ -522,7 +474,6 @@ test('all-files-failed transitions to phase "failed" with collected errors', asy
     expect(finalState.bulkCompression?.phase).toBe('failed');
     expect(finalState.bulkCompression?.summary?.errors).toHaveLength(2);
     expect(finalState.bulkCompression?.summary?.errors?.[0]).toMatchObject({ name: 'Error', message: 'encode failed' });
-    // Package untouched.
     expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
     expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();
 });
