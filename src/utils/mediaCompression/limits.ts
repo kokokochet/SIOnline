@@ -1,9 +1,19 @@
 /**
- * Hard cap on the ENCODED size of any single media file passed into upload or
- * bulk compression. Checked BEFORE decode. Bounds only the input-byte
- * footprint — it does NOT bound decoded size. (A 200 MB MP3 decodes to ~3.6 GB
- * of PCM; see MAX_DECODED_AUDIO_BYTES for the post-decode bound enforced in
- * the audio worker.) The 60-second worker timeout guards hangs, not memory.
+ * Shared safety caps and timeouts for the media-compression pipeline.
+ *
+ * - `MAX_MEDIA_BYTES` is a hard cap applied to ALL media processing (upload
+ *   and bulk compression), regardless of compression state. It bounds the
+ *   peak memory when decoding multi-hundred-MB files into in-memory buffers.
+ *   It does NOT bound the decoded PCM size (a 200 MB MP3 decodes to ~3.6 GB
+ *   of PCM — decode runs in the worker to bound peak memory separately).
+ *
+ * - `MAX_DECODED_AUDIO_BYTES` is the post-decode cap on PCM byte size,
+ *   enforced inside the audio worker after `decodeAudioData` runs.
+ *
+ * - `WORKER_TIMEOUT_MS` bounds how long `compressAudio`/`compressVideo` will
+ *   wait for their worker before rejecting. Used by both hosts to prevent an
+ *   unresponsive worker from hanging the bulk loop (which checks cancel only
+ *   between files).
  */
 export const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200 MB
 
@@ -24,3 +34,5 @@ export const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200 MB
  * ceiling). Bytes = totalFrames × channels × 4.
  */
 export const MAX_DECODED_AUDIO_BYTES = 1024 * 1024 * 1024; // 1 GiB
+
+export const WORKER_TIMEOUT_MS = 60_000; // 60 s — matches the prose above

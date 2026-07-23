@@ -4,9 +4,7 @@ import { createVideoWorker } from './workerFactory';
 import { passthroughMedia } from './passthrough';
 import { abortRace } from './abortUtils';
 import { namedError } from './workerErrors';
-
-/** Maximum time to wait for the compression worker before giving up. */
-const WORKER_TIMEOUT_MS = 60_000;
+import { WORKER_TIMEOUT_MS } from './limits';
 
 /**
  * Compresses a video file using a WebCodecs worker.

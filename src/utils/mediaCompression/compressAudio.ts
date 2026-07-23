@@ -4,8 +4,7 @@ import { createAudioWorker } from './workerFactory';
 import { passthroughMedia } from './passthrough';
 import { abortRace } from './abortUtils';
 import { namedError } from './workerErrors';
-
-const WORKER_TIMEOUT_MS = 60_000;
+import { WORKER_TIMEOUT_MS } from './limits';
 
 /**
  * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.
