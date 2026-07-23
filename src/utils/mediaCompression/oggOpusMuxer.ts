@@ -8,6 +8,15 @@
 const OGG_MAGIC = 0x5367674f; // "OggS" little-endian
 
 /**
+ * Opus native sample rate (RFC 7845 §3): Opus always operates internally at
+ * 48 kHz, so input audio is decoded/resampled to 48 kHz before encoding, and
+ * OGG granule positions are counted in 48 kHz units regardless of the input
+ * sample rate. Single source of truth — imported by the host (compressAudio)
+ * and the audio encoder module (audioEncoder).
+ */
+export const OPUS_SAMPLE_RATE = 48000;
+
+/**
  * Thrown when a single OGG page would need more than 255 segment-table entries.
  *
  * Why: the number-of-page-segments field at byte offset 26 is a single uint8,
@@ -226,7 +235,7 @@ export function muxOggOpus(
         pageSegments += packetSegments;
         // RFC 7845 §4: granule position MUST be in 48kHz units regardless of input rate.
         // Opus internally always runs at 48kHz; the input sample rate is metadata only.
-        granulePosition += BigInt(Math.round((packet.duration * 48000) / 1_000_000));
+        granulePosition += BigInt(Math.round((packet.duration * OPUS_SAMPLE_RATE) / 1_000_000));
     }
 
     // Final page — always EOS (even if empty)

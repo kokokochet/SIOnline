@@ -1,16 +1,10 @@
 
 import { AudioWorkerRequest, AudioWorkerResponse, WorkerAbortMessage, AudioCompressionOptions } from '../compressionTypes';
 import { encodeAudioToOpus } from '../audioEncoder';
+import { OPUS_SAMPLE_RATE } from '../oggOpusMuxer';
 import { buildErrorResponse } from '../workerErrors';
 import { MAX_DECODED_AUDIO_BYTES } from '../limits';
 import { validateAudioWorkerMessage } from '../workerInputValidation';
-
-/**
- * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz. Duplicated
- * locally (the worker is bundled separately and cannot import compressAudio.ts
- * / audioEncoder.ts' private copy). Keep in sync with the other copies.
- */
-const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * postMessage(message, transfer) view of the worker global. Under the WebWorker

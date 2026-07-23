@@ -1,14 +1,7 @@
 import { AudioCompressionOptions } from './compressionTypes';
-import { muxOggOpus } from './oggOpusMuxer';
+import { muxOggOpus, OPUS_SAMPLE_RATE } from './oggOpusMuxer';
 import { namedError } from './workerErrors';
 import { waitForQueueDrain } from './workers/workerBackpressure';
-
-/**
- * Opus native sample rate (RFC 7845) — Opus always runs at 48 kHz.
- * Duplicated from compressAudio.ts because the worker is bundled separately.
- * Keep in sync with OPUS_SAMPLE_RATE in compressAudio.ts.
- */
-const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * Encodes planar float32 PCM into Opus packets and muxes them into an OGG
