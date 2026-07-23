@@ -10,6 +10,7 @@ import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse,
 import { getSourceFramerate } from '../videoFramerate';
 import { getCodecDescription } from '../codecDescription';
 import { getRebasedTimestamps } from '../chunkTiming';
+import { SampleDtsAccumulator } from '../sampleDts';
 import { buildVideoEncoderConfig } from '../videoEncoderConfig';
 import { assertAudioMp4Compatible } from '../audioCodecSupport';
 import { buildErrorResponse, namedError } from '../workerErrors';
@@ -341,6 +342,7 @@ async function reencodeVideo(
         // plain await is impossible there — so it rides along in this loop.)
         (async () => {
             try {
+                const videoSampleDts = new SampleDtsAccumulator(track.timescale);
                 for (let i = 0; i < samples.length; i += 1) {
                     if (settled) { return; }
                     await waitForQueueDrain(decoder);
@@ -349,7 +351,7 @@ async function reencodeVideo(
                     const chunk = new EncodedVideoChunk({
                         type: sample.is_sync ? 'key' : 'delta',
                         timestamp: rebasedTimestamps[i],
-                        duration: Math.round((sample.duration * 1_000_000) / track.timescale),
+                        duration: videoSampleDts.advance(sample.duration),
                         data: sample.data!,
                     });
                     decoder.decode(chunk);
@@ -379,13 +381,14 @@ function passThroughAudio(
     // Rebase like the video track: first presentation timestamp must be 0
     // (mp4-muxer strict mode; the source edit list is not carried over).
     const rebasedTimestamps = getRebasedTimestamps(samples, track.timescale);
+    const audioSampleDts = new SampleDtsAccumulator(track.timescale);
 
     for (let i = 0; i < samples.length; i += 1) {
         const sample = samples[i];
         const chunk = new EncodedAudioChunk({
             type: sample.is_sync ? 'key' : 'delta',
             timestamp: rebasedTimestamps[i],
-            duration: Math.round((sample.duration * 1_000_000) / track.timescale),
+            duration: audioSampleDts.advance(sample.duration),
             data: sample.data!,
         });
 
