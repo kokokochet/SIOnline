@@ -29,7 +29,7 @@ function renderPanel(open: boolean) {
 
 afterEach(cleanup);
 
-describe('media-compression-review MAJOR a11y — CompressionPanel preset groups', () => {
+describe('CompressionPanel preset groups', () => {
 	it('renders nothing when closed', () => {
 		const { container } = renderPanel(false);
 		expect(container.querySelector('fieldset')).toBeNull();

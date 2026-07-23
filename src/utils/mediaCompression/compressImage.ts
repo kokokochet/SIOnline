@@ -38,13 +38,12 @@ export function calculateTargetDimensions(
 
 /**
  * Reads pixel dimensions from a compressed image's raw bytes WITHOUT decoding
- * it. Supports PNG (IHDR chunk) and JPEG (SOF0/SOF1/SOF2 and the DHT/quant
- * siblings). Used as a decompression-bomb pre-check: a crafted 40000x40000 PNG
- * would otherwise be fully decoded by `createImageBitmap` (~6.4 GB raster)
- * before the MAX_IMAGE_PIXELS guard runs.
+ * it. Supports PNG (IHDR chunk) and JPEG (SOF markers). Used as a
+ * decompression-bomb pre-check: a crafted 40000x40000 PNG would otherwise be
+ * fully decoded (~6.4 GB raster) before the MAX_IMAGE_PIXELS guard runs.
  *
  * Returns null for unrecognized or truncated inputs — callers treat null as
- * "cannot pre-screen" and fall through to the existing post-decode guard.
+ * "cannot pre-screen" and fall through to the post-decode guard.
  */
 export function parseImageDimensions(data: Uint8Array): { width: number; height: number } | null {
     // PNG: 8-byte signature, then first chunk is always IHDR (13 bytes payload).
@@ -116,27 +115,22 @@ export async function compressImage(
     try {
         const format = detectImageFormat(originalData);
 
-        // Color fidelity guard (#img-5): canvas re-encode clips to 8-bit sRGB
-        // and strips ICC profiles. Honor an explicit lossless opt-out, and
-        // automatically pass through 16-bit PNG (canvas would silently clip it).
-        // ICC preservation in canvas is impossible — documented in the warning.
+        // Canvas re-encode clips to 8-bit sRGB and strips ICC. Pass through
+        // when explicitly lossless or for 16-bit PNG (canvas would clip it).
         if (options.lossless || (format === 'png' && (getPngBitDepth(originalData) ?? 0) > 8)) {
             return passthroughMedia(originalData, file.name);
         }
 
         // Animation / format passthrough (content-based, not filename):
-        //  - GIF: always pass through (preserves frames; matches prior behaviour).
-        //  - SVG/SVGZ: vector images — canvas rasterizes them to lossy JPEG (#img-4).
+        //  - GIF: always pass through (preserves frames).
+        //  - SVG/SVGZ: canvas rasterizes vectors to lossy JPEG.
         //  - Animated WebP (ANIM chunk) / APNG (acTL chunk): JPEG keeps only frame 1.
         if (format === 'gif' || format === 'svg' || isAnimated(originalData, format)) {
             return passthroughMedia(originalData, file.name);
         }
 
-        // Decompression-bomb guard (pre-decode): parse PNG IHDR / JPEG SOF
-        // dimensions from the raw bytes and reject oversized images BEFORE
-        // createImageBitmap allocates the full raster. A crafted 40000x40000
-        // PNG would otherwise OOM the tab (~6.4 GB) before the post-decode
-        // check below could run.
+        // Decompression-bomb guard (pre-decode): reject oversized images before
+        // createImageBitmap allocates the full raster.
         const probed = parseImageDimensions(originalData);
         if (probed !== null && probed.width * probed.height > MAX_IMAGE_PIXELS) {
             return passthroughMedia(originalData, file.name);
@@ -147,9 +141,7 @@ export async function compressImage(
         let bitmapClosed = false;
 
         try {
-            // Decompression-bomb guard (post-decode): fallback for formats the
-            // pre-decode prober cannot parse (returned null) — still enforced
-            // here once the real raster dimensions are known.
+            // Post-decode guard: fallback for formats the prober couldn't parse.
             if (bitmap.width * bitmap.height > MAX_IMAGE_PIXELS) {
                 return passthroughMedia(originalData, file.name);
             }
@@ -176,8 +168,7 @@ export async function compressImage(
             const hasAlpha = hasAlphaChannel(originalData, format);
             const effectiveMime = hasAlpha ? 'image/png' : options.mimeType;
 
-            // White-fill only when flattening to JPEG — preserves transparency
-            // for PNG output (the documented #img-2 corruption).
+            // White-fill only when flattening to JPEG; preserve transparency for PNG.
             if (!hasAlpha) {
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, targetWidth, targetHeight);
@@ -197,7 +188,7 @@ export async function compressImage(
 
             const compressedData = new Uint8Array(await blob.arrayBuffer());
 
-            // Reject empty output, or output that did not shrink (>= catches "same size").
+            // >= also rejects equal-size output (no shrink).
             if (compressedData.length === 0 || compressedData.length >= originalData.length) {
                 return passthroughMedia(originalData, file.name);
             }

@@ -16,7 +16,7 @@ function clearEncoders() {
 	delete (globalThis as Record<string, unknown>).VideoEncoder;
 }
 
-describe('media-compression-review MAJOR: decode-before-probe — fast pre-flight', () => {
+describe('decode-before-probe — fast pre-flight', () => {
 	afterEach(clearEncoders);
 
 	test('audio probe returns supported when AudioEncoder.isConfigSupported agrees', async () => {

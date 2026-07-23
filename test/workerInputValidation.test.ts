@@ -20,7 +20,7 @@ function validVideoMessage(overrides: Record<string, unknown> = {}) {
     };
 }
 
-describe('media-compression-review MAJOR: Unvalidated worker input', () => {
+describe('Unvalidated worker input', () => {
     describe('validateAudioWorkerMessage', () => {
         test('accepts a well-formed message', () => {
             expect(() => validateAudioWorkerMessage(validAudioMessage())).not.toThrow();

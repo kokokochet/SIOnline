@@ -25,7 +25,7 @@ jest.mock('../src/utils/mediaCompression/workerFactory', () => {
 	};
 });
 
-describe('media-compression-review MAJOR: host surfaces named errors instead of silent passthrough', () => {
+describe('host surfaces named errors instead of silent passthrough', () => {
 	test('compressAudio rejects with a named Error when the worker reports NotSupportedError', async () => {
 		// AudioEncoder must be "available" so we reach the encode path.
 		(globalThis as Record<string, unknown>).AudioEncoder = class { static isConfigSupported() { return Promise.resolve({ supported: true }); } } as unknown as typeof AudioEncoder;

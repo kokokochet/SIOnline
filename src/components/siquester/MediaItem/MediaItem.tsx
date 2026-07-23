@@ -15,10 +15,8 @@ function getZipFile(zip: JSZip, folder: string, fileName: string) {
 }
 
 const MediaItem: React.FC<MediaItemProps> = ({ src, type, isRef }) => {
-	// Narrow selectors: MediaItem only consumes `zip` (the JSZip instance) and
-	// `zipRevision` (a monotonic counter bumped on bulk apply). Subscribing to
-	// the entire siquester slice caused O(items × progressTicks) re-renders
-	// during bulk compression (200 × 200 = 40k commits for a large package).
+	// Narrow selectors: subscribing to the whole siquester slice caused
+	// O(items × progressTicks) re-renders during bulk compression.
 	const zip = useAppSelector(state => state.siquester.zip);
 	const zipRevision = useAppSelector(state => state.siquester.zipRevision);
 	const [item, setItem] = React.useState<string | undefined>(undefined);

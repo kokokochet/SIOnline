@@ -14,15 +14,11 @@ export interface WorkerErrorInfo {
 /**
  * Extracts a { name, message } pair from any thrown value, preserving the
  * programmatic `.name` of DOMException-like errors (NotSupportedError,
- * OutOfMemoryError, …) instead of collapsing them to a locale-dependent
- * message string. Falls back to `{ name: 'Error', message: String(e) }` for
- * non-Error throws.
+ * OutOfMemoryError, …) instead of collapsing them to a locale message.
  *
- * Note: `DOMException` is NOT a subclass of `Error` (per WHATWG spec — it
- * implements an Error-like interface but has its own prototype chain), so a
- * bare `e instanceof Error` check drops `.name` for the very WebCodecs errors
- * (VideoEncoder/AudioEncoder `error` callbacks pass real `DOMException`s) this
- * helper exists to triage. The second branch catches them.
+ * `DOMException` is NOT a subclass of `Error`, so a bare `instanceof Error`
+ * check would drop `.name` for the very WebCodecs errors this helper exists
+ * to triage; the second branch catches them.
  */
 export function formatWorkerError(e: unknown): WorkerErrorInfo {
     if (e instanceof Error) {
@@ -48,10 +44,8 @@ export function namedError(name: string, message: string): Error {
 
 /**
  * Shapes any thrown value into a worker error response message
- * (`{ type:'error'; name; error }`), preserving the diagnostic name.
- * The returned object matches the `'error'` arm of both `WorkerCompressResponse`
- * and `AudioWorkerResponse`; callers cast (`as AudioWorkerResponse` /
- * `as WorkerCompressResponse`) to satisfy their worker-scope postMessage type.
+ * (`{ type:'error'; name; error }`), preserving the diagnostic name. Matches
+ * the `'error'` arm of both worker response unions.
  */
 export function buildErrorResponse(e: unknown): WorkerErrorResponse {
     const { name, message } = formatWorkerError(e);

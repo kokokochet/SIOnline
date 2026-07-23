@@ -120,10 +120,8 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 		}
 	};
 
-	// Derive displayed files from mediaFiles + activeTab — no intermediate
-	// "empty" state. The previous implementation did new→[]→new via setTimeout(0),
-	// which flashed "No files found" for one frame on every zip rescan
-	// (zipRevision bump). useMemo produces a single render with the new list.
+	// Derived to avoid flashing "No files found" for one frame on each zip
+	// rescan (the old setTimeout(0) approach did new→[]→new).
 	const displayedFiles = React.useMemo(
 		() => mediaFiles[activeTab],
 		[mediaFiles, activeTab],

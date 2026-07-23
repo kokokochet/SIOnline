@@ -546,12 +546,9 @@ describe('siquesterSlice', () => {
 		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
 	});
 
-	describe('media-compression-review MAJOR #apply-atomicity', () => {
+	describe('apply atomicity', () => {
 		test('applyStagedFilesToZip restores zip.files on a mid-apply throw (all-or-nothing)', () => {
-			// Imported at top of file: add `applyStagedFilesToZip` to the
-			// existing `from '../src/utils/mediaCompression/compressPackageMedia'`
-			// import.
-			const zip = new JSZip();
+		const zip = new JSZip();
 			zip.file('Images/my a.png', new Uint8Array([1, 2, 3]));
 			zip.file('Images/b.png', new Uint8Array([4, 5, 6]));
 
@@ -656,7 +653,7 @@ describe('siquesterSlice', () => {
 		});
 	});
 
-	describe('media-compression-review MAJOR #undo-composite', () => {
+	describe('composite undo', () => {
 		test('bulkMediaCompressed pushes one composite undo entry (not a wipe)', () => {
 			const state = makeBulkState();
 			const preApplyPack = state.pack!;
@@ -714,7 +711,7 @@ describe('siquesterSlice', () => {
 		});
 	});
 
-	describe('media-compression-review MAJOR #apply-concurrent-gate', () => {
+	describe('concurrent apply gate', () => {
 		function makeRunningState(): SIQuesterState {
 			const zip = new JSZip();
 			zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));

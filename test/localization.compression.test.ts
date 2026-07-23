@@ -8,23 +8,11 @@ import { getCompressionDoneSummaryKey } from '../src/utils/mediaCompression/comp
 // parity check a valid "missing keys" regression guard.
 const content = localization.getContent();
 
-// The compression keys, grouped by owner. The parity assertion (first test)
-// is SCOPED to this array (F7): it checks that every COMPRESSION_KEYS entry
-// exists in every locale — NOT full-keyset equality. So this array is both the
-// parity scope AND the explicit non-empty-string guard for the known
-// compression keys across all four locales. Full-keyset equality is
-// deliberately NOT asserted: en/ru/sr/uz have divergent non-compression key
-// sets by design (e.g. `stake`, `noStake`, `yourScore` are absent from sr/uz),
-// which would turn the test red on gaps unrelated to this plan.
-//
-// NOTE: `compressionQuality` is intentionally EXCLUDED — Plan 11 (P4) deletes
-// it from all four locales (zero component references), so asserting its
-// presence here would turn red the moment Plan 11 lands. It is also outside
-// the (COMPRESSION_KEYS-scoped) parity assertion for the same reason: the
-// parity test does not reference it, so removing it everywhere in Plan 11
-// leaves parity green.
-// sr/uz still ADD the key in Steps 5–6 because en/ru still have it at P3
-// execution time, keeping all four locales in sync until Plan 11 removes it.
+// The compression keys. Parity is scoped to this array, NOT full-keyset
+// equality: en/ru/sr/uz have divergent non-compression key sets by design
+// (`stake`, `noStake`, `yourScore` are absent from sr/uz), so full parity
+// would fail on gaps unrelated to compression. `compressionQuality` is
+// intentionally excluded (no component references it).
 const COMPRESSION_KEYS = [
 	// (a) Original feature keys (pre-existing in en/ru, missing from sr/uz):
 	'compressing',
@@ -36,11 +24,11 @@ const COMPRESSION_KEYS = [
 	'compressionSettings',
 	'fileTooBigAfterCompression',
 	'compressAllMedia',
-	'compressionIrreversible', // Plan 05 (T37) updates this text; key is pre-existing
+	'compressionIrreversible',
 	'compressionStart',
 	'compressionNoMedia',
 	'compressionProgress',
-	// (b) This plan's additions (plural split + unit + legends):
+	// (b) Plural split + unit + legends:
 	'compressionDoneSummary',
 	'compressionDoneSummary2',
 	'compressionDoneSummary5',
@@ -49,26 +37,25 @@ const COMPRESSION_KEYS = [
 	'compressionPresetImages',
 	'compressionPresetAudio',
 	'compressionPresetVideo',
-	// (c) Cross-plan keys (added to en/ru by Plans 02/06/07; sr/uz translated in Step 7):
-	'compressionCancelling',              // Plan 02 (T14)
-	'compressionHistoryNote',             // Plan 06 (T42)
-	'compressionAudioNotSupported',       // Plan 07 (T47)
-	'compressionVideoNotSupported',       // Plan 07 (T47)
-	'compressionDisabledHint',            // Plan 07 (T47)
-	'compressionFailedSummary',           // Plan 07 (T47) — ≠ compressionDoneSummary plural split
-	'compressionPartialWarning',          // Plan 07 (T47)
-	'compressionUnsupportedFiles',        // Plan 07 (T47)
+	// (c) Cross-plan keys (translated into sr/uz):
+	'compressionCancelling',
+	'compressionHistoryNote',
+	'compressionAudioNotSupported',
+	'compressionVideoNotSupported',
+	'compressionDisabledHint',
+	'compressionFailedSummary', // ≠ compressionDoneSummary plural split
+	'compressionPartialWarning',
+	'compressionUnsupportedFiles',
 ] as const;
 
 const LOCALES = ['en', 'ru', 'sr', 'uz'] as const;
 
-describe('media-compression-review MAJOR i18n — locale key parity', () => {
+describe('locale key parity', () => {
 	it('every locale exposes the same compression keys', () => {
-		// F7: scoped to COMPRESSION_KEYS (not full-keyset equality). sr/uz are
+		// Scoped to COMPRESSION_KEYS (not full-keyset equality): sr/uz are
 		// intentionally missing some non-compression keys (`stake`, `noStake`,
-		// `yourScore`), so full-keyset parity would fail on pre-existing gaps
-		// unrelated to this plan. The non-empty-string guard in the next test
-		// then locks the value for every COMPRESSION_KEY.
+		// `yourScore`). The non-empty-string guard in the next test locks the
+		// value for every COMPRESSION_KEY.
 		for (const lang of LOCALES) {
 			for (const key of COMPRESSION_KEYS) {
 				expect(Object.prototype.hasOwnProperty.call(content[lang], key)).toBe(true);

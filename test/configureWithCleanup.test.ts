@@ -1,6 +1,6 @@
 import { configureWithCleanup } from '../src/utils/mediaCompression/configureWithCleanup';
 
-describe('media-compression-review MAJOR: Encoder/decoder leak on configure throw', () => {
+describe('Encoder/decoder leak on configure throw', () => {
     test('closes both codecs when encoder.configure throws', () => {
         const configureEncoder = jest.fn(() => {
             throw new Error('NotSupportedError: bad encoder config');

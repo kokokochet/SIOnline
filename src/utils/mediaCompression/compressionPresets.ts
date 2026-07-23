@@ -1,9 +1,6 @@
 import { CompressionOptions, CompressionPreset, MediaCompressionPresets } from './compressionTypes';
 
-/**
- * Low quality preset — aggressive compression for smallest file size.
- * Images: 1000px, quality 0.7. Audio: 64 kbps. Video: 720p, 350 kbps.
- */
+/** Low quality preset — aggressive compression for smallest file size. */
 export const lowPreset: CompressionOptions = {
     image: {
         maxDimension: 1000,
@@ -22,10 +19,7 @@ export const lowPreset: CompressionOptions = {
     },
 };
 
-/**
- * Medium quality preset — balanced.
- * Images: 1200px, quality 0.8. Audio: 128 kbps. Video: 720p, 500 kbps.
- */
+/** Medium quality preset — balanced. */
 export const mediumPreset: CompressionOptions = {
     image: {
         maxDimension: 1200,
@@ -46,9 +40,8 @@ export const mediumPreset: CompressionOptions = {
 
 /**
  * High quality preset — favors quality over file size.
- * Images: 1500px, quality 0.9. Audio: 192 kbps. Video: 1080p30, 1500 kbps.
- * Uses H.264 Level 4.0 (avc1.640028), which covers 1080p up to 30 fps.
- * 1080p60+ would require Level 4.2 (codec string avc1.64002A).
+ * Uses H.264 Level 4.0 (avc1.640028), which covers 1080p up to 30 fps;
+ * 1080p60+ would require Level 4.2 (avc1.64002A).
  */
 export const highPreset: CompressionOptions = {
     image: {

@@ -7,8 +7,7 @@
  * under test only depends on the Worker's message surface, not its internal
  * logic. A deterministic fake lets tests fire success/error/timeout in any
  * order without `MessagePort` plumbing, and runs synchronously in the Node
- * jest environment. Worker-internal logic is covered by Plan 04's direct
- * worker-import tests.
+ * jest environment.
  *
  * Test flow:
  *   1. Call `compressVideo(file, opts)` (or `compressAudio`).

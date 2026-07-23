@@ -27,7 +27,7 @@ function toBytes(s: string): Uint8Array {
     return new Uint8Array([...s].map((c) => c.charCodeAt(0)));
 }
 
-describe('media-compression-review MAJOR: OGG CRC-32 known-answer vectors', () => {
+describe('OGG CRC-32 known-answer vectors', () => {
     describe('hardcoded known-answer vectors (independent of the source algorithm)', () => {
         // Each expected value was computed from the bitwise reference above
         // (poly 0x04c11db7, non-reflected, init 0, xorOut 0) — NOT from the
@@ -60,8 +60,7 @@ describe('media-compression-review MAJOR: OGG CRC-32 known-answer vectors', () =
             const ramp = new Uint8Array(256);
             for (let i = 0; i < 256; i++) { ramp[i] = i; }
             // Hardcode the reference value so a bug in BOTH the source and the
-            // bitwise reference is still caught. Confirmed via the standalone
-            // verification command in Step 3.
+            // bitwise reference is still caught.
             expect(oggCrc32(ramp)).toBe(0xac148725);
             expect(oggCrc32(ramp)).toBe(oggCrc32BitwiseReference(ramp));
         });

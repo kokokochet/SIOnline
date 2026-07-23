@@ -50,20 +50,12 @@ function getPresetLabel(preset: CompressionPreset): string {
 }
 
 /**
- * Modal dialog for bulk media compression. Driven entirely by
- * `state.siquester.bulkCompression.phase`:
- * - confirm: referenced-file counts + selected presets + irreversibility warning;
- * - running: progress bar + current file + cancel (Escape and the × button
- *   also cancel via onClose);
- * - done / cancelled: result summary;
- * - failed: error message + close.
+ * Modal dialog for bulk media compression, driven by
+ * `state.siquester.bulkCompression.phase` (confirm/running/done/cancelled/failed).
  *
- * Escape and the × button call `onClose`; while `phase === 'running'`, `onClose`
- * dispatches `cancelBulkCompression()` instead of closing, so the dialog cannot
- * close mid-run. Repeated Escape during the cancelling window re-requests
- * cancel (idempotent — the abort controller is already aborted, so it no-ops).
- * The Dialog has no backdrop, and the "Cancelling…" overlay is purely visual;
- * it absorbs no input.
+ * While `phase === 'running'`, `onClose` dispatches `cancelBulkCompression()`
+ * instead of closing, so Escape/× cannot close the dialog mid-run (idempotent
+ * on repeat).
  */
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
@@ -83,8 +75,7 @@ const CompressAllDialog: React.FC = () => {
 		const options = resolveCompressionOptions(mediaCompression.presets);
 		const refs = collectMediaReferences(pack);
 		let cancelled = false;
-		// Result is per-type deterministic (output codec is fixed by the preset);
-		// dedupe by type via a Set to avoid N redundant isConfigSupported calls.
+		// Dedupe by type to avoid redundant probe calls (output codec is fixed by preset).
 		const types = new Set<CompressibleMediaType>();
 		for (const ref of refs) {
 			types.add(ref.type);
@@ -106,9 +97,8 @@ const CompressAllDialog: React.FC = () => {
 	phaseRef.current = bulk?.phase;
 
 	React.useEffect(() => () => {
-		// Unmount while running → cancel so the orphaned thunk does not silently
-		// apply staged results into state.zip (the same-package re-open race).
-		// cancelBulkCompression aborts the in-flight file (T12) too.
+		// Unmount while running → cancel so the orphaned thunk does not stage
+		// results into state.zip (same-package re-open race).
 		if (phaseRef.current === 'running') {
 			appDispatch(cancelBulkCompression());
 		}
@@ -123,7 +113,6 @@ const CompressAllDialog: React.FC = () => {
 
 	const onClose = () => {
 		if (bulk.phase === 'running') {
-			// cancelBulkCompression sets the flag AND aborts the in-flight file (T12).
 			appDispatch(cancelBulkCompression());
 			return;
 		}

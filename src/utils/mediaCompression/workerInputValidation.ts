@@ -54,12 +54,9 @@ function assertVideoOptions(value: unknown): asserts value is VideoCompressionOp
 }
 
 /**
- * Validates an audio worker message at runtime, before any WebCodecs use.
- * Post-T19 the audio worker receives raw encoded bytes ({data, options});
- * this checks `data` is a non-empty ArrayBuffer and `options` carries valid
- * codec/bitrate/channels before the worker calls decodeAudioData.
- *
- * Throws WorkerValidationError on the first violated invariant.
+ * Validates an audio worker message at runtime, before any WebCodecs use:
+ * `data` is a non-empty ArrayBuffer and `options` carries valid
+ * codec/bitrate/channels. Throws WorkerValidationError on the first violation.
  */
 export function validateAudioWorkerMessage(msg: unknown): asserts msg is AudioWorkerRequest {
     if (!isObject(msg)) fail('audio worker message must be an object');
@@ -70,7 +67,7 @@ export function validateAudioWorkerMessage(msg: unknown): asserts msg is AudioWo
 
 /**
  * Validates a video worker message at runtime, before any WebCodecs use.
- * Throws WorkerValidationError on the first violated invariant.
+ * Throws WorkerValidationError on the first violation.
  */
 export function validateVideoWorkerMessage(msg: unknown): asserts msg is WorkerCompressRequest {
     if (!isObject(msg)) fail('video worker message must be an object');

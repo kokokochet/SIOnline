@@ -1,6 +1,6 @@
 import { validateAvcLevel } from '../src/utils/mediaCompression/avcLevelValidation';
 
-describe('media-compression-review MAJOR: H.264 level insufficient for res/fps', () => {
+describe('H.264 level insufficient for res/fps', () => {
     describe('validateAvcLevel — spec-compliant combos (ok: true)', () => {
         test('1080p30 @ avc1.640028 (Level 4.0) is within limits', () => {
             // frameSizeMB = ceil(1920/16)*ceil(1080/16) = 120*68 = 8160 <= 8192 (MaxFS L4.0)

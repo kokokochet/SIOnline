@@ -488,7 +488,7 @@ describe('oggOpusMuxer', () => {
         });
     });
 
-    describe('muxOggOpus — segment-table overflow guard (review MAJOR)', () => {
+    describe('muxOggOpus — segment-table overflow guard', () => {
         test('a single packet of 65024 bytes fits exactly in 255 segments', () => {
             // floor(65024/255) = 254, +1 = 255 segments — the OGG max.
             const packets = [{

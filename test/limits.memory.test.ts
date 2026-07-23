@@ -1,10 +1,10 @@
 import { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from '../src/utils/mediaCompression/limits';
 
-describe('media-compression-review MAJOR Memory/OOM: limits', () => {
+describe('limits', () => {
     test('MAX_MEDIA_BYTES caps ENCODED input only — it does not bound decoded PCM', () => {
-        // The review (MAJOR Memory/OOM) documents a 200 MB MP3 decoding to
-        // ~3.6 GB of PCM on the main thread. MAX_MEDIA_BYTES is checked
-        // BEFORE decode and therefore cannot bound the decoded footprint.
+        // A 200 MB MP3 decodes to ~3.6 GB of PCM on the main thread.
+        // MAX_MEDIA_BYTES is checked BEFORE decode and therefore cannot bound
+        // the decoded footprint.
         expect(MAX_MEDIA_BYTES).toBe(200 * 1024 * 1024);
     });
 

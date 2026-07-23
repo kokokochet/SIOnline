@@ -30,7 +30,7 @@ function renderDialogWithBulk(bulk: unknown) {
 
 afterEach(cleanup);
 
-describe('media-compression-review MAJOR a11y — CompressAllDialog live regions', () => {
+describe('CompressAllDialog live regions', () => {
 	it('announces the plural-aware done summary from a live region', () => {
 		renderDialogWithBulk({
 			phase: 'done',
@@ -38,18 +38,13 @@ describe('media-compression-review MAJOR a11y — CompressAllDialog live regions
 			completed: 2,
 			currentFile: null,
 			cancelRequested: false,
-			// `errors` is required by BulkCompressionSummary and read by the
-			// post-T49/T50 partial-warning block; the plan's verbatim fixture omits
-			// it, which would crash the render before the T55 plural/localized
-			// summary is reached. Adding [] is the minimal reconciliation so the
-			// test exercises the T55 logic (all plan assertions unchanged).
+			// `errors` is required by BulkCompressionSummary; the verbatim fixture
+			// omits it, which would crash the render before the summary is reached.
 			summary: { compressedCount: 2, skippedCount: 0, savedBytes: 1572864, errors: [] },
 		});
-		// Phase 2 already wraps the summary in role=status / aria-live=polite, so
-		// the live region is a regression guard. The genuine red->green here is
+		// The live region is a regression guard. The genuine red->green here is
 		// the plural form: compressedCount=2 must render the FEW form -> plural
-		// "files" (en). Phase 2's code hardcodes the base key (singular "file"
-		// after T51), so it renders "file" -> this assertion fails until Step 5.
+		// "files" (en).
 		const statuses = document.querySelectorAll('[role="status"][aria-live="polite"]');
 		expect(statuses.length).toBeGreaterThan(0);
 		const doneStatus = Array.from(statuses).find((s) => /files?/i.test(s.textContent ?? ''));

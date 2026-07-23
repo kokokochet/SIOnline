@@ -3,7 +3,7 @@ import {
     QUEUE_BACKPRESSURE_THRESHOLD,
 } from '../src/utils/mediaCompression/workers/workerBackpressure';
 
-describe('media-compression-review MAJOR Memory/OOM: worker backpressure helper', () => {
+describe('worker backpressure helper', () => {
     test('QUEUE_BACKPRESSURE_THRESHOLD is a sensible small positive integer', () => {
         expect(QUEUE_BACKPRESSURE_THRESHOLD).toBeGreaterThan(0);
         // Healthy pipelines hover at 1-4; 8-32 leaves reorder headroom without
@@ -72,22 +72,12 @@ describe('media-compression-review MAJOR Memory/OOM: worker backpressure helper'
         setTimeoutSpy.mockRestore();
     });
 
-    // Structural import sanity for BOTH compression workers. This does NOT drive
-    // either worker's loop — it only verifies each module compiles in the test
-    // graph and that the backpressure helper is importable from the path the
-    // workers use. The behavioral wiring (encode/decode loops awaiting
-    // waitForQueueDrain) is pinned by the dual-gate contract test below and by
-    // audioEncoder.test.ts's Vector 3 test.
-    //
-    // NOTE (T21/T22 deviation): both workers read the worker-global `self` at
-    // module top level (`const ctx = self as unknown as WorkerScope`). This repo
-    // runs Jest under testEnvironment: node (no `self`), and per Resolution #9
-    // the workers are not made genuinely importable until T57 (tsconfig.worker)
-    // — which runs after T22 per Resolution #3's sequence. To run this
-    // STRUCTURAL compile check today WITHOUT touching the worker source, stand
-    // in `self` with `globalThis` for the duration of the import (same shim the
-    // `performance` redefinition elsewhere in this file uses). T57 removes the
-    // need for it.
+    // Structural import sanity for both compression workers: verifies each
+    // module compiles and the backpressure helper is importable from the path
+    // the workers use (behavioral wiring is pinned by the dual-gate test below).
+    // Both workers read the worker-global `self` at module top level, but this
+    // repo runs Jest under testEnvironment: node (no `self`), so `self` is
+    // aliased to `globalThis` for the duration of the import.
     test.each([
         ['video', '../src/utils/mediaCompression/workers/videoCompression.worker'],
         ['audio', '../src/utils/mediaCompression/workers/audioCompression.worker'],
@@ -110,13 +100,12 @@ describe('media-compression-review MAJOR Memory/OOM: worker backpressure helper'
         }
     });
 
-    test('video worker pattern: encoder queue is gated alongside the decoder (Vector 3 — encodeQueueSize backpressure)', async () => {
-        // The decoder's output callback feeds the encoder synchronously, so
-        // the decode loop MUST await waitForQueueDrain(encoder) as well as
+    test('video worker pattern: encoder queue is gated alongside the decoder', async () => {
+        // The decoder's output callback feeds the encoder synchronously, so the
+        // decode loop MUST await waitForQueueDrain(encoder) as well as
         // waitForQueueDrain(decoder) — gating only the decoder leaves the
-        // encoder queue unchecked (review Vector 3 names encodeQueueSize
-        // explicitly). This test pins the helper contract the video worker's
-        // dual-gate decode loop depends on: an encoder-shaped codec
+        // encoder queue unchecked. This test pins the helper contract the video
+        // worker's dual-gate decode loop depends on: an encoder-shaped codec
         // ({encodeQueueSize}) above the threshold yields.
         jest.useFakeTimers();
         try {

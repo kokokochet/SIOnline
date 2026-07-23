@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import { installAudioDataMock } from './helpers/webcodecsMock';
 import { feedPcmToOpus } from '../src/utils/mediaCompression/audioEncoder';
 
-describe('media-compression-review MAJOR: AudioData leak on encode throw', () => {
+describe('AudioData leak on encode throw', () => {
     let handle: ReturnType<typeof installAudioDataMock>;
 
     beforeEach(() => {
@@ -26,7 +26,7 @@ describe('media-compression-review MAJOR: AudioData leak on encode throw', () =>
             new Float32Array(3000),
         ];
 
-        // feedPcmToOpus is async (it awaits the T22 backpressure drain), so a
+        // feedPcmToOpus is async (it awaits the backpressure drain), so a
         // throw from encoder.encode rejects the returned promise rather than
         // escaping synchronously.
         await expect(feedPcmToOpus(encoder as never, stereo, 3000, 2)).rejects.toThrow('InvalidStateError');

@@ -49,7 +49,7 @@ describe('getRebasedTimestamps', () => {
         expect(getRebasedTimestamps([], 15360)).toEqual([]);
     });
 
-    test('media-compression-review MAJOR: throws on timescale === 0 (no silent NaN)', () => {
+    test('throws on timescale === 0 (no silent NaN)', () => {
         expect(() => getRebasedTimestamps([{ cts: 0 }, { cts: 1024 }], 0)).toThrow(/timescale/);
     });
 

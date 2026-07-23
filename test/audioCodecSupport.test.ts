@@ -3,7 +3,7 @@ import {
     assertAudioMp4Compatible,
 } from '../src/utils/mediaCompression/audioCodecSupport';
 
-describe('media-compression-review MAJOR: Non-AAC audio silently dropped in MP4', () => {
+describe('Non-AAC audio silently dropped in MP4', () => {
     describe('assertAudioMp4Compatible', () => {
         test('passes for AAC (mp4a.40.2)', () => {
             expect(() => assertAudioMp4Compatible('mp4a.40.2')).not.toThrow();

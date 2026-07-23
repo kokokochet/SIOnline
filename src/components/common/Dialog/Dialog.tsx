@@ -12,35 +12,14 @@ interface DialogProps {
 	title: string;
 	children?: any;
 	onClose: () => void;
-	/**
-	 * When true, a top-level Escape keydown calls `onClose`. Default false so
-	 * existing consumers keep their current dismiss behaviour. The close (×)
-	 * button always calls `onClose` regardless.
-	 *
-	 * NOTE: this prop only gates the Escape handler. A separate `modal` prop
-	 * (focus trap + `aria-modal`) is the sole driver of `aria-modal`; a merely
-	 * Escape-closable dialog does not claim modality. Contract unchanged by the
-	 * `modal` addition below.
-	 */
+	/** When true, a top-level Escape keydown calls `onClose`. Default false. */
 	dismissable?: boolean;
-	/**
-	 * Opt-in modal semantics: on open, focus moves into the dialog; Tab/Shift-Tab
-	 * are trapped within it (which also removes background content from the tab
-	 * order while open — the WCAG 2.4.3 fix); on close, focus is restored to the
-	 * element focused before the dialog opened. Default false. Drives `aria-modal`
-	 * (modality holds only when focus is actually trapped).
-	 */
+	/** Opt-in modal: focus trap + Tab cycling + focus restore. Drives `aria-modal`. */
 	modal?: boolean;
 }
 
-// Hardened focusable selector for the Tab trap. Excludes [type=hidden] inputs,
-// [hidden] / [aria-hidden="true"] elements, and any negative tabindex, so an
-// edge `.focus()` can't silently fail and break the wrap.
-// NOTE: assumes a single (non-nested) modal — the selector is not scoped to a
-// subtree, so nested [role="dialog"]s would thrash the trap. The app's modal
-// consumers (e.g. CompressAllDialog) don't nest modal Dialogs; if nesting is
-// ever needed, scope the selector to exclude nested dialog subtrees.
-// Follow-up: [contenteditable] (true vs false) and audio/video[controls].
+// Focusable selector for the Tab trap; excludes hidden/disabled so an edge
+// .focus() can't silently fail. Assumes a single (non-nested) modal.
 const FOCUSABLE_SELECTOR = [
 	'a[href]',
 	'button:not([disabled])',
@@ -61,18 +40,15 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		children,
 	} = props;
 
-	// React 17 has no useId; derive a stable title id from the optional id prop
-	// (kept unchanged). When no id is given, aria-labelledby is omitted;
-	// role='dialog' is still set.
+	// React 17 has no useId; derive a labelledby id from the optional id prop.
 	const titleId = id ? `${id}-title` : undefined;
 
 	const innerRef = useRef<HTMLElement | null>(null);
-	// Element focused before the dialog opened; restored on close (WCAG 2.4.3).
+	// Element focused before the dialog opened; restored on close.
 	const previouslyFocused = useRef<Element | null>(null);
 	// Guards the focusin snap against infinite loops (re-entrant programmatic focus).
 	const isRestoringFocus = useRef(false);
 
-	// Merge the caller's forwarded ref with the internal one we manage for focus.
 	const setRef = useCallback((node: HTMLElement | null) => {
 		innerRef.current = node;
 		if (typeof ref === 'function') {
@@ -82,7 +58,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		}
 	}, [ref]);
 
-	// Escape -> onClose (opt-in, Phase 2 — UNCHANGED).
+	// Escape -> onClose (opt-in via `dismissable`).
 	useEffect(() => {
 		if (!dismissable) {
 			return;
@@ -97,10 +73,8 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [dismissable, onClose]);
 
-	// Modal focus management: move focus in, trap Tab, restore on unmount.
-	// ASSUMPTION: Dialog renders inline (no portal / no Shadow DOM), so
-	// innerRef.current.querySelectorAll(...) reaches descendants. A future portal
-	// refactor would silently break the trap and must rework this.
+	// ASSUMPTION: Dialog renders inline (no portal/Shadow DOM), so querySelectorAll
+	// reaches descendants.
 	useEffect(() => {
 		if (!modal) {
 			return;
@@ -111,8 +85,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		}
 
 		previouslyFocused.current = document.activeElement;
-		// Focus the container itself (tabIndex=-1) so the title (aria-labelledby)
-		// is announced; subsequent Tab moves to the first control.
+		// Focus the container so the labelledby title is announced.
 		(node as HTMLElement).focus();
 
 		const onKeyDown = (e: KeyboardEvent) => {
@@ -146,10 +119,8 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 				firstItem.focus();
 			}
 		};
-		// Snap back focus that escapes via programmatic .focus(), a background
-		// click, or an AT virtual cursor (the Tab-only trap was the central
-		// robustness gap). Active only while modal; guarded against re-entrant
-		// loops by isRestoringFocus (our own programmatic focus is ignored).
+		// Snap back focus that escapes via programmatic .focus() or a background
+		// click. Guarded against re-entrant loops by isRestoringFocus.
 		const onFocusIn = (e: FocusEvent) => {
 			const current = innerRef.current;
 			if (!current || isRestoringFocus.current) {
@@ -161,8 +132,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 				const items = Array.from(current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 				const snapTo = items[0] ?? (current as HTMLElement);
 				snapTo.focus();
-				// Reset after the current microtask so the focusin fired by our
-				// programmatic .focus() is ignored even if it fires synchronously.
+				// Defer reset so our own programmatic focusin is ignored.
 				setTimeout(() => {
 					isRestoringFocus.current = false;
 				}, 0);
@@ -173,8 +143,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
-			// Remove the snap listener BEFORE restoring focus, otherwise restoring
-			// to the (outside) trigger would immediately re-trap it.
+			// Remove before restoring focus, else the outside trigger is re-trapped.
 			document.removeEventListener('focusin', onFocusIn);
 			const toRestore = previouslyFocused.current as HTMLElement | null;
 			if (toRestore && toRestore.isConnected && typeof toRestore.focus === 'function') {

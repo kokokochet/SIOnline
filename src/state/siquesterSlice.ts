@@ -26,13 +26,12 @@ import {
 	StagedMediaFile,
 } from '../utils/mediaCompression/compressPackageMedia';
 
-/** A single file-level failure recorded during a bulk compression run. ADDED (T3). */
+/** A single file-level failure recorded during a bulk compression run. */
 export interface BulkCompressionFileError {
 	type: CompressibleMediaType;
 	fileName: string;
 	/** Programmatic tag, e.g. DOMException.name ('NotSupportedError'). */
 	name: string;
-	/** Human-readable failure detail. */
 	message: string;
 }
 
@@ -44,23 +43,18 @@ export interface BulkCompressionSummary {
 	skippedCount: number;
 	/** Total bytes saved across compressed files. */
 	savedBytes: number;
-	errors: BulkCompressionFileError[]; // ADDED (T3) — failed files (also counted in skippedCount)
+	errors: BulkCompressionFileError[]; // also counted in skippedCount
 }
 
-export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled' | 'failed'; // 'failed' ADDED (T3)
+export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled' | 'failed';
 
-/**
- * Payload of the `bulkCompressionFailed` action. ADDED (T3) as the canonical
- * contract; the reducer/action creator itself lands in T17 (Plan 02 Task 6).
- * Per Resolution #1: `reason` is written to `state.bulkCompression.failedReason`
- * (there is no `state.bulkCompression.error` field).
- */
+/** Payload of the `bulkCompressionFailed` action. */
 export type BulkCompressionFailedPayload = {
 	/** Failure discriminant: 'setup' | 'compression-disabled' | 'all-files-failed'. */
 	type: string;
 	summary: BulkCompressionSummary;
 	errors: BulkCompressionFileError[];
-	/** Written to state.bulkCompression.failedReason by the T17 reducer. */
+	/** Written to state.bulkCompression.failedReason. */
 	reason?: string;
 };
 
@@ -72,7 +66,7 @@ export interface BulkCompressionState {
 	currentFile?: string;
 	cancelRequested: boolean;
 	summary?: BulkCompressionSummary;
-	failedReason?: string; // ADDED (T3) — not `error` (Resolution #1)
+	failedReason?: string;
 }
 
 export interface SIQuesterState {
@@ -208,10 +202,8 @@ function packageContainsMediaReference(
 	return pack.rounds.some(round => round.themes.some(theme => theme.questions.some(questionContainsReference)));
 }
 
-/** True while a bulk compression run is staging files. Used to gate concurrent
- * media-editing reducers (`setContentItemMedia`, `setContentItemType`,
- * `removeScreenContentItem`) so their live `state.zip` mutations cannot be
- * overwritten by the eventual `bulkMediaCompressed` apply. */
+/** True while a bulk run is staging. Gates media-editing reducers so their live
+ * zip mutations aren't overwritten by the eventual bulkMediaCompressed apply. */
 function isBulkCompressionRunning(state: SIQuesterState): boolean {
 	return state.bulkCompression?.phase === 'running';
 }
@@ -325,38 +317,24 @@ export const loadPackageStatistics = createAsyncThunk(
 	},
 );
 
-/**
- * Module-level singleton for the active bulk-compression AbortController.
- *
- * Safe as a singleton because Phase 1 (CRITICAL C2) guarantees single-entry:
- * `compressAllPackageMedia` has a `condition` phase-guard, and
- * `bulkCompressionDialogOpened` is a no-op while `phase === 'running'`.
- * Set on thunk entry, cleared in the thunk's `finally`.
- */
+/** Module-level singleton for the active bulk-compression AbortController.
+ * Safe as singleton: single-entry is guaranteed (condition guard + dialogOpened no-op while running). */
 let activeBulkController: AbortController | null = null;
 
 function setActiveBulkController(controller: AbortController | null): void {
 	activeBulkController = controller;
 }
 
-/**
- * Aborts the in-flight bulk compression's `compressMedia` call, if any.
- * Pure side-effect (no Redux state read/write) — safe to call from other
- * thunks (`openFile`, `createNewPackage`) and from component cleanup.
- */
+/** Aborts the in-flight bulk compression's compressMedia call, if any. Pure
+ * side-effect (no Redux state) — safe to call from other thunks and cleanup. */
 export function abortActiveBulkCompression(): void {
 	if (activeBulkController) {
 		activeBulkController.abort();
 	}
 }
 
-/**
- * Cancels bulk compression from the UI (cancel button, Escape, unmount).
- * Sets the `cancelRequested` state flag (loop backstop between files) AND
- * aborts the in-flight file via the controller (prompt exit inside a file).
- * Always dispatch this instead of the raw `bulkCompressionCancelRequested`
- * action so the two stay in sync.
- */
+/** Cancels bulk compression from the UI. Sets cancelRequested (loop backstop)
+ * AND aborts the in-flight file. Dispatch this, not the raw action, to keep both in sync. */
 export const cancelBulkCompression = createAsyncThunk(
 	'siquester/cancelBulkCompression',
 	(_, thunkAPI) => {
@@ -366,24 +344,9 @@ export const cancelBulkCompression = createAsyncThunk(
 	},
 );
 
-/**
- * Compresses every referenced media file in the open package using the
- * per-type presets from `state.siquester.mediaCompression.presets`.
- *
- * Safety contract — the package is never left in a broken state:
- * - each file is processed in isolation; any failure skips that file;
- * - results are staged in memory and applied by a single
- *   `bulkMediaCompressed` dispatch (all-or-nothing: a mid-apply throw restores
- *   both `state.pack` (Immer) and `state.zip` (files-map snapshot), and one
- *   composite Undo entry reverts the whole apply);
- * - cancelling discards staged results, leaving the package untouched;
- * - a mid-run package swap aborts the apply (the dialog is not modal, and
- *   staged results must never be written into a different zip).
- *
- * Files are processed sequentially to bound peak memory, but staged results
- * accumulate until the apply: the bound is (staged file count × the per-file
- * MAX_MEDIA_BYTES cap). Video/audio encoding runs in Web Workers per file.
- */
+/** Compresses every referenced media file using the per-type presets. Results
+ * are staged then applied atomically via bulkMediaCompressed (one composite
+ * Undo); a mid-apply throw or package swap never leaves the package broken. */
 export const compressAllPackageMedia = createAsyncThunk(
 	'siquester/compressAllPackageMedia',
 	async (_, thunkAPI) => {
@@ -402,9 +365,8 @@ export const compressAllPackageMedia = createAsyncThunk(
 
 			const mediaCompression = getSiqState().mediaCompression ?? defaultMediaCompressionState;
 
-			// Defensive: the UI disables "Compress All" when compression is off. If
-			// the thunk is invoked anyway, fail honestly instead of silently
-			// performing an irreversible re-encode that also clears undo history.
+			// Defensive: the UI disables this when compression is off. Fail
+			// honestly rather than silently doing an irreversible re-encode.
 			if (!mediaCompression.enabled) {
 				thunkAPI.dispatch(bulkCompressionFailed({
 					type: 'compression-disabled',
@@ -477,12 +439,9 @@ export const compressAllPackageMedia = createAsyncThunk(
 						skippedCount += 1;
 					}
 				} catch (err) {
-					// AbortError: the cancel flag is already set; fall through
-					// to the loop-top check on the next iteration (or the
-					// post-loop check for the last file). Other errors are
-					// recorded for surfacing (named-throw from the host
-					// preserves the programmatic name, e.g. NotSupportedError).
-					if ((err as Error)?.name !== 'AbortError') {
+				// AbortError: cancel flag already set, fall through. Other
+				// errors are recorded for surfacing.
+				if ((err as Error)?.name !== 'AbortError') {
 						const name = err && typeof err === 'object' && 'name' in err
 							? String((err as { name: unknown }).name)
 							: 'Error';
@@ -490,8 +449,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 						errors.push({ type: ref.type, fileName: ref.value, name, message });
 						console.warn(`Bulk compression skipped ${ref.type}:${ref.value}:`, err);
 					}
-					// Preserve the compressedCount + skippedCount === total invariant:
-					// a failed file (and an aborted file) is also counted as skipped.
+					// A failed/aborted file counts as skipped (keeps count === total).
 					skippedCount += 1;
 				}
 			}
@@ -501,8 +459,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 				return { applied: false };
 			}
 
-			// The dialog is not modal: the user may have opened another package
-			// mid-run. Never apply staged results into a different zip.
+			// The dialog isn't modal; never apply staged results into a different zip.
 			if (getSiqState().zip !== zip) {
 				thunkAPI.dispatch(bulkCompressionCancelled());
 				return { applied: false };
@@ -521,9 +478,8 @@ export const compressAllPackageMedia = createAsyncThunk(
 				errors,
 			};
 
-			// Every reachable file failed: surface as failed so the user is not told
-			// "done". Mixed (some succeeded, some failed) still reports done, but the
-			// summary carries the errors as a warning (see CompressAllDialog).
+			// All files failed: surface as 'failed' so the user isn't told "done".
+			// Mixed success+failure reports done with errors as a warning.
 			if (errors.length > 0 && files.length === 0) {
 				thunkAPI.dispatch(bulkCompressionFailed({ type: 'all-files-failed', summary, errors }));
 				return { applied: false };
@@ -537,8 +493,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 
 			return { applied: files.length > 0 };
 		} catch (err) {
-			// Pre-loop setup threw (before Started) OR an invariant blew up.
-			// Without this, phase would stay 'confirm' and the dialog would strand.
+			// Setup threw before Started; without this the dialog would strand at 'confirm'.
 			thunkAPI.dispatch(bulkCompressionFailed({
 				type: 'setup',
 				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
@@ -551,12 +506,8 @@ export const compressAllPackageMedia = createAsyncThunk(
 		}
 	},
 	{
-		// Re-entry guard: refuse to start a second concurrent run. Without this,
-		// reopening CompressionPanel mid-run clobbers phase to 'confirm' (see
-		// bulkCompressionDialogOpened) and Start dispatches a second thunk that
-		// races the in-flight one on the same zip/pack. condition returns false
-		// -> RTK dispatches a rejected action with meta.condition === true, which
-		// the rejected extraReducer must ignore (see below).
+		// Re-entry guard: refuse a second concurrent run (a rejected action
+		// with meta.condition === true follows; the rejected reducer ignores it).
 		condition: (_, thunkAPI) => {
 			const phase = (thunkAPI.getState() as { siquester: SIQuesterState }).siquester.bulkCompression?.phase;
 			return phase !== 'running';
@@ -1468,11 +1419,8 @@ export const siquesterSlice = createSlice({
 			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
 		},
 		bulkCompressionDialogOpened: (state) => {
-			// Re-entry guard: never reopen the confirm dialog while a run is in
-			// flight — clobbering phase here would reset cancelRequested and allow
-			// the UI to look like a fresh start while compressAllPackageMedia is
-			// still running. The thunk's `condition` is the backstop; this is the
-			// UI-state hygiene that keeps the panel honest.
+			// Never reopen confirm while running — clobbering phase here would
+			// reset cancelRequested and mask an in-flight run.
 			if (state.bulkCompression?.phase === 'running') {
 				return;
 			}
@@ -1506,10 +1454,8 @@ export const siquesterSlice = createSlice({
 			}
 		},
 		bulkCompressionFinished: (state, action: PayloadAction<{ summary: BulkCompressionSummary }>) => {
-			// Gate: only a running run can legitimately terminate as done. A
-			// late Finished dispatch (after Cancelled or after a prior Finished)
-			// must NOT clobber the terminal state. Also covers Phase 2's 'failed'
-			// phase (treated as terminal, like 'done'/'cancelled').
+			// Gate: only a running run can terminate as done. A late Finished
+			// must not clobber an already-terminal state.
 			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.phase = 'done';
 				state.bulkCompression.completed = state.bulkCompression.total;
@@ -1518,11 +1464,8 @@ export const siquesterSlice = createSlice({
 			}
 		},
 		bulkCompressionCancelled: (state) => {
-			// Gate: symmetric to Finished — only a running run can terminate
-			// as cancelled. Also clears the now-stale cancelRequested flag (the
-			// cancel has been acknowledged) and currentFile (no file is being
-			// processed anymore). completed is kept as informational (count at
-			// termination, used by the cancelled-summary UI).
+			// Gate: only a running run can terminate as cancelled. Clears the
+			// stale cancelRequested flag and currentFile.
 			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.phase = 'cancelled';
 				state.bulkCompression.cancelRequested = false;
@@ -1530,11 +1473,8 @@ export const siquesterSlice = createSlice({
 			}
 		},
 		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
-			// Covers both the confirm-strand (pre-Started throw) and a running-phase
-			// throw. The dialog renders a 'failed' branch with this reason.
-			// T49: persist the summary so the 'all-files-failed' branch can render
-			// the per-file error list (setup/compression-disabled carry an empty
-			// placeholder summary). The rejected extraReducer path has no summary.
+			// Covers confirm-strand and running-phase throws. Persists the summary
+			// so 'all-files-failed' can render the per-file error list.
 			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
 			if (!state.bulkCompression) {
 				state.bulkCompression = {
@@ -1556,25 +1496,20 @@ export const siquesterSlice = createSlice({
 				return;
 			}
 
-			// Pre-apply snapshot for the composite undo entry. `state.zip` is a
-			// JSZip class instance — NOT drafted by Immer — so `state.zip.files`
-			// is the live pre-apply map. `state.pack` IS drafted; Immer's
-			// `original()` returns the underlying pre-draft pack reference.
+			// Snapshot for undo. state.zip isn't drafted by Immer, so state.zip.files
+			// is the live pre-apply map; original(state.pack) gives the pre-draft pack.
 			const preApplyPack = original(state.pack);
 			const preApplyZipFiles = { ...state.zip.files };
 
-			// Atomic write-then-remove cycle. Any throw inside the helper
-			// restores `zip.files` from its own snapshot, and Immer discards
-			// the `pack` draft, so state.pack and state.zip stay consistent
-			// (all-or-nothing).
+			// Atomic: a throw inside the helper restores zip.files, and Immer
+			// discards the pack draft, so both stay consistent (all-or-nothing).
 			const renames = applyStagedFilesToZip(state.zip, action.payload.files);
 
 			if (renames.size > 0) {
 				renameMediaReferences(state.pack, renames);
 			}
 
-			// The package logo is a media reference outside question params;
-			// keep it in sync when its file is renamed ('@' prefix preserved).
+			// Keep the logo (a media ref outside question params) in sync on rename.
 			if (state.pack.logo?.startsWith('@')) {
 				const newLogoName = renames.get(`image:${state.pack.logo.substring(1)}`);
 
@@ -1583,10 +1518,8 @@ export const siquesterSlice = createSlice({
 				}
 			}
 
-			// Single composite undo entry: one Undo reverts the entire bulk
-			// apply (pack refs + zip files). Clears redo history, like any new
-			// edit. `bulkMediaCompressed` stays in `ignoreActions` so the root
-			// reducer wrapper does NOT also push (avoids a double entry).
+			// One composite undo entry reverts the whole apply. Clears redo
+			// history; stays in ignoreActions so the wrapper doesn't double-push.
 			const past = state.history?.past ? [...state.history.past] : [];
 			if (preApplyPack) {
 				past.push({
@@ -1618,9 +1551,8 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
-			// If a bulk run is in flight, signal cancel (the thunk's identity guard
-			// already blocks the apply; this stops the in-flight encode loop too).
-			// Never silently wipe to undefined — that hides the cancel from the loop.
+			// If a bulk run is in flight, signal cancel (never wipe to undefined —
+			// that hides the cancel from the encode loop).
 			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.cancelRequested = true;
 				state.bulkCompression.phase = 'cancelled';
@@ -1640,11 +1572,8 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
-			// Same swap-while-running gate as openFile.fulfilled: keep the live
-			// loop's isCancelRequested() check working instead of wiping
-			// bulkCompression to undefined (wiping would hide the cancel and let
-			// the orphaned run corrupt the new package). The non-running
-			// else-branch wipes to undefined as before.
+			// Same swap-while-running gate as openFile.fulfilled: signal cancel,
+			// don't wipe (wiping would let the orphaned run corrupt the new package).
 			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.cancelRequested = true;
 				state.bulkCompression.phase = 'cancelled';
@@ -1666,17 +1595,12 @@ export const siquesterSlice = createSlice({
 			state.packageStatsLoading = false;
 		});
 		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
-			// Phase 1 CRITICAL C2: a condition-refused re-entry must NOT touch
-			// the in-flight run. Preserve this guard — without it, a rejected
-			// re-entry would flip a successfully-encoding run to 'failed'.
+			// A condition-refused re-entry must not touch the in-flight run.
 			if (action.meta.condition) {
 				return;
 			}
-			// Defensive: the thunk's own try/catch already dispatched
-			// bulkCompressionFailed for any covered throw. This handles an
-			// uncovered rejection (e.g. a dispatch invariant) so phase never
-			// sticks at 'running' or 'confirm'. 'failed' is honest — a
-			// rejection is an error, not a user cancel.
+			// Handles an uncovered rejection so phase never sticks at
+			// 'running'/'confirm'. 'failed' is honest, not a user cancel.
 			if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
 				state.bulkCompression.phase = 'failed';
 				state.bulkCompression.failedReason = action.error.message ?? 'Unexpected compression error';

@@ -1,32 +1,23 @@
 /**
  * Minimal OGG Opus muxer per RFC 7845 / RFC 3533.
- *
- * Correct page size (no stray +1), per-packet segment table
- * delineation, floor(N/255)+1 segment count, guaranteed EOS page.
  */
 
 const OGG_MAGIC = 0x5367674f; // "OggS" little-endian
 
 /**
  * Opus native sample rate (RFC 7845 §3): Opus always operates internally at
- * 48 kHz, so input audio is decoded/resampled to 48 kHz before encoding, and
- * OGG granule positions are counted in 48 kHz units regardless of the input
- * sample rate. Single source of truth — imported by the host (compressAudio)
- * and the audio encoder module (audioEncoder).
+ * 48 kHz, so input audio is decoded/resampled to 48 kHz and OGG granule
+ * positions are counted in 48 kHz units regardless of the input sample rate.
  */
 export const OPUS_SAMPLE_RATE = 48000;
 
 /**
  * Thrown when a single OGG page would need more than 255 segment-table entries.
  *
- * Why: the number-of-page-segments field at byte offset 26 is a single uint8,
- * so `segmentTableSize` > 255 cannot be represented. The previous code did
- * `setUint8(26, segmentTableSize)`, silently truncating mod 256 and emitting a
- * corrupt page. Single Opus packets are normally tiny, but this guard removes
- * the latent corruption path and surfaces it as an explicit error.
- *
- * Name-fidelity: the `.name` survives end-to-end only because the audio
- * worker's flush-.catch does reject(e) (not reject(new Error(...))) — see T24.
+ * The number-of-page-segments field at byte offset 26 is a single uint8, so a
+ * `segmentTableSize` > 255 cannot be represented. Single Opus packets are
+ * normally tiny, but this guard removes the latent corruption path (silent
+ * truncation mod 256) and surfaces it as an explicit error.
  */
 export class OGGSegmentTableOverflowError extends Error {
     constructor(segmentTableSize: number) {
@@ -55,9 +46,9 @@ const crcTable: Uint32Array = (() => {
 /**
  * OGG CRC-32 (polynomial 0x04c11db7, non-reflected, init 0, xorOut 0).
  *
- * Exported so tests can assert against known-answer vectors (see
- * test/oggCrc32.knownAnswer.test.ts) without reimplementing the algorithm.
- * Not part of the public muxer API; callers should use `muxOggOpus`.
+ * Exported so tests can assert against known-answer vectors without
+ * reimplementing the algorithm. Not part of the public muxer API; callers
+ * should use `muxOggOpus`.
  */
 export function oggCrc32(data: Uint8Array): number {
     let crc = 0;

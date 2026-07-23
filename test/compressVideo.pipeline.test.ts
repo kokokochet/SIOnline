@@ -37,12 +37,12 @@ const HOST_WORKER_TIMEOUT_MS = 60_000;
  * `fireHostTimeout()`) and delegates EVERY other scheduling call to the real
  * implementation (jest's own timer needs keep working).
  *
- * Why not `jest.useFakeTimers()` (the plan's original choice): under Node 26,
- * `@sinonjs/fake-timers` (jest 28) throws `Cannot assign to read only property
- * 'performance'` because Node made `globalThis.performance` read-only; and jest
- * 28.1.3 does not ship `advanceTimersByTimeAsync` (the plan's microtask flush).
- * Keeping real timers sidesteps both: `flushPromises()` drains the host's
- * `await file.arrayBuffer()` naturally, and the timeout fires on demand.
+ * Why not `jest.useFakeTimers()`: under Node 26, `@sinonjs/fake-timers`
+ * (jest 28) throws `Cannot assign to read only property 'performance'`
+ * because Node made `globalThis.performance` read-only; and jest 28.1.3
+ * does not ship `advanceTimersByTimeAsync`. Keeping real timers sidesteps
+ * both: `flushPromises()` drains the host's `await file.arrayBuffer()`
+ * naturally, and the timeout fires on demand.
  */
 type TimerFn = (...args: unknown[]) => unknown;
 const realSetTimeout = globalThis.setTimeout as TimerFn;
@@ -72,7 +72,7 @@ function restoreTimeout(): void {
     (globalThis as { setTimeout: TimerFn }).setTimeout = realSetTimeout;
 }
 
-describe('media-compression-review MAJOR: compressVideo worker pipeline (was zero coverage)', () => {
+describe('compressVideo worker pipeline', () => {
     const originalVideoEncoder = (globalThis as Record<string, unknown>).VideoEncoder;
 
     beforeEach(() => {
@@ -109,8 +109,8 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
         expect(posted.transfer[0]).toBeInstanceOf(ArrayBuffer);
 
         // Let the promise settle so afterEach's reset doesn't race an unhandled
-        // rejection. The host REJECTS on a worker {type:'error'} message (T24),
-        // so drain it as a rejection rather than a resolve.
+        // rejection. The host REJECTS on a worker {type:'error'} message, so
+        // drain it as a rejection rather than a resolve.
         worker!.emitMessage({ type: 'error', name: 'Error', error: 'cancel' });
         await expect(promise).rejects.toBeDefined();
     });
@@ -131,16 +131,15 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
         expect(result.fileName).toBe('in.mp4');
     });
 
-    test('worker {type:"error"} message → rejects with named error (T24)', async () => {
+    test('worker {type:"error"} message → rejects with named error', async () => {
         const file = makeFile(100);
         const promise = compressVideo(file, defaultCompressionOptions.video);
         await flushPromises();
 
         getLastVideoWorker()!.emitMessage({ type: 'error', name: 'NotSupportedError', error: 'bad codec' });
 
-        // The host preserves the programmatic error name (T24 named-error
-        // contract) so callers can triage: NotSupportedError is surfaced, not
-        // collapsed to a generic passthrough.
+        // The host preserves the programmatic error name so callers can triage:
+        // NotSupportedError is surfaced, not collapsed to a generic passthrough.
         await expect(promise).rejects.toMatchObject({ name: 'NotSupportedError' });
     });
 
@@ -152,8 +151,7 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
         getLastVideoWorker()!.emitError('uncaught worker crash');
 
         // onerror is rejected (not swallowed to passthrough); the host calls
-        // preventDefault() inside the handler to keep the dev-server overlay out
-        // of scope here.
+        // preventDefault() inside the handler to suppress the dev-server overlay.
         await expect(promise).rejects.toMatchObject({ name: 'Error' });
     });
 
@@ -218,8 +216,8 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
 
         const worker = getLastVideoWorker()!;
         worker.emitMessage({ type: 'error', name: 'Error', error: 'x' });
-        // The host rejects on worker error (T24); consume the rejection, then
-        // assert the finally still terminated the worker.
+        // The host rejects on worker error; consume the rejection, then assert
+        // the finally still terminated the worker.
         await expect(promise).rejects.toMatchObject({ name: 'Error' });
 
         expect(worker.isTerminated).toBe(true);
@@ -238,7 +236,7 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
         expect(worker.isTerminated).toBe(true);
     });
 
-    test('signal abort → host posts {type:"abort"} → worker emits {type:"cancelled"} → rejects with AbortError (was zero coverage)', async () => {
+    test('signal abort → host posts {type:"abort"} → worker emits {type:"cancelled"} → rejects with AbortError', async () => {
         const controller = new AbortController();
         const file = makeFile(100);
         const promise = compressVideo(file, defaultCompressionOptions.video, controller.signal);
@@ -256,10 +254,9 @@ describe('media-compression-review MAJOR: compressVideo worker pipeline (was zer
         expect(abortPost).toBeDefined();
 
         // Also drive the worker's {type:'cancelled'} acknowledgement arm — the
-        // host's onmessage handler must reject with AbortError (NOT resolve as
-        // passthrough). Pins the cancelled-arm wiring (T12) which had zero
-        // coverage before this test; a regression that drops the arm leaves the
-        // message as a silent no-op.
+        // host's onmessage handler must reject with AbortError (not resolve as
+        // passthrough); a regression that drops the arm leaves the message as a
+        // silent no-op.
         worker.emitMessage({ type: 'cancelled' });
 
         await expect(promise).rejects.toMatchObject({ name: 'AbortError' });

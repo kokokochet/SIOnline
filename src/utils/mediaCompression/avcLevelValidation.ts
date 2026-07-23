@@ -5,10 +5,10 @@
  * - maxFS:     maximum frame size in macroblocks (16x16 each).
  * - maxMBPS:   maximum macroblock processing rate (≈ frameSizeMB * fps).
  *
- * Note: MaxDpbMbs (decoded picture buffer — limits reference frames at a given
- * resolution) is intentionally out of scope for v1. For single-pass web encoding
- * with default reference frames this has no effect; reference-heavy configs that
- * violate MaxDpbMbs would false-pass here. Deferred to a future hardening pass.
+ * MaxDpbMbs (decoded picture buffer — limits reference frames at a given
+ * resolution) is not modeled here. For single-pass web encoding with default
+ * reference frames this has no effect; reference-heavy configs that violate
+ * MaxDpbMbs would false-pass.
  */
 interface AvcLevelLimits {
     maxFS: number;
@@ -63,7 +63,7 @@ function parseAvcLevel(codec: string): number | undefined {
  */
 export function validateAvcLevel(codec: string, width: number, height: number, fps: number): AvcLevelCheck {
     if (!/^avc[13]\./i.test(codec.trim())) {
-        return { ok: true }; // non-AVC: out of scope for this validator
+        return { ok: true }; // non-AVC: not validated here
     }
 
     const level = parseAvcLevel(codec);

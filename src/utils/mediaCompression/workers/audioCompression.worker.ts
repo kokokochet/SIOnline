@@ -7,15 +7,8 @@ import { MAX_DECODED_AUDIO_BYTES } from '../limits';
 import { validateAudioWorkerMessage } from '../workerInputValidation';
 
 /**
- * postMessage(message, transfer) view of the worker global. Under the WebWorker
- * lib (`tsconfig.worker.json`) `self.postMessage` already has this overload
- * natively, so no cast is needed for correctness. This alias exists only so the
- * transfer-list call below also type-checks under the DOM lib, which ts-jest
- * applies when the wiring tests import this file — there `self.postMessage` is
- * `Window.postMessage`, whose overloads reject a transfer array. This replaces
- * the old `self as unknown as WorkerScope` blanket cast + duplicated
- * `WorkerScope` interface (T57): only this one call site needed the treatment,
- * so it is scoped here instead of polluting the module-level `self` type.
+ * Cast so the transfer-list overload type-checks under the DOM lib that ts-jest
+ * applies in wiring tests (there `self.postMessage` is Window.postMessage).
  */
 const postMessageWithTransfer = self.postMessage as (
     message: unknown,
@@ -59,17 +52,13 @@ self.onmessage = async (e: MessageEvent<AudioWorkerRequest | WorkerAbortMessage>
 };
 
 /**
- * Decodes raw encoded audio bytes to per-channel Float32 PCM inside the worker.
+ * Decodes raw encoded audio bytes to per-channel Float32 PCM inside the worker
+ * (keeps the multi-hundred-MB PCM footprint off the main thread). Prefers
+ * OfflineAudioContext; falls back to AudioContext. If neither is present,
+ * throws and the host returns the original file.
  *
- * `decodeAudioData` is available in DedicatedWorkerGlobalScope via
- * OfflineAudioContext (Chrome 100+, Safari 16+, Firefox 100+) or AudioContext.
- * We prefer OfflineAudioContext (no live audio graph); fall back to AudioContext.
- * If neither is present, throw — `compressAudio`'s error handler returns the
- * original file (passthrough). This keeps the multi-hundred-MB PCM footprint
- * off the main thread (review MAJOR Memory/OOM).
- *
- * Enforces MAX_DECODED_AUDIO_BYTES after decode (best-effort post-decode cap;
- * primary protection is worker isolation — see limits.ts).
+ * Enforces MAX_DECODED_AUDIO_BYTES after decode; primary protection is worker
+ * isolation.
  */
 async function decodePcm(
     data: ArrayBuffer,
@@ -83,20 +72,15 @@ async function decodePcm(
         throw new Error('No AudioContext/OfflineAudioContext available in worker for decodeAudioData');
     }
 
-    // decodeAudioData does not render the context; a 1-frame, 1-channel,
-    // 48 kHz context is the smallest valid configuration. OfflineAudioContext
-    // takes the (numberOfChannels, length, sampleRate) numeric signature, but
-    // AudioContext takes a single AudioContextOptions object ({ sampleRate }) —
-    // the numeric args are IGNORED by AudioContext, so the fallback would decode
-    // at the device-default rate (often 44100) and resample/pitch-shift. Branch
-    // the ctor so each context type uses its correct signature.
+    // OfflineAudioContext takes (numberOfChannels, length, sampleRate); AudioContext
+    // takes a single options object and IGNORES numeric args, so the fallback
+    // would decode at device-default rate. Branch the ctor per context type.
     const isOffline = Ctx === OfflineAudioContext;
     const audioContext = isOffline
         ? new OfflineAudioContext(1, 1, OPUS_SAMPLE_RATE)
         : new AudioContext({ sampleRate: OPUS_SAMPLE_RATE });
     try {
-        // data is the transferred ArrayBuffer copy and is never reused after
-        // decode, so no slice(0) is needed (it would only double peak memory).
+        // data is the transferred copy, never reused after decode — no slice(0).
         const audioBuffer = await audioContext.decodeAudioData(data);
 
         const numberOfChannels = Math.min(audioBuffer.numberOfChannels, options.channels);

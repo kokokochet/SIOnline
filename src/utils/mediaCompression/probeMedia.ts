@@ -10,22 +10,20 @@ export interface MediaProbeResult {
 
 /**
  * Fast pre-flight: checks whether the OUTPUT encoder for the given media type
- * is supported by the current browser, WITHOUT decoding or demuxing the file.
+ * is supported, WITHOUT decoding the file.
  *
- * Why: `compressAudio` / `compressVideo` decode the full input before the
- * worker runs `isConfigSupported`, so an unsupported codec wastes minutes per
- * file and then silently passes through. Because the output codec is fixed by
- * the preset (not by the file contents), the result is deterministic per type;
- * the UI calls this once per type (dedupes referenced files by type).
+ * Why: compressAudio/compressVideo decode the full input before the worker
+ * checks the encoder config, so an unsupported codec wastes time then silently
+ * passes through. The output codec is fixed by the preset (not the file), so
+ * the result is deterministic per type.
  *
- * Advisory: `isConfigSupported` results are NOT authoritative (WebCodecs spec).
- * Some engines may return false negatives. The confirm-screen list is a warning,
- * not a blocker; the actual encode proceeds and may still succeed.
+ * Advisory: isConfigSupported results are NOT authoritative (WebCodecs spec);
+ * some engines return false negatives. This is a warning, not a blocker.
  *
- * - image: always supported (canvas is available everywhere) — no WebCodecs.
- * - audio: `AudioEncoder.isConfigSupported({ codec, sampleRate, numberOfChannels })`.
- * - video: `VideoEncoder.isConfigSupported({ codec })` (dimensions are not
- *   required to check codec support; full config is validated in the worker).
+ * - image: always supported (canvas) — no WebCodecs.
+ * - audio: AudioEncoder.isConfigSupported({ codec, sampleRate, numberOfChannels }).
+ * - video: VideoEncoder.isConfigSupported({ codec }) (dimensions not required
+ *   for codec support; full config validated in the worker).
  */
 export async function probeMedia(
 	type: CompressibleMediaType,

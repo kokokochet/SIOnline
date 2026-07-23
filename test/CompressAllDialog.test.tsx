@@ -89,8 +89,7 @@ describe('CompressAllDialog', () => {
 	});
 
 	test('renders the failed phase with the error message and a Close button', () => {
-		// T17's bulkCompressionFailed reducer is not landed yet; set the failed
-		// phase directly via preloadedState to exercise the failed UI branch.
+		// Set the failed phase directly via preloadedState to exercise the failed UI branch.
 		const store = makeStore({
 			bulkCompression: {
 				phase: 'failed',
@@ -110,7 +109,7 @@ describe('CompressAllDialog', () => {
 		expect(screen.getAllByRole('button', { name: /close/i }).length).toBeGreaterThanOrEqual(1);
 	});
 
-	test('renders the history-impact disclosure in the confirm phase (T42)', () => {
+	test('renders the history-impact disclosure in the confirm phase', () => {
 		const store = makeStore({
 			pack: makePackWithImageRef(),
 			bulkCompression: { phase: 'confirm', total: 1, completed: 0, cancelRequested: false },

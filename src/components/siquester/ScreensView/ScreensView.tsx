@@ -173,9 +173,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 	const compressionEnabled = mediaCompression.enabled;
 	// Memoize: resolveCompressionOptions allocates a fresh object every call,
-	// which would break downstream referential checks (and re-trigger any
-	// effect or memo keyed on compressionOptions). Recompute only when the
-	// presets selection actually changes.
+	// breaking downstream referential checks.
 	const compressionOptions = React.useMemo(
 		() => resolveCompressionOptions(mediaCompression.presets),
 		[mediaCompression.presets],
@@ -342,8 +340,6 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			}
 		};
 
-		// MediaItem resolves the file from the package zip (ref) or treats it as
-		// an external URL (non-ref) — either way it only needs the raw value.
 		const mediaKey = `${contentItem.type}:${contentItem.value}:${contentItem.isRef ? 'ref' : 'url'}`;
 
 		switch (contentItem.type) {

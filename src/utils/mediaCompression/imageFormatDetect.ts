@@ -1,14 +1,10 @@
-// src/utils/mediaCompression/imageFormatDetect.ts
 /**
  * Byte-level image format detection for the compression pipeline.
  *
  * Canvas re-encode (JPEG) destroys PNG/WebP alpha channels and is the wrong
  * choice for transparent imagery. These pure helpers sniff the leading bytes
  * of a file to decide format and alpha presence *without* paying for a full
- * decode. They are siblings of the dimension probe introduced by Plan 01
- * (CRITICAL C4) and intentionally self-contained so this plan lands cleanly.
- *
- * `svg` is part of the format union for forward use (T36 wires detection).
+ * decode.
  */
 
 export type DetectedImageFormat = 'gif' | 'png' | 'jpeg' | 'webp' | 'svg' | 'unknown';
@@ -233,17 +229,15 @@ const SVG_SNIFF_WINDOW = 1024;
 /**
  * True for SVG content: detects the `<svg` tag (optionally after an `<?xml`
  * declaration) in the first 1 KiB, case-insensitive. SVG otherwise rasterizes
- * to a lossy JPEG via canvas — the #img-4 corruption.
+ * to a lossy JPEG via canvas.
  *
  * Also recognizes SVGZ (gzip-compressed SVG): files beginning with the gzip
- * magic bytes `0x1f 0x8b`. SVGZ fails every other signature check in
- * `detectImageFormat` and its UTF-8 decode yields replacement chars, so without
- * this guard it would fall through to `createImageBitmap` — which rasterizes
- * it to a lossy JPEG on browsers that transparently gunzip (the exact #img-4
- * corruption this task prevents). `image/gz` is not a real MIME in practice,
- * so treating any gzip payload in an image slot as SVGZ is an acceptable
- * heuristic; worst case a non-image gzip stream passes through uncompressed
- * (preserves bytes, never corrupts).
+ * magic bytes `0x1f 0x8b`. SVGZ fails every other signature check and its
+ * UTF-8 decode yields replacement chars, so without this guard it would fall
+ * through to `createImageBitmap` — which rasterizes it to a lossy JPEG on
+ * browsers that transparently gunzip. Treating any gzip payload in an image
+ * slot as SVGZ is an acceptable heuristic; worst case a non-image gzip stream
+ * passes through uncompressed (preserves bytes, never corrupts).
  *
  * Uses TextDecoder (global in DOM and Node 18+) — no Node-only `Buffer`.
  */

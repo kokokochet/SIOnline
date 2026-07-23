@@ -17,7 +17,7 @@ const jpegOptions: ImageCompressionOptions = {
     mimeType: 'image/jpeg',
 };
 
-describe('media-compression-review MAJOR Image corruption', () => {
+describe('image corruption', () => {
     describe('imageCompressionMock harness (smoke)', () => {
         let mock: ImageCompressionMockHandle;
 
@@ -46,7 +46,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-1 EXIF orientation is respected', () => {
+    describe('EXIF orientation is respected', () => {
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
@@ -71,7 +71,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-6 calculateTargetDimensions guards zero dimensions', () => {
+    describe('calculateTargetDimensions guards zero dimensions', () => {
         test('returns null when input width is 0', () => {
             expect(calculateTargetDimensions(0, 100, 800)).toBeNull();
         });
@@ -98,7 +98,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-6 compressImage passes through on zero output dimensions', () => {
+    describe('compressImage passes through on zero output dimensions', () => {
         let mock: ImageCompressionMockHandle;
 
         afterEach(() => {
@@ -121,7 +121,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-2 transparency is preserved (alpha-aware format)', () => {
+    describe('transparency is preserved (alpha-aware format)', () => {
         // Minimal PNG: signature + IHDR (length 13) with the given color type.
         // Note: return type inferred (Uint8Array<ArrayBuffer>) so it's a valid BlobPart.
         function makePngIhdr(colorType: number, bitDepth = 8) {
@@ -189,7 +189,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-3 animation is preserved (content-based passthrough)', () => {
+    describe('animation is preserved (content-based passthrough)', () => {
         function makeGif() {
             // GIF89a magic bytes + a minimal logical screen descriptor.
             return new Uint8Array([
@@ -289,7 +289,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-4 SVG passes through (no lossy rasterization)', () => {
+    describe('SVG passes through (no lossy rasterization)', () => {
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
@@ -343,7 +343,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-5 color fidelity (lossless escape hatch + 16-bit guard)', () => {
+    describe('color fidelity (lossless escape hatch + 16-bit guard)', () => {
         function makePngIhdr(colorType: number, bitDepth = 8) {
             return new Uint8Array([
                 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
@@ -397,7 +397,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
         });
     });
 
-    describe('#img-5 compressionIrreversible warning discloses color loss', () => {
+    describe('compressionIrreversible warning discloses color loss', () => {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const localization = (require('../src/model/resources/localization') as {
             default: { getString: (key: string, language?: string) => string };
@@ -417,7 +417,7 @@ describe('media-compression-review MAJOR Image corruption', () => {
     });
 });
 
-describe('media-compression-review FOLLOWUP WebP alpha detection (imageFormatDetect)', () => {
+describe('WebP alpha detection (imageFormatDetect)', () => {
     // -- byte fixture helpers -------------------------------------------------
 
     /** Concatenates Uint8Arrays into a single buffer. */

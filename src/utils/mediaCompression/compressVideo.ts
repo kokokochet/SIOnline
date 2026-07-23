@@ -11,10 +11,8 @@ import { WORKER_TIMEOUT_MS } from './limits';
  *
  * Passthrough (returns the original unchanged) when WebCodecs is unavailable
  * or the compressed output is not smaller than the input. Decode/encode
- * failures and worker timeouts REJECT with a named error (preserving
- * `DOMException.name`) so callers can surface them: the bulk thunk records a
- * per-file error, and ScreensView shows the compressionFailed toast (the
- * intended single-file policy). AbortError propagates for cancel handling.
+ * failures and worker timeouts reject with a named error (preserving
+ * `DOMException.name`); AbortError propagates for cancel handling.
  */
 export async function compressVideo(
     file: File,
@@ -48,9 +46,8 @@ export async function compressVideo(
                 };
 
                 worker.onerror = (e: ErrorEvent) => {
-                    // Prevent the uncaught worker error from reaching the
-                    // window error handlers (dev-server overlay) — the
-                    // compression failure is handled gracefully via reject.
+                    // Suppress the uncaught worker error (dev-server overlay);
+                    // the failure is surfaced via reject instead.
                     e.preventDefault();
                     reject(namedError('Error', e.message || 'Worker error'));
                 };

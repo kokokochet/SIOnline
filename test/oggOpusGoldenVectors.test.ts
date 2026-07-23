@@ -36,7 +36,7 @@ const cases: FixtureCase[] = [
     },
 ];
 
-describe('media-compression-review MAJOR: OGG golden vectors (byte-exact regression pinning)', () => {
+describe('OGG golden vectors (byte-exact regression pinning)', () => {
     test.each(cases)('$name: muxer output matches committed .expected.ogg byte-for-byte', (c) => {
         const fixturePath = path.join(fixturesDir, `${c.name}.expected.ogg`);
         const expected = fs.readFileSync(fixturePath);

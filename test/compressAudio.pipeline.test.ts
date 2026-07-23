@@ -7,11 +7,10 @@ import {
 
 function flushPromises(): Promise<void> {
     // setImmediate (macrotask) drains the full microtask queue before resolving.
-    // Post-T19 there is a SINGLE host await (`file.arrayBuffer()`) before
-    // createAudioWorker — PCM decode moved into the worker, so no main-thread
-    // OfflineAudioContext construction and no second await. These tests keep REAL
-    // timers throughout (see `captureTimeout` below), so `setImmediate` is
-    // genuine and this helper never hangs.
+    // There is a single host await (`file.arrayBuffer()`) before
+    // createAudioWorker, so no main-thread OfflineAudioContext construction.
+    // These tests keep REAL timers throughout (see `captureTimeout` below),
+    // so `setImmediate` is genuine and this helper never hangs.
     return new Promise((resolve) => setImmediate(resolve));
 }
 
@@ -32,12 +31,12 @@ const HOST_WORKER_TIMEOUT_MS = 60_000;
  * `fireHostTimeout()`) and delegates EVERY other scheduling call to the real
  * implementation (jest's own timer needs keep working).
  *
- * Why not `jest.useFakeTimers()` (the plan's original choice): under Node 26,
- * `@sinonjs/fake-timers` (jest 28) throws `Cannot assign to read only property
- * 'performance'` because Node made `globalThis.performance` read-only; and jest
- * 28.1.3 does not ship `advanceTimersByTimeAsync` (the plan's microtask flush).
- * Keeping real timers sidesteps both: `flushPromises()` drains the host's
- * `await file.arrayBuffer()` naturally, and the timeout fires on demand.
+ * Why not `jest.useFakeTimers()`: under Node 26, `@sinonjs/fake-timers`
+ * (jest 28) throws `Cannot assign to read only property 'performance'`
+ * because Node made `globalThis.performance` read-only; and jest 28.1.3
+ * does not ship `advanceTimersByTimeAsync`. Keeping real timers sidesteps
+ * both: `flushPromises()` drains the host's `await file.arrayBuffer()`
+ * naturally, and the timeout fires on demand.
  */
 type TimerFn = (...args: unknown[]) => unknown;
 const realSetTimeout = globalThis.setTimeout as TimerFn;
@@ -67,15 +66,15 @@ function restoreTimeout(): void {
     (globalThis as { setTimeout: TimerFn }).setTimeout = realSetTimeout;
 }
 
-describe('media-compression-review MAJOR: compressAudio worker pipeline (was zero coverage)', () => {
+describe('compressAudio worker pipeline', () => {
     const originalAudioEncoder = (globalThis as Record<string, unknown>).AudioEncoder;
 
     beforeEach(() => {
         // compressAudio gates on isAudioCompressionSupported(); force true so the
-        // worker pipeline is entered. Post-T19 the host never constructs an
+        // worker pipeline is entered. The host never constructs an
         // OfflineAudioContext (decode runs inside the worker), so no main-thread
-        // AudioContext stub is required here — the FakeWorker in T60 short-circuits
-        // the decode path entirely.
+        // AudioContext stub is required here — the FakeWorker short-circuits the
+        // decode path entirely.
         (globalThis as Record<string, unknown>).AudioEncoder =
             class MockAudioEncoder {} as unknown as typeof AudioEncoder;
         resetFakeWorkerRegistry();
@@ -101,15 +100,15 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         expect(worker).toBeDefined();
         expect(worker!.postedMessages).toHaveLength(1);
         const posted = worker!.postedMessages[0];
-        // Post-T19 contract: the request is `{ data: ArrayBuffer; options }` and
-        // the host transfers the single encoded input (zero-copy). The worker
+        // Contract: the request is `{ data: ArrayBuffer; options }` and the
+        // host transfers the single encoded input (zero-copy). The worker
         // decodes inside its own global scope — no per-channel PCM is transferred.
         expect(posted.transfer).toHaveLength(1);
         expect(posted.transfer[0]).toBeInstanceOf(ArrayBuffer);
 
         // Let the promise settle so afterEach's reset doesn't race an unhandled
-        // rejection. The host REJECTS on a worker {type:'error'} message (T24),
-        // so drain it as a rejection rather than a resolve.
+        // rejection. The host REJECTS on a worker {type:'error'} message, so
+        // drain it as a rejection rather than a resolve.
         worker!.emitMessage({ type: 'error', name: 'Error', error: 'cancel' });
         await expect(promise).rejects.toBeDefined();
     });
@@ -128,15 +127,15 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         expect(result.originalSize).toBe(1000);
     });
 
-    test('worker {type:"error"} message → rejects with named error (T24)', async () => {
+    test('worker {type:"error"} message → rejects with named error', async () => {
         const file = makeFile(1000);
         const promise = compressAudio(file, defaultCompressionOptions.audio);
         await flushPromises();
 
         getLastAudioWorker()!.emitMessage({ type: 'error', name: 'NotSupportedError', error: 'opus' });
 
-        // The host preserves the programmatic error name (T24) — the original
-        // name is kept, the promise rejects (no silent passthrough).
+        // The host preserves the programmatic error name — the original name is
+        // kept, the promise rejects (no silent passthrough).
         await expect(promise).rejects.toMatchObject({ name: 'NotSupportedError' });
     });
 
@@ -154,7 +153,7 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         const file = makeFile(1000);
         const promise = compressAudio(file, defaultCompressionOptions.audio);
         // Real timers: flushPromises() drains the host's single await
-        // (`file.arrayBuffer()`; post-T19 decode runs in the worker) so
+        // (`file.arrayBuffer()`; decode runs in the worker) so
         // createAudioWorker() has run and the 60s race timer is captured.
         await flushPromises();
         expect(getLastAudioWorker()).toBeDefined();
@@ -204,8 +203,8 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         await flushPromises();
         const worker = getLastAudioWorker()!;
         worker.emitError('boom');
-        // The host rejects on onerror (T24); consume the rejection, then assert
-        // the finally still terminated the worker.
+        // The host rejects on onerror; consume the rejection, then assert the
+        // finally still terminated the worker.
         await expect(promise).rejects.toMatchObject({ name: 'Error' });
 
         expect(worker.isTerminated).toBe(true);
@@ -223,7 +222,7 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         expect(worker.isTerminated).toBe(true);
     });
 
-    test('signal abort → host posts {type:"abort"} → worker emits {type:"cancelled"} → rejects with AbortError (was zero coverage)', async () => {
+    test('signal abort → host posts {type:"abort"} → worker emits {type:"cancelled"} → rejects with AbortError', async () => {
         const controller = new AbortController();
         const file = makeFile(1000);
         const promise = compressAudio(file, defaultCompressionOptions.audio, controller.signal);
@@ -241,9 +240,8 @@ describe('media-compression-review MAJOR: compressAudio worker pipeline (was zer
         expect(abortPost).toBeDefined();
 
         // Also drive the worker's {type:'cancelled'} acknowledgement arm — the
-        // host's onmessage handler must reject with AbortError (NOT resolve as
-        // passthrough). Pins the cancelled-arm wiring (T12) which had zero
-        // coverage before this test.
+        // host's onmessage handler must reject with AbortError (not resolve as
+        // passthrough), pinning the cancelled-arm wiring.
         worker.emitMessage({ type: 'cancelled' });
 
         await expect(promise).rejects.toMatchObject({ name: 'AbortError' });

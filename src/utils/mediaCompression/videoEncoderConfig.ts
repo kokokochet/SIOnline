@@ -3,11 +3,6 @@ import { VideoCompressionOptions } from './compressionTypes';
 /**
  * Builds the WebCodecs `VideoEncoderConfig` for the re-encode path.
  *
- * Extracted from the video worker so the config — in particular the
- * `latencyMode` choice that prevents B-frame ctts corruption — is typechecked
- * and unit-tested in CI (the worker itself is mocked at the module boundary in
- * tests and otherwise only compiled by ts-loader).
- *
  * `latencyMode: 'realtime'` is set deliberately: it tells the platform encoder
  * (VideoToolbox / MediaFoundation / etc.) to emit frames in decode order with
  * no B-frame reordering. With B-frames, `chunk.timestamp` can drop below the
@@ -17,7 +12,7 @@ import { VideoCompressionOptions } from './compressionTypes';
  * Safari / QuickTime / Edge. `latencyMode: 'realtime'` is a platform hint, not
  * a guarantee: encoders SHOULD suppress B-frame reordering, but not every
  * backend honors it. This is why the muxer-side `compositionTimeOffset` clamp
- * (T8) exists as defense-in-depth against negative offsets.
+ * exists as defense-in-depth against negative offsets.
  */
 export function buildVideoEncoderConfig(
     options: VideoCompressionOptions,

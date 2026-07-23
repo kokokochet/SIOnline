@@ -34,17 +34,8 @@ import editImg from '../../../../assets/images/edit.png';
 enum Mode { Rounds, Questions, Media }
 
 /**
- * Selects only the siquester fields PackageView actually renders. Returned as
- * a fresh object, so for react-redux v8 to skip commits the consumer must pass
- * `shallowEqual` as the equality function (the object identity changes every
- * call even when the underlying fields are unchanged).
- *
- * Why named + exported: so the perf test can assert referential stability
- * (`expect(after.X).toBe(before.X)` for every X) across an unrelated state
- * change — the exact invariant react-redux v8 needs to skip the commit when
- * paired with `shallowEqual`. Without this guard, every `bulkCompressionProgress`
- * tick during a bulk run re-renders PackageView, which re-renders the entire
- * questions grid.
+ * Selects the siquester fields PackageView renders. Returns a fresh object each
+ * call, so the consumer must pass `shallowEqual` (react-redux v8 identity check).
  */
 export const selectPackageViewSlice = (state: { siquester: SIQuesterState }) => ({
 	zip: state.siquester.zip,
@@ -69,10 +60,8 @@ const PackageView: React.FC = () => {
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
-	// Stabilized so CompressionPanel's `hide` useCallback (dep: [onClose]) keeps
-	// the same identity across parent re-renders. Without this, every keystroke
-	// in edit mode (dispatching updateContentItem) would tear down and re-attach
-	// the panel's mousedown listener.
+	// Stabilized so CompressionPanel's mousedown listener isn't re-attached
+	// on every parent re-render (e.g. each keystroke in edit mode).
 	const closeCompressionPanel = React.useCallback(() => setIsCompressionPanelOpen(false), []);
 
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);

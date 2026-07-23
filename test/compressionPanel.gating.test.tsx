@@ -29,7 +29,7 @@ function renderPanel() {
 	});
 }
 
-describe('media-compression-review MAJOR: UI does not gate on WebCodecs support (CompressionPanel)', () => {
+describe('UI does not gate on WebCodecs support (CompressionPanel)', () => {
 	beforeEach(() => {
 		audioSupported.mockReturnValue(true);
 		videoSupported.mockReturnValue(true);

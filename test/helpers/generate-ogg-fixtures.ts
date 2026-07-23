@@ -17,7 +17,7 @@
  *
  * IMPORTANT: these fixtures pin the byte-exact output of `muxOggOpus` as of
  * the generation commit. They catch REGRESSIONS. Spec correctness of the CRC
- * is independently verified by test/oggCrc32.knownAnswer.test.ts (T64),
+ * is independently verified by test/oggCrc32.knownAnswer.test.ts,
  * and the OpusHead/OpusTags field layout by the existing field-level tests in
  * oggOpusMuxer.test.ts.
  */
@@ -57,7 +57,7 @@ const specs: FixtureSpec[] = [
         packets: [
             {
                 // floor(65024/255) + 1 = 255 — the maximum legal segment-table size.
-                // Boundary case asserted by Phase 4 T28 (>65025 must throw).
+                // Boundary case: >65025 must throw.
                 data: new Uint8Array(65024).fill(0x42),
                 timestamp: 0,
                 duration: 20000,

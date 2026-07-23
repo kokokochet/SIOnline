@@ -1,10 +1,5 @@
 
 import { createFile, type ISOFile, type MP4BoxBuffer, type Movie, type Track, type Sample } from 'mp4box';
-// DEPRECATED: mp4-muxer@5.2.2 is upstream-deprecated (superseded by Mediabunny).
-// Migration is tracked in docs/follow-ups/mp4-muxer-to-mediabunny-migration.md.
-// It is behavioural (async encoder callbacks, removed compositionTimeOffset,
-// auto-deduced track config) and cannot be safely done until Plan 10 adds an
-// MP4 round-trip integration test. Do NOT migrate inline as part of a types fix.
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse, WorkerAbortMessage } from '../compressionTypes';
 import { getSourceFramerate } from '../videoFramerate';
@@ -20,25 +15,13 @@ import { validateVideoWorkerMessage } from '../workerInputValidation';
 import { configureWithCleanup } from '../configureWithCleanup';
 import { DtsAccumulator } from './dtsAccumulator';
 
-/**
- * AAC muxer fallbacks for MP4 tracks whose `audio` box lacks explicit
- * `sample_rate`/`channel_count`. Used twice: once for the muxer config and
- * once for the passthrough `decoderConfig` — defined once here so the two
- * sites cannot drift.
- */
+/** AAC fallbacks for tracks whose `audio` box lacks sample_rate/channel_count. */
 const AAC_FALLBACK_SAMPLE_RATE = 44100;
 const AAC_FALLBACK_CHANNELS = 2;
 
 /**
- * postMessage(message, transfer) view of the worker global. Under the WebWorker
- * lib (`tsconfig.worker.json`) `self.postMessage` already has this overload
- * natively, so no cast is needed for correctness. This alias exists only so the
- * transfer-list call below also type-checks under the DOM lib, which ts-jest
- * applies when the wiring tests import this file — there `self.postMessage` is
- * `Window.postMessage`, whose overloads reject a transfer array. This replaces
- * the old `self as unknown as WorkerScope` blanket cast + duplicated
- * `WorkerScope` interface (T57): only this one call site needed the treatment,
- * so it is scoped here instead of polluting the module-level `self` type.
+ * Cast so the transfer-list overload type-checks under the DOM lib that ts-jest
+ * applies in wiring tests (there `self.postMessage` is Window.postMessage).
  */
 const postMessageWithTransfer = self.postMessage as (
     message: unknown,
@@ -49,10 +32,8 @@ let currentJobRejected = false;
 
 self.onmessage = async (e: MessageEvent<WorkerCompressRequest | WorkerAbortMessage>) => {
     if ('type' in e.data) {
-        // Cooperative abort: tell the main thread we stopped. The main-thread
-        // Promise.race has already rejected on the signal; this is the clean
-        // acknowledgement. Phase 4 may additionally call encoder/decoder close()
-        // here for native resource release.
+        // Cooperative abort acknowledgement: the main-thread Promise.race has
+        // already rejected on the signal.
         if (!currentJobRejected) {
             currentJobRejected = true;
             const response: WorkerCompressResponse = { type: 'cancelled' };
@@ -95,8 +76,7 @@ async function compressVideoData(
         throw new Error('No video track found in input file');
     }
 
-    // Fail loudly on non-AAC audio instead of producing a muted file
-    // (review MAJOR: "Non-AAC audio в MP4 молча дропается").
+    // Fail loudly on non-AAC audio instead of producing a muted file.
     assertAudioMp4Compatible(audioTrack?.codec);
 
     const srcWidth = videoTrack.track_width || videoTrack.video?.width || 1920;
@@ -221,10 +201,8 @@ async function reencodeVideo(
     // latencyMode: 'realtime' suppresses B-frame reordering — see videoEncoderConfig.
     const encoderConfig = buildVideoEncoderConfig(options, targetWidth, targetHeight, framerate);
 
-    // Pre-flight: validate the declared H.264 level can carry target res/fps
-    // before touching WebCodecs (isConfigSupported does NOT check level-vs-res).
-    // On failure the worker throws, the host falls back to passthrough, and
-    // Phase 7 surfaces a clear message + a level bump in the UI.
+    // Pre-flight: validate H.264 level can carry target res/fps before touching
+    // WebCodecs (isConfigSupported does NOT check level-vs-res).
     const levelCheck = validateAvcLevel(options.codec, targetWidth, targetHeight, framerate);
     if (!levelCheck.ok) {
         throw namedError('NotSupportedError', levelCheck.reason ?? 'H.264 level insufficient for target resolution/fps');
@@ -259,35 +237,24 @@ async function reencodeVideo(
         // Presentation timestamps rebased to start at 0 (edit-list semantics).
         const rebasedTimestamps = getRebasedTimestamps(samples, track.timescale);
 
-        // Decode timestamps are assigned cumulatively in encoder output order:
-        // the encoder reorders frames for B-frames into its own decode order,
-        // and mp4-muxer requires DTS to be monotonically increasing in arrival
-        // order — the source decode order cannot be assumed.
-        // Drift-bounded DTS accumulator. Math.round(1e6/fps) per fallback frame
-        // drifts ~712ms/2h for NTSC 29.97; the accumulator computes the fallback
-        // increment from a frame counter (added to nextDts, not replacing it) so
-        // total drift stays < 1 µs and DTS stays monotonic for mixed
-        // explicit/fallback streams. See dtsAccumulator.ts for the full rationale.
+        // DTS in encoder output order (mp4-muxer requires monotonic arrival;
+        // B-frame reorder means source decode order can't be reused). The
+        // accumulator bounds fallback-frame rounding drift; see dtsAccumulator.ts.
         const dts = new DtsAccumulator(framerate);
 
         const encoder = new VideoEncoder({
             output: (chunk, metadata) => {
                 try {
                     const nextDecodeTimestamp = dts.advance(chunk.duration);
-                    // Clamp to >= 0: mp4-muxer writes ctts as a version-0 UNSIGNED
-                    // u32, so a negative offset (legal for B-frames when the encoder
-                    // ignores latencyMode:'realtime') wraps to ~4.29 billion and
-                    // corrupts PTS order. Realtime mode should prevent this entirely;
-                    // the clamp is the backstop.
+                    // Clamp >= 0: mp4-muxer writes ctts as a version-0 UNSIGNED u32,
+                    // so a negative B-frame offset wraps to ~4.29 billion and
+                    // corrupts PTS order.
                     const compositionTimeOffset = Math.max(0, chunk.timestamp - nextDecodeTimestamp);
                     muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
-                    // Reject raw: a DOMException (e.g. muxer addVideoChunk failure)
-                    // is NOT instanceof Error, so wrapping as `new Error(String(err))`
-                    // would reset `.name` to 'Error' and drop the only stable
-                    // diagnostic. The outer onmessage catch routes through
-                    // buildErrorResponse (Error + DOMException + fallback), which
-                    // preserves `.name`. Mirrors the error-callback `reject(e)` below.
+                    // Reject raw: DOMException is not instanceof Error; wrapping
+                    // would drop `.name`. buildErrorResponse (in the onmessage
+                    // catch) preserves it.
                     if (!settled) { settled = true; closeBoth(); reject(err); }
                 }
             },
@@ -301,11 +268,8 @@ async function reencodeVideo(
                 try {
                     encoder.encode(frame);
                 } catch (err) {
-                    // Reject raw: encoder.encode(frame) can throw synchronously as
-                    // a DOMException (e.g. InvalidStateError), which is NOT
-                    // instanceof Error — wrapping would drop `.name`. The outer
-                    // onmessage catch → buildErrorResponse preserves it. Mirrors
-                    // the encoder output-callback and error-callback rejects.
+                    // Reject raw (see encoder output callback): encoder.encode can
+                    // throw a DOMException whose `.name` buildErrorResponse preserves.
                     if (!settled) { settled = true; closeBoth(); reject(err); }
                 } finally {
                     frame.close();
@@ -316,12 +280,9 @@ async function reencodeVideo(
             },
         });
 
-        // Construct both codecs before configuring either: a synchronous throw
-        // from VideoEncoder.configure/VideoDecoder.configure (e.g.
-        // NotSupportedError, malformed config) must close BOTH codecs so native
-        // state is not leaked until worker.terminate(). closeWithCleanup wraps
-        // each close in its own try/catch so a secondary close-throw cannot
-        // mask the original configure error or skip the sibling close.
+        // Configure both codecs via configureWithCleanup: a synchronous throw
+        // from configure must still close BOTH codecs so native state isn't
+        // leaked until worker.terminate().
         configureWithCleanup({
             configureEncoder: () => encoder.configure(encoderConfig),
             configureDecoder: () => decoder.configure(decoderConfig),
@@ -329,17 +290,11 @@ async function reencodeVideo(
             closeDecoder: () => { if (!decoderClosed) { decoderClosed = true; decoder.close(); } },
         });
 
-        // Dual-gate backpressure loop (Resolution 16). Yield while EITHER the
-        // decoder's OR the encoder's native queue is deep. The decoder's
-        // output callback feeds the encoder synchronously
-        // (encoder.encode(frame)); on a software-encode path or a slow hardware
-        // encoder the decoder stays ahead of the encoder and the encoder's
-        // native queue balloons. Gating only the decoder leaves the encoder
-        // queue unchecked — half of review Vector 3 ("decode/encode in tight
-        // loop without decodeQueueSize/encodeQueueSize backpressure"). We
-        // therefore await BOTH gates before each decode. (The encoder gate
-        // cannot live inside the decoder's synchronous output callback — a
-        // plain await is impossible there — so it rides along in this loop.)
+        // Dual-gate backpressure: yield while EITHER codec's queue is deep. The
+        // decoder feeds the encoder synchronously, so on a slow encoder the
+        // encoder queue balloons if only the decoder is gated. The encoder gate
+        // can't await inside the decoder's sync output callback, so both gates
+        // ride along here.
         (async () => {
             try {
                 const videoSampleDts = new SampleDtsAccumulator(track.timescale);
@@ -393,10 +348,9 @@ function passThroughAudio(
         });
 
         if (firstChunk) {
-            // No description passed: mp4box keeps the AAC config in the parsed
-            // esds box (not in Box.data), and mp4-muxer already generates an
-            // AudioSpecificConfig for AAC-LC from sampleRate/channels — passing
-            // undefined here would overwrite it via Object.assign.
+            // No description: mp4-muxer already generates the AAC-LC
+            // AudioSpecificConfig from sampleRate/channels; passing one here
+            // would overwrite it via Object.assign.
             muxer.addAudioChunk(chunk, {
                 decoderConfig: {
                     codec: track.codec,

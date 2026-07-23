@@ -46,7 +46,7 @@ function renderDialog(pack: ReturnType<typeof createDefaultPackage>) {
 	});
 }
 
-describe('media-compression-review MAJOR: CompressAllDialog does not warn on unsupported codec', () => {
+describe('CompressAllDialog does not warn on unsupported codec', () => {
 	test('shows the audio-not-supported warning when AudioEncoder is missing and audio files exist', () => {
 		audioSupported.mockReturnValue(false);
 		renderDialog(makePackWithAudio());

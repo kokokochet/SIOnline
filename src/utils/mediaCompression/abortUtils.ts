@@ -1,15 +1,11 @@
 /**
- * Returns a promise that rejects with AbortError when `signal` aborts.
- * Also posts `{type:'abort'}` to the worker so it can stop cleanly.
+ * Returns a promise that rejects with AbortError when `signal` aborts, and posts
+ * `{type:'abort'}` to the worker so it can stop cleanly. Used in `Promise.race`
+ * so the caller's await resolves/rejects promptly on cancel. If `signal` is
+ * omitted, returns a never-settling promise (a no-op race participant).
  *
- * Used in `Promise.race` so the caller's await resolves/rejects promptly on
- * cancel without waiting for the worker. If `signal` is omitted, returns a
- * promise that never settles (a no-op race participant).
- *
- * The abort listener is tied to `signal`'s lifetime (the per-run
- * AbortController), which is discarded when the thunk exits — so the listener
- * does not leak across runs. Phase 4 may add `encoder.close()` on the same
- * signal for native resource release inside the worker.
+ * The listener is tied to the per-run AbortController, discarded when the thunk
+ * exits, so it does not leak across runs.
  */
 export function abortRace(signal: AbortSignal | undefined, worker?: { postMessage: (m: unknown) => void }): Promise<never> {
     if (!signal) {

@@ -22,16 +22,11 @@ interface CompressionPanelProps {
 }
 
 /**
- * Side-dialog for media compression settings. Renders a toggle (on/off) and
- * per-media-type Low/Medium/High preset radio groups. Mounted in the PackageView
- * toolbar; the trigger button lives in PackageView and toggles `open`.
+ * Side-dialog for media compression settings (toggle + per-type preset radios).
  *
- * Closing behaviour mirrors SettingsDialog: the × button (provided by Dialog)
- * and any `mousedown` outside the panel both call `onClose`. The `hide` handler
- * uses `layout.contains(target)` so presses inside the panel never close it.
- * `mousedown` (rather than `click`) is chosen so that an outside-press closes
- * the panel before the subsequent `click` is delivered to whatever was behind
- * it (e.g. a toolbar button) — otherwise that button's `click` would fire too.
+ * Outside-press closing uses `mousedown` (not `click`) so the panel closes
+ * before the subsequent `click` reaches whatever was behind it (e.g. a toolbar
+ * button); `layout.contains(target)` keeps in-panel presses from closing it.
  */
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();

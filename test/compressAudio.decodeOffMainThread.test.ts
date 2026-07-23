@@ -9,7 +9,7 @@ import { FakeWorker, getLastAudioWorker, resetFakeWorkerRegistry } from './helpe
 // FakeWorker without jest.mock — the same cached module instance is shared by
 // source and test.
 
-describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main thread', () => {
+describe('audio PCM decode runs off the main thread', () => {
     const originalAudioEncoder = (globalThis as { AudioEncoder?: unknown }).AudioEncoder;
     const originalOfflineAudioContext = (globalThis as { OfflineAudioContext?: unknown }).OfflineAudioContext;
 
@@ -32,8 +32,7 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
     /**
      * Wait until the audio worker has been created (the mock factory registers
      * each FakeWorker). jsdom/Node `File.arrayBuffer()` resolves after a
-     * handful of microtasks, so a fixed 1-2 yield count is fragile (flagged in
-     * the plan's review note); poll instead.
+     * handful of microtasks, so a fixed yield count is fragile; poll instead.
      */
     async function waitForWorker(): Promise<FakeWorker> {
         for (let i = 0; i < 50; i++) {
@@ -49,10 +48,8 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
     /**
      * Settles compressAudio's in-flight Promise.race so `await pending`
      * resolves into passthrough instead of hanging on the 60s worker timeout.
-     * We fire a 'done' response whose output is not smaller than the input, so
-     * the host resolves via passthrough. (T49 changed the host to THROW on
-     * worker errors rather than passthrough; a 'done' keeps this test focused
-     * on its off-main-thread decode assertion instead of error handling.)
+     * We fire a 'done' response (not an error) so the host resolves via
+     * passthrough, keeping this test focused on its decode assertion.
      */
     function settle(worker: FakeWorker): void {
         worker.emitMessage({ type: 'done', data: new ArrayBuffer(8) } as AudioWorkerResponse);
@@ -98,8 +95,7 @@ describe('media-compression-review MAJOR Memory/OOM: audio PCM decode off main t
 
         const request = message as { data: ArrayBuffer; options: unknown };
 
-        // New contract (Section B post-Plan-03 arm): raw bytes + options.
-        // No channels / numberOfChannels / totalFrames.
+        // New contract: raw bytes + options — no channels / numberOfChannels / totalFrames.
         expect(request).toEqual({
             data: expect.any(ArrayBuffer),
             options: expect.any(Object),

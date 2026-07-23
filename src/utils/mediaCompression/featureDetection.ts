@@ -1,13 +1,10 @@
 /**
  * Feature detection for WebCodecs APIs.
  *
- * Safari 16.4+ supports VideoEncoder/VideoDecoder (video only).
- * Safari 26.0+ supports AudioEncoder/AudioDecoder (full WebCodecs).
- * Tauri-macOS WKWebView follows the installed Safari/WebKit version.
- * When WebCodecs is unavailable, files pass through uncompressed.
- *
- * Note: Image compression always runs — it uses canvas (available everywhere).
- * The try/catch in compressImage handles any canvas failure as passthrough.
+ * Safari 16.4+ supports VideoEncoder/VideoDecoder (video only); Safari 26.0+
+ * adds AudioEncoder/AudioDecoder (full WebCodecs). When WebCodecs is
+ * unavailable, files pass through uncompressed. Image compression uses canvas
+ * (available everywhere).
  */
 
 /** Returns true if VideoEncoder (WebCodecs) is available. */

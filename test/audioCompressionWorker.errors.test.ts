@@ -2,20 +2,11 @@ import { makeMockAudioEncoder } from './helpers/webcodecsMock';
 
 /**
  * Drives the real audioCompression worker's `onmessage` end-to-end with a
- * mocked AudioEncoder. The worker module is safe to import under ts-jest (it
- * pulls only oggOpusMuxer + types + workerErrors, no mp4box/mp4-muxer). On
- * import it registers `self.onmessage`; we capture it and install a
- * `postMessage` spy on globalThis.
- *
- * Reconciliations vs. the plan's verbatim test (post-T19 / Node env):
- *  - The worker module reads `self` at top level (`const ctx = self`); Node's
- *    test env has no `self`, so we alias `globalThis.self = globalThis` before
- *    the `require`.
- *  - Post-T19 the worker decodes raw bytes via `OfflineAudioContext.decodeAudioData`
- *    BEFORE reaching the AudioEncoder. Node has no WebAudio, so we install a
- *    minimal OfflineAudioContext mock whose decodeAudioData resolves to empty
- *    PCM (mirroring `compressAudio.decodeOffMainThread.test.ts`), letting the
- *    mocked AudioEncoder.isConfigSupported rejection be what surfaces.
+ * mocked AudioEncoder, capturing the module's registered `self.onmessage` and
+ * aliasing `globalThis.self` (Node has no `self`). The worker decodes raw bytes
+ * via `OfflineAudioContext.decodeAudioData` before reaching the AudioEncoder,
+ * so a minimal decode mock returning empty PCM lets the AudioEncoder rejection
+ * surface.
  */
 
 type OnMessage = (ev: { data: unknown }) => void;
@@ -49,7 +40,7 @@ async function flush(): Promise<void> {
     }
 }
 
-describe('media-compression-review MAJOR: audio worker surfaces DOMException.name', () => {
+describe('audio worker surfaces DOMException.name', () => {
     const originalAudioEncoder = (globalThis as Record<string, unknown>).AudioEncoder;
     const originalOfflineAudioContext = (globalThis as Record<string, unknown>).OfflineAudioContext;
 

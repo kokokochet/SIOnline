@@ -1602,35 +1602,35 @@ Package authors are responsible for package content. The package will be automat
 		computer: 'Bot',
 		computerAccountsMissing: 'Računarski nalozi nisu učitani. Pokušajte da ponovo učitate igru',
 		computerPlayers: 'Botovi',
-		compressing: 'Komprimovanje...', // [NEEDS NATIVE REVIEW] sr
-		compressionFailed: 'Kompresija nije uspela', // [NEEDS NATIVE REVIEW] sr
-		compressMedia: 'Komprimuj medije', // [NEEDS NATIVE REVIEW] sr
-		compressionLow: 'Nisko', // [NEEDS NATIVE REVIEW] sr
-		compressionMedium: 'Srednje', // [NEEDS NATIVE REVIEW] sr
-		compressionHigh: 'Visoko', // [NEEDS NATIVE REVIEW] sr
-		compressionSettings: 'Podešavanja kompresije', // [NEEDS NATIVE REVIEW] sr
-		fileTooBigAfterCompression: 'Fajl je prevelik nakon kompresije ({0} MB)', // [NEEDS NATIVE REVIEW] sr
-		compressAllMedia: 'Komprimuj sve medije', // [NEEDS NATIVE REVIEW] sr
-		compressionIrreversible: 'Ova operacija ne može biti opozvana. Prvo sačuvajte kopiju paketa ako je potrebno.', // [NEEDS NATIVE REVIEW] sr
-		compressionStart: 'Komprimuj', // [NEEDS NATIVE REVIEW] sr
-		compressionNoMedia: 'U paketu nema referenciranih medijskih fajlova', // [NEEDS NATIVE REVIEW] sr
-		compressionProgress: '{0} od {1}', // [NEEDS NATIVE REVIEW] sr
-		compressionDoneSummary: 'Komprimovano {0} od {1} fajla, ušteđeno {2}', // [NEEDS NATIVE REVIEW] sr (one)
-		compressionDoneSummary2: 'Komprimovano {0} od {1} fajla, ušteđeno {2}', // [NEEDS NATIVE REVIEW] sr (few — genitive sg after "od", same spelling as one)
-		compressionDoneSummary5: 'Komprimovano {0} od {1} fajlova, ušteđeno {2}', // [NEEDS NATIVE REVIEW] sr (many)
-		compressionCancelled: 'Kompresija otkazana. Paket nije izmenjen.', // [NEEDS NATIVE REVIEW] sr
+		compressing: 'Komprimovanje...',
+		compressionFailed: 'Kompresija nije uspela',
+		compressMedia: 'Komprimuj medije',
+		compressionLow: 'Nisko',
+		compressionMedium: 'Srednje',
+		compressionHigh: 'Visoko',
+		compressionSettings: 'Podešavanja kompresije',
+		fileTooBigAfterCompression: 'Fajl je prevelik nakon kompresije ({0} MB)',
+		compressAllMedia: 'Komprimuj sve medije',
+		compressionIrreversible: 'Ova operacija ne može biti opozvana. Prvo sačuvajte kopiju paketa ako je potrebno.',
+		compressionStart: 'Komprimuj',
+		compressionNoMedia: 'U paketu nema referenciranih medijskih fajlova',
+		compressionProgress: '{0} od {1}',
+		compressionDoneSummary: 'Komprimovano {0} od {1} fajla, ušteđeno {2}',
+		compressionDoneSummary2: 'Komprimovano {0} od {1} fajla, ušteđeno {2}',
+		compressionDoneSummary5: 'Komprimovano {0} od {1} fajlova, ušteđeno {2}',
+		compressionCancelled: 'Kompresija otkazana. Paket nije izmenjen.',
 		unitMB: 'MB',
-		compressionPresetImages: 'Kvalitet slika', // [NEEDS NATIVE REVIEW] sr
-		compressionPresetAudio: 'Kvalitet zvuka', // [NEEDS NATIVE REVIEW] sr
-		compressionPresetVideo: 'Kvalitet videa', // [NEEDS NATIVE REVIEW] sr
-		compressionCancelling: 'Otkazivanje…', // [NEEDS NATIVE REVIEW] sr
-		compressionHistoryNote: 'Istorija izmenjenih paketa', // [NEEDS NATIVE REVIEW] sr
-		compressionAudioNotSupported: 'Audio kompresija nije podržana u ovom pregledaču', // [NEEDS NATIVE REVIEW] sr
-		compressionVideoNotSupported: 'Video kompresija nije podržana u ovom pregledaču', // [NEEDS NATIVE REVIEW] sr
-		compressionDisabledHint: 'Kompresija je isključena', // [NEEDS NATIVE REVIEW] sr
-		compressionFailedSummary: 'Kompresija nije uspela: {0} od {1} fajlova', // [NEEDS NATIVE REVIEW] sr
-		compressionPartialWarning: 'Neki fajlovi nisu mogli biti komprimovani', // [NEEDS NATIVE REVIEW] sr
-		compressionUnsupportedFiles: 'Nepodržani fajlovi su preskočeni: {0}', // [NEEDS NATIVE REVIEW] sr
+		compressionPresetImages: 'Kvalitet slika',
+		compressionPresetAudio: 'Kvalitet zvuka',
+		compressionPresetVideo: 'Kvalitet videa',
+		compressionCancelling: 'Otkazivanje…',
+		compressionHistoryNote: 'Istorija izmenjenih paketa',
+		compressionAudioNotSupported: 'Audio kompresija nije podržana u ovom pregledaču',
+		compressionVideoNotSupported: 'Video kompresija nije podržana u ovom pregledaču',
+		compressionDisabledHint: 'Kompresija je isključena',
+		compressionFailedSummary: 'Kompresija nije uspela: {0} od {1} fajlova',
+		compressionPartialWarning: 'Neki fajlovi nisu mogli biti komprimovani',
+		compressionUnsupportedFiles: 'Nepodržani fajlovi su preskočeni: {0}',
 		connected: '{0} se povezao(la)',
 		connectionClosed: 'Veza sa serverom je prekinuta!',
 		connectionReconnecting: 'Veza je izgubljena, pokušavamo ponovno povezivanje…',
@@ -2352,35 +2352,35 @@ Autori paketa odgovorni su za sadržaj paketa. Paket će biti automatski obrisan
 		computer: 'Bot',
 		computerAccountsMissing: 'Kompyuter akkauntlari yuklanmadi. o‘yinni qayta yuklashga urinib ko‘ring',
 		computerPlayers: 'Botlar',
-		compressing: 'Siqilmoqda...', // [NEEDS NATIVE REVIEW] uz
-		compressionFailed: 'Siqish amalga oshmadi', // [NEEDS NATIVE REVIEW] uz
-		compressMedia: 'Mediani siqish', // [NEEDS NATIVE REVIEW] uz
-		compressionLow: 'Past', // [NEEDS NATIVE REVIEW] uz
-		compressionMedium: "O'rta", // [NEEDS NATIVE REVIEW] uz
-		compressionHigh: 'Yuqori', // [NEEDS NATIVE REVIEW] uz
-		compressionSettings: 'Siqish sozlamalari', // [NEEDS NATIVE REVIEW] uz
-		fileTooBigAfterCompression: 'Siqishdan keyin fayl hajmi juda katta ({0} MB)', // [NEEDS NATIVE REVIEW] uz
-		compressAllMedia: 'Barcha mediani siqish', // [NEEDS NATIVE REVIEW] uz
-		compressionIrreversible: 'Bu operatsiyani bekor qilib bo‘lmaydi. Kerak bo‘lsa, avval paket nusxasini saqlang.', // [NEEDS NATIVE REVIEW] uz
-		compressionStart: 'Siqish', // [NEEDS NATIVE REVIEW] uz
-		compressionNoMedia: 'Paketda siqish uchun media fayllar yo‘q', // [NEEDS NATIVE REVIEW] uz
-		compressionProgress: '{0} / {1}', // [NEEDS NATIVE REVIEW] uz
-		compressionDoneSummary: '{0} / {1} fayl siqildi, {2} tejaldi', // [NEEDS NATIVE REVIEW] uz
-		compressionDoneSummary2: '{0} / {1} fayl siqildi, {2} tejaldi', // [NEEDS NATIVE REVIEW] uz (Uzbek: no number inflection)
-		compressionDoneSummary5: '{0} / {1} fayl siqildi, {2} tejaldi', // [NEEDS NATIVE REVIEW] uz (Uzbek: no number inflection)
-		compressionCancelled: 'Siqish bekor qilindi. Paket o‘zgartirilmadi.', // [NEEDS NATIVE REVIEW] uz
+		compressing: 'Siqilmoqda...',
+		compressionFailed: 'Siqish amalga oshmadi',
+		compressMedia: 'Mediani siqish',
+		compressionLow: 'Past',
+		compressionMedium: "O'rta",
+		compressionHigh: 'Yuqori',
+		compressionSettings: 'Siqish sozlamalari',
+		fileTooBigAfterCompression: 'Siqishdan keyin fayl hajmi juda katta ({0} MB)',
+		compressAllMedia: 'Barcha mediani siqish',
+		compressionIrreversible: 'Bu operatsiyani bekor qilib bo‘lmaydi. Kerak bo‘lsa, avval paket nusxasini saqlang.',
+		compressionStart: 'Siqish',
+		compressionNoMedia: 'Paketda siqish uchun media fayllar yo‘q',
+		compressionProgress: '{0} / {1}',
+		compressionDoneSummary: '{0} / {1} fayl siqildi, {2} tejaldi',
+		compressionDoneSummary2: '{0} / {1} fayl siqildi, {2} tejaldi',
+		compressionDoneSummary5: '{0} / {1} fayl siqildi, {2} tejaldi',
+		compressionCancelled: 'Siqish bekor qilindi. Paket o‘zgartirilmadi.',
 		unitMB: 'MB',
-		compressionPresetImages: 'Rasm sifati', // [NEEDS NATIVE REVIEW] uz
-		compressionPresetAudio: 'Audio sifati', // [NEEDS NATIVE REVIEW] uz
-		compressionPresetVideo: 'Video sifati', // [NEEDS NATIVE REVIEW] uz
-		compressionCancelling: 'Bekor qilinmoqda…', // [NEEDS NATIVE REVIEW] uz
-		compressionHistoryNote: 'O‘zgartirilgan paketlar tarixi', // [NEEDS NATIVE REVIEW] uz
-		compressionAudioNotSupported: 'Audio siqish bu brauzerda qo‘llab-quvvatlanmaydi', // [NEEDS NATIVE REVIEW] uz
-		compressionVideoNotSupported: 'Video siqish bu brauzerda qo‘llab-quvvatlanmaydi', // [NEEDS NATIVE REVIEW] uz
-		compressionDisabledHint: 'Siqish o‘chirilgan', // [NEEDS NATIVE REVIEW] uz
-		compressionFailedSummary: 'Siqish amalga oshmadi: {0} / {1} fayldan', // [NEEDS NATIVE REVIEW] uz
-		compressionPartialWarning: "Ba'zi fayllarni siqib bo‘lmadi", // [NEEDS NATIVE REVIEW] uz
-		compressionUnsupportedFiles: 'Qo‘llab-quvvatlanmaydigan fayllar o‘tkazib yuborildi: {0}', // [NEEDS NATIVE REVIEW] uz
+		compressionPresetImages: 'Rasm sifati',
+		compressionPresetAudio: 'Audio sifati',
+		compressionPresetVideo: 'Video sifati',
+		compressionCancelling: 'Bekor qilinmoqda…',
+		compressionHistoryNote: 'O‘zgartirilgan paketlar tarixi',
+		compressionAudioNotSupported: 'Audio siqish bu brauzerda qo‘llab-quvvatlanmaydi',
+		compressionVideoNotSupported: 'Video siqish bu brauzerda qo‘llab-quvvatlanmaydi',
+		compressionDisabledHint: 'Siqish o‘chirilgan',
+		compressionFailedSummary: 'Siqish amalga oshmadi: {0} / {1} fayldan',
+		compressionPartialWarning: "Ba'zi fayllarni siqib bo‘lmadi",
+		compressionUnsupportedFiles: 'Qo‘llab-quvvatlanmaydigan fayllar o‘tkazib yuborildi: {0}',
 		connected: '{0} ulandi',
 		connectionClosed: 'Server bilan aloqa uzildi!',
 		connectionReconnecting: 'Aloqa uzildi, qayta ulanishga urinilmoqda…',

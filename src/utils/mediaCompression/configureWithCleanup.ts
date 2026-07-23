@@ -12,9 +12,7 @@ export interface ConfigureWithCleanupArgs {
 
 /**
  * Runs encoder.configure + decoder.configure, closing BOTH codecs if either
- * throws synchronously. The video worker used to call them without a guard,
- * leaking native codec state on a configure throw (review MAJOR:
- * "Encoder/decoder leak на configure throw").
+ * throws synchronously, to avoid leaking native codec state on a configure throw.
  *
  * Each close is wrapped in its own try/catch: a secondary throw from
  * closeEncoder (e.g. InvalidStateError on close-after-failed-configure)

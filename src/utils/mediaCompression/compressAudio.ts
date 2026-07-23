@@ -9,21 +9,13 @@ import { WORKER_TIMEOUT_MS } from './limits';
 /**
  * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.
  *
- * DECODE RUNS IN THE WORKER. The main thread posts the raw encoded bytes
- * (`{data, options}`) and never materializes PCM — a 200 MB MP3 no longer
- * peaks at ~3.6 GB on the main thread (review MAJOR Memory/OOM: "Audio PCM
- * on main thread"). The worker decodes via `OfflineAudioContext.decodeAudioData`,
- * enforces `MAX_DECODED_AUDIO_BYTES`, then encodes to Opus (options.bitrate,
- * 48 kHz) and muxes into OGG.
- *
- * Output extension: .opus. Opus is ~1.5-2× more efficient than MP3.
+ * Decode runs in the worker so PCM never touches the main thread. Output is
+ * Opus (48 kHz, options.bitrate) muxed into OGG with a .opus extension.
  *
  * Passthrough (returns the original unchanged) when WebCodecs AudioEncoder is
  * unavailable or the compressed output is empty/larger than the original.
- * Decode/encode failures and worker timeouts REJECT with a named error
- * (preserving `DOMException.name`) so callers can surface them: the bulk thunk
- * records a per-file error, and ScreensView shows the compressionFailed toast
- * (the intended single-file policy). AbortError propagates for cancel handling.
+ * Decode/encode failures and worker timeouts reject with a named error
+ * (preserving `DOMException.name`); AbortError propagates for cancel handling.
  */
 export async function compressAudio(
     file: File,
@@ -57,9 +49,8 @@ export async function compressAudio(
                 };
 
                 worker.onerror = (e: ErrorEvent) => {
-                    // Prevent the uncaught worker error from reaching the
-                    // window error handlers (dev-server overlay) — the
-                    // compression failure is handled gracefully via reject.
+                    // Suppress the uncaught worker error (dev-server overlay);
+                    // the failure is surfaced via reject instead.
                     e.preventDefault();
                     reject(namedError('Error', e.message || 'Worker error'));
                 };
@@ -80,12 +71,10 @@ export async function compressAudio(
 
         const compressedData = new Uint8Array(compressedBuffer);
 
-        // Safety check: reject empty or larger-than-original output
         if (compressedData.length === 0 || compressedData.length >= originalData.length) {
             return passthroughMedia(originalData, file.name);
         }
 
-        // Change extension to .opus (Opus in OGG container)
         const baseName = file.name.replace(/\.[^.]+$/, '');
         const newFileName = `${baseName}.opus`;
 

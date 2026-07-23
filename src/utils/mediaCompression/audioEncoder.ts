@@ -5,15 +5,8 @@ import { waitForQueueDrain } from './workers/workerBackpressure';
 
 /**
  * Encodes planar float32 PCM into Opus packets and muxes them into an OGG
- * container.
- *
- * Extracted from audioCompression.worker.ts so the encoding logic — in
- * particular the output/error-callback error handling — is typechecked and
- * unit-tested in CI. The worker itself is mocked at the module boundary in
- * tests and otherwise only compiled by ts-loader; importing it directly under
- * Jest's `node` test env throws `ReferenceError: self is not defined` at module
- * top level. This module has no `self` / `postMessage` references and is safe
- * to import under any Jest environment.
+ * container. Lives outside the worker so it can be typechecked and unit-tested
+ * directly (the worker throws `self is not defined` under Jest's node env).
  */
 export async function encodeAudioToOpus(
     channels: ArrayBuffer[],
@@ -23,15 +16,11 @@ export async function encodeAudioToOpus(
 ): Promise<Uint8Array> {
     const encodedPackets: { data: Uint8Array; timestamp: number; duration: number }[] = [];
 
-    // Capture the reject fn so the WebCodecs `error` callback — invoked from
-    // the implementation's OWN dispatch context, NOT from this async call
-    // stack — can reject the returned promise. A bare `throw` inside the
-    // callback does NOT propagate to the async function's implicit Promise:
-    // it escapes WebCodecs' invocation, the original error info (incl.
-    // DOMException.name) is lost, and a later `encoder.flush()` rejects with a
-    // generic InvalidStateError. Explicit reject + Promise.race preserves the
-    // original AudioEncoder error (Resolution 15). (See review MAJOR "Audio
-    // worker errors mislabeled".)
+    // The WebCodecs error callback runs from its own dispatch context, not this
+    // async stack, so a bare throw inside it does NOT propagate to the returned
+    // promise — flush() would later reject with a generic InvalidStateError,
+    // losing the original DOMException.name. Capture reject and race it against
+    // flush to surface the original error.
     let rejectOuter!: (e: unknown) => void;
     const errored = new Promise<never>((_, reject) => {
         rejectOuter = reject;
@@ -39,12 +28,10 @@ export async function encodeAudioToOpus(
 
     const encoder = new AudioEncoder({
         output: (chunk: EncodedAudioChunk) => {
-            // Mirror videoCompression.worker.ts: WebCodecs does NOT route
-            // output-callback errors to the error callback, so a throw in
-            // copyTo/push would otherwise be swallowed and the worker would
-            // post { type: 'done' } with a truncated/corrupt OGG. Route to
-            // rejectOuter so the Promise.race(flush, errored) below surfaces it
-            // with the ORIGINAL error (T11's try/catch intent, preserved).
+            // WebCodecs does NOT route output-callback errors to the error
+            // callback, so a throw here would be swallowed and the worker would
+            // post { type: 'done' } with a truncated OGG. Route to rejectOuter
+            // so Promise.race(flush, errored) surfaces it.
             try {
                 const chunkData = new Uint8Array(chunk.byteLength);
                 chunk.copyTo(chunkData);
@@ -54,21 +41,15 @@ export async function encodeAudioToOpus(
                     duration: chunk.duration ?? 0,
                 });
             } catch (e) {
-                // Reject raw: a DOMException (e.g. copyTo on a detached buffer
-                // throws InvalidStateError) is NOT instanceof Error, so wrapping
-                // as `new Error(String(e))` would drop `.name`. rejectOuter feeds
-                // Promise.race → encodeAudioToOpus throw → the worker's
-                // buildErrorResponse, which preserves `.name` (mirrors the
-                // error callback's rejectOuter(e) below).
+                // Reject raw: DOMException is not instanceof Error, so wrapping
+                // as `new Error(String(e))` would drop its programmatic `.name`.
                 rejectOuter(e);
             }
         },
         error: (e: DOMException) => {
-            // Reject with the raw DOMException so its programmatic `.name`
-            // (NotSupportedError, …) is preserved end-to-end through the
-            // worker's buildErrorResponse. Wrapping in `new Error(...)` would
-            // reset `.name` to 'Error' and lose the only locale-independent
-            // diagnostic (review MAJOR "DOMException.name lost").
+            // Reject raw so the DOMException's `.name` (NotSupportedError, …)
+            // is preserved end-to-end; wrapping in `new Error(...)` would reset
+            // it to 'Error'.
             rejectOuter(e);
         },
     });
@@ -91,19 +72,13 @@ export async function encodeAudioToOpus(
         // Extract channel data from transferred ArrayBuffers.
         const channelData: Float32Array[] = channels.map(buf => new Float32Array(buf));
 
-        // Feed PCM to the encoder. Extracted into `feedPcmToOpus` so the
-        // per-chunk try/finally (close AudioData even when encode throws) and
-        // the T22 backpressure gate are unit-testable in isolation.
+        // Feed PCM to the encoder (extracted for unit testing).
         await feedPcmToOpus(encoder, channelData, totalFrames, numberOfChannels);
 
-        // Race the error signal against flush, with `errored` FIRST: if the
-        // encoder errored during the loop (or an output-callback throw called
-        // rejectOuter), `errored` is already settled and Promise.race prefers
-        // it over a fulfilled/rejected flush() — surfacing the ORIGINAL error
-        // (DOMException name + message, or the copyTo throw) instead of a
-        // generic InvalidStateError / 'No audio data encoded'. (Putting flush
-        // first would let a settled flush win and lose the named error, which
-        // is exactly the R15 regression this avoids.)
+        // Race the error signal against flush with `errored` FIRST: if the
+        // encoder errored during the loop it is already settled and wins the
+        // race, surfacing the original error instead of a generic
+        // InvalidStateError / 'No audio data encoded'.
         await Promise.race([errored, encoder.flush()]);
 
         if (encodedPackets.length === 0) {
@@ -120,17 +95,9 @@ export async function encodeAudioToOpus(
  * Feeds planar PCM to the AudioEncoder in fixed-size (20ms) chunks.
  *
  * Each chunk's AudioData is closed in a `finally` so a throw from
- * `encoder.encode()` (e.g. InvalidStateError) cannot leak native AudioData —
- * the symmetry that the video worker already has for VideoFrame.
- *
- * Before each encode the loop awaits `waitForQueueDrain(encoder)` (T22 Vector 3
- * backpressure): a long input would otherwise queue hundreds of chunks in a
- * tight loop, peak native memory and OOM. Keeping the drain inside the
- * extracted helper preserves that guarantee after the refactor (the plan's
- * original extraction predates T22 and omitted it).
- *
- * Exported (and intentionally minimal in its dependencies) so the leak guard
- * can be unit-tested without spinning up the full WebCodecs encoder pipeline.
+ * `encoder.encode()` cannot leak native AudioData. Before each encode the loop
+ * awaits `waitForQueueDrain(encoder)`: a long input would otherwise queue
+ * hundreds of chunks in a tight loop, peak native memory and OOM.
  *
  * @internal - exercised directly only by tests; production callers go through encodeAudioToOpus.
  */
@@ -144,12 +111,11 @@ export async function feedPcmToOpus(
     const chunkFrameCount = Math.floor((OPUS_SAMPLE_RATE * chunkDuration) / 1000);
 
     for (let offset = 0; offset < totalFrames; offset += chunkFrameCount) {
-        // Vector 3 backpressure (T22): yield while the encoder's native queue
-        // is deep to bound peak memory on long inputs.
+        // Yield while the encoder's native queue is deep to bound peak memory
+        // on long inputs.
         await waitForQueueDrain(encoder);
         const frameCount = Math.min(chunkFrameCount, totalFrames - offset);
 
-        // Build planar float32 buffer (f32-planar format) — bulk copy via .set()
         const planarData = new Float32Array(frameCount * numberOfChannels);
         for (let ch = 0; ch < numberOfChannels; ch += 1) {
             planarData.set(channelData[ch].subarray(offset, offset + frameCount), ch * frameCount);

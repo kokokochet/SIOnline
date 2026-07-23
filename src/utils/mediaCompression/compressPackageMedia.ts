@@ -253,17 +253,10 @@ export function renameMediaReferences(pack: Package, renames: Map<string, string
 /**
  * Applies staged compressed files to a zip with all-or-nothing atomicity.
  *
- * JSZip is a class instance that Immer cannot draft — mutations to `zip.files`
- * persist even if the surrounding Immer reducer throws. To honor the
- * all-or-nothing contract documented on `bulkMediaCompressed`, this helper
- * snapshots the `files` map and restores it on any throw.
- *
- * A shallow `{...zip.files}` clone is sufficient because JSZip never mutates an
- * existing `ZipObject`: `file()` assigns a brand-new object to a key
- * (`node_modules/jszip/lib/object.js:88`) and `remove()` deletes a key (`:288`,
- * `:295`). Restoring the snapshot therefore brings back the exact pre-call
- * key→ZipObject references; new objects created mid-loop become unreachable.
- * This is the same mechanism the slice's `undo()` already relies on.
+ * JSZip is a class instance Immer cannot draft — `file()`/`remove()` mutate
+ * `zip.files` even if the surrounding reducer throws. This helper snapshots
+ * the `files` map and restores it on any throw. A shallow clone suffices
+ * because JSZip replaces (never mutates) existing ZipObject entries.
  *
  * @returns Rename map `${type}:${oldValue}` → `newValue` (identity renames
  * excluded), for the caller to feed to `renameMediaReferences`.

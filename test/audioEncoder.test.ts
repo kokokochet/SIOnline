@@ -101,12 +101,7 @@ describe('audioEncoder output-callback error handling', () => {
     });
 });
 
-/**
- * T22: Vector 3 encode-loop backpressure + Resolution 15 name-bearing error
- * callback. These drive encodeAudioToOpus's own encode loop (not the helper in
- * isolation), so they live here next to the T11 output-callback tests.
- */
-describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callback', () => {
+describe('encodeAudioToOpus: backpressure + error callback', () => {
     const originalAudioEncoder = (globalThis as { AudioEncoder?: unknown }).AudioEncoder;
     const originalAudioData = (globalThis as { AudioData?: unknown }).AudioData;
 
@@ -119,8 +114,8 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
      * Mock AudioEncoder whose `encodeQueueSize` is controllable (so the encode
      * loop's `waitForQueueDrain` gate is observable) and whose `flush` either
      * resolves or never settles (so Promise.race(flush, errored) is decided by
-     * the error callback, which is the whole point of Resolution 15). The ctor
-     * init is captured so a test can fire the error callback on demand.
+     * the error callback). The ctor init is captured so a test can fire the
+     * error callback on demand.
      */
     function installControllableEncoder(opts: {
         initialQueueSize: number;
@@ -166,7 +161,7 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         jest.restoreAllMocks();
     });
 
-    test('encode loop awaits waitForQueueDrain(encoder) before encoding (Vector 3 backpressure)', async () => {
+    test('encode loop awaits waitForQueueDrain(encoder) before encoding', async () => {
         const backpressure = await import('../src/utils/mediaCompression/workers/workerBackpressure');
         const drainSpy = jest.spyOn(backpressure, 'waitForQueueDrain');
 
@@ -186,8 +181,7 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         );
 
         // isConfigSupported resolves on a microtask; poll until the loop has
-        // invoked waitForQueueDrain. Pre-T22 the helper is never called from
-        // the encode loop, so the poll exhausts and the expectation fails (RED).
+        // invoked waitForQueueDrain.
         for (let i = 0; i < 50 && drainSpy.mock.calls.length === 0; i++) {
             await Promise.resolve();
         }
@@ -199,7 +193,7 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         await settled;
     });
 
-    test('error callback rejects with the raw DOMException, preserving .name (Resolution 15 / T24)', async () => {
+    test('error callback rejects with the raw DOMException, preserving .name', async () => {
         // flush never resolves: Promise.race(flush, errored) MUST be decided by
         // rejectOuter firing in the error callback — a bare throw in the
         // WebCodecs error callback would NOT reject the async function's
@@ -218,11 +212,10 @@ describe('encodeAudioToOpus: Vector 3 backpressure + Resolution 15 error callbac
         ctrl.fireError(domError);
 
         const err = await errP;
-        // T24: the raw DOMException is propagated unchanged (rejectOuter(e)),
-        // so its programmatic .name survives end-to-end and buildErrorResponse
-        // lifts it to the worker wire {type:'error'; name; error}. The message
-        // no longer carries the "AudioEncoder error:" prefix — identity now
-        // travels via .name, not a locale-dependent prefix string.
+        // The raw DOMException is propagated unchanged (rejectOuter(e)), so its
+        // programmatic .name survives end-to-end and buildErrorResponse lifts it
+        // to the worker wire {type:'error'; name; error}. Identity travels via
+        // .name, not a locale-dependent prefix string.
         expect(err).toBe(domError);
         expect((err as { name: string }).name).toBe('NotSupportedError');
         expect((err as { message: string }).message).toBe('codec rejected');

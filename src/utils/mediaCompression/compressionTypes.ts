@@ -18,10 +18,7 @@ export interface ImageCompressionOptions {
     /**
      * When true, skip the lossy canvas re-encode and return the file unchanged.
      * Preserves ICC profiles, bit depth, and wide gamut that canvas would clip
-     * to 8-bit sRGB. Callers (e.g. a future "lossless" preset) opt in here.
-     *
-     * NOTE: intentionally forward-looking — no production caller sets this as
-     * of Phase 5. Exempt from the Phase 11 dead-code audit; do not remove.
+     * to 8-bit sRGB.
      */
     lossless?: boolean;
 }
@@ -90,10 +87,8 @@ export type WorkerCompressResponse =
  * Message from main thread to audio worker — raw encoded bytes.
  *
  * Decoding (decodeAudioData) runs INSIDE the worker to keep multi-hundred-MB
- * PCM off the main thread (review MAJOR Memory/OOM: "Audio PCM on main
- * thread"). The worker probes OfflineAudioContext / AudioContext availability
- * and throws if neither exists (caller surfaces as passthrough). This is the
- * post-Plan-03 shape (Section B's `AudioWorkerRequest` post-Plan-03 arm).
+ * PCM off the main thread. The worker probes OfflineAudioContext / AudioContext
+ * availability and throws if neither exists (caller surfaces as passthrough).
  */
 export interface AudioWorkerRequest {
     /** Raw encoded audio bytes (MP3, WAV, OGG, …). Worker decodes via decodeAudioData. */

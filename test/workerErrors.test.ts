@@ -80,20 +80,15 @@ describe('workerErrors', () => {
     });
 });
 
-describe('media-compression-review MAJOR: Audio worker errors mislabeled + DOMException.name lost', () => {
+describe('Audio worker errors mislabeled + DOMException.name lost', () => {
     /**
-     * Enumerates the 8 reject sites identified in the review and asserts each
-     * one now preserves the DOMException name end-to-end through buildErrorResponse.
-     * Sites (line numbers on feat/media-compress HEAD):
-     *   audioEncoder.ts:  L70 (encoder error cb), L84 (not supported),
-     *                      L120 (no audio encoded), L127 (flush catch),
-     *                      L131 (isConfigSupported catch — the headline)
-     *   videoCompression.worker.ts:  L225 (encoder error cb), L244 (decoder error cb),
-     *                                 L273 (flush catch)
-     * (The outer onmessage catches — audio worker L30-36, video L27-33 — route
-     * everything through buildErrorResponse, covered by the buildErrorResponse
-     * tests above. Sites above are in audioEncoder.ts because T11 extracted
-     * encodeAudioToOpus there.)
+     * Enumerates the reject sites and asserts each preserves the DOMException
+     * name end-to-end through buildErrorResponse. Sites:
+     *   audioEncoder.ts: encoder error cb, not supported, no audio encoded,
+     *                    flush catch, isConfigSupported catch (the headline)
+     *   videoCompression.worker.ts: encoder error cb, decoder error cb, flush catch
+     * The outer onmessage catches route everything through buildErrorResponse,
+     * covered by the buildErrorResponse tests above.
      */
     const sites = [
         { site: 'audio L70 AudioEncoder error callback', thrown: domException('NotSupportedError', 'encoder died') },

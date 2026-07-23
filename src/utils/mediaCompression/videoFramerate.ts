@@ -11,7 +11,7 @@ export const FALLBACK_FRAMERATE = 30;
  * approximation of it.
  */
 const STANDARD_FRAMERATES = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
-const SNAP_TOLERANCE = 0.005; // 0.5%
+const SNAP_TOLERANCE = 0.005;
 
 /**
  * Computes the source video frame rate from MP4 track metadata:
@@ -38,8 +38,7 @@ export function getSourceFramerate(track: Pick<Track, 'nb_samples' | 'samples_du
     // first-match loop would snap a clean 24 fps source to 23.976 and a clean
     // 30 to 29.97. Picking the standard with the SMALLEST relative error
     // (within tolerance) disambiguates them: NTSC float noise (~1e-6) snaps to
-    // the NTSC rate, an exact integer snaps to itself. Tolerance constant is
-    // unchanged.
+    // the NTSC rate, an exact integer snaps to itself.
     let bestStandard: number | undefined;
     let bestRelativeError = SNAP_TOLERANCE;
     for (const standard of STANDARD_FRAMERATES) {

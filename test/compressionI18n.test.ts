@@ -1,6 +1,6 @@
 import { formatSavedBytes } from '../src/utils/mediaCompression/compressionI18n';
 
-describe('media-compression-review MAJOR i18n — locale-aware byte formatting', () => {
+describe('locale-aware byte formatting', () => {
 	it('uses a comma decimal separator for ru', () => {
 		// 1572864 bytes = 1.5 MiB exactly
 		expect(formatSavedBytes(1572864, 'ru', 'МБ')).toBe('1,5 МБ');

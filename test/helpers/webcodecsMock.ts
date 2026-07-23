@@ -2,8 +2,6 @@
  * Minimal mock factory for `AudioEncoder`. Returns a class whose static
  * `isConfigSupported` is controlled by the caller — enough to drive the audio
  * worker's `onmessage` end-to-end without a real WebCodecs implementation.
- *
- * Plan 10 (test infrastructure) expands this file into a full WebCodecs mock.
  */
 
 type IsConfigSupported = (config: unknown) => Promise<unknown>;
@@ -23,8 +21,6 @@ export function makeMockAudioEncoder(isConfigSupported: IsConfigSupported): type
  * assert close() was called. WebCodecs AudioData is unavailable in the node
  * test environment, so mediaCompression helpers that construct AudioData
  * require this mock installed on globalThis.
- *
- * Plan 10 (test infrastructure) expands this into a full WebCodecs mock.
  */
 export interface MockAudioDataInstance {
     close: jest.Mock;

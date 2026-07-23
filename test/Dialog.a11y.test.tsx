@@ -8,7 +8,7 @@ import Dialog from '../src/components/common/Dialog/Dialog';
 
 afterEach(cleanup);
 
-describe('media-compression-review MAJOR a11y — Dialog', () => {
+describe('Dialog', () => {
 	it('is a dialog with its title as the accessible name', () => {
 		const { getByRole } = render(
 			<Dialog id='a11y-dlg' title='Compression settings' onClose={jest.fn()}>
