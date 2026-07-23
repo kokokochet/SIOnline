@@ -14,6 +14,16 @@ import type { Sample } from 'mp4box';
  * Note: only presentation timestamps live here. Decode timestamps are assigned
  * by the caller at mux time (cumulative, in encoder output order) because the
  * encoder may reorder frames for B-frames — see videoCompression.worker.ts.
+ *
+ * Timescale guard (T29): corrupt track metadata (zero/negative/non-finite
+ * timescale) would produce NaN timestamps that silently corrupt the output; an
+ * InvalidStateError is thrown instead.
+ *
+ * Overflow (T69d): the multiplication `(cts - firstCts) * 1_000_000` can
+ * exceed Number.MAX_SAFE_INTEGER for long streams at high timescales (e.g. 4h
+ * at timescale=1e6 → 1.44e16). When the per-sample product is not a safe
+ * integer, switch to BigInt math for exactness; if the divided result itself is
+ * unsafe (>1000-year streams), throw.
  */
 export function getRebasedTimestamps(
     samples: Array<Pick<Sample, 'cts'>>,
@@ -31,6 +41,37 @@ export function getRebasedTimestamps(
         throw err;
     }
 
-    const firstCts = samples.length > 0 ? samples[0].cts : 0;
-    return samples.map((sample) => Math.round(((sample.cts - firstCts) * 1_000_000) / timescale));
+    if (samples.length === 0) {
+        return [];
+    }
+
+    const firstCts = samples[0].cts;
+    const result: number[] = new Array(samples.length);
+
+    for (let i = 0; i < samples.length; i += 1) {
+        const delta = samples[i].cts - firstCts;
+        const product = delta * 1_000_000;
+
+        if (Number.isSafeInteger(product)) {
+            // Normal path — unchanged. Small deltas (the common case) never
+            // approach MAX_SAFE_INTEGER, so this matches the historical
+            // Math.round((delta * 1e6) / timescale) exactly.
+            result[i] = Math.round(product / timescale);
+        } else {
+            // BigInt path: exact for any stream length / timescale. The float
+            // product has already lost precision, so recompute from the integer
+            // delta via BigInt and divide exactly.
+            const exact = Number((BigInt(delta) * 1_000_000n) / BigInt(timescale));
+            if (!Number.isSafeInteger(exact)) {
+                throw new Error(
+                    `getRebasedTimestamps: PTS overflow at sample ${i} ` +
+                    `(delta=${delta}, timescale=${timescale}); result ${exact} ` +
+                    'exceeds Number.MAX_SAFE_INTEGER.',
+                );
+            }
+            result[i] = exact;
+        }
+    }
+
+    return result;
 }
