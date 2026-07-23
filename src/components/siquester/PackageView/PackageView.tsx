@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../state/hooks';
+import { shallowEqual } from 'react-redux';
 import { Package, Question, Round, Theme, RoundTypes } from '../../../model/siquester/package';
 import localization from '../../../model/resources/localization';
 import { navigate } from '../../../utils/Navigator';
@@ -17,6 +18,7 @@ import {
 	redo,
 	defaultMediaCompressionState
 } from '../../../state/siquesterSlice';
+import type { SIQuesterState } from '../../../state/siquesterSlice';
 import PackageItem from './components/PackageItem';
 import RoundItem from './components/RoundItem';
 import ThemeItem from './components/ThemeItem';
@@ -31,11 +33,36 @@ import editImg from '../../../../assets/images/edit.png';
 
 enum Mode { Rounds, Questions, Media }
 
+/**
+ * Selects only the siquester fields PackageView actually renders. Returned as
+ * a fresh object, so for react-redux v8 to skip commits the consumer must pass
+ * `shallowEqual` as the equality function (the object identity changes every
+ * call even when the underlying fields are unchanged).
+ *
+ * Why named + exported: so the perf test can assert referential stability
+ * (`expect(after.X).toBe(before.X)` for every X) across an unrelated state
+ * change — the exact invariant react-redux v8 needs to skip the commit when
+ * paired with `shallowEqual`. Without this guard, every `bulkCompressionProgress`
+ * tick during a bulk run re-renders PackageView, which re-renders the entire
+ * questions grid.
+ */
+export const selectPackageViewSlice = (state: { siquester: SIQuesterState }) => ({
+	zip: state.siquester.zip,
+	pack: state.siquester.pack,
+	packageStats: state.siquester.packageStats,
+	packageTopLevelStats: state.siquester.packageTopLevelStats,
+	packageStatsLoading: state.siquester.packageStatsLoading,
+	showPackageStats: state.siquester.showPackageStats,
+	isNewPackage: state.siquester.isNewPackage,
+	history: state.siquester.history,
+});
+
 const PackageView: React.FC = () => {
 	const appDispatch = useAppDispatch();
-	const siquester = useAppSelector(state => state.siquester);
-	const { zip, pack, packageStats, packageTopLevelStats, packageStatsLoading, showPackageStats, isNewPackage, history } = siquester;
+	const { zip, pack, packageStats, packageTopLevelStats, packageStatsLoading, showPackageStats, isNewPackage, history } =
+		useAppSelector(selectPackageViewSlice, shallowEqual);
 	const currentItem = useAppSelector(selectCurrentItem);
+	const roundIndexFromState = useAppSelector(state => state.siquester.roundIndex);
 	const [roundIndex, setRoundIndex] = React.useState(0);
 	const [mode, setMode] = React.useState(Mode.Questions);
 	const [isEditMode, setIsEditMode] = React.useState(isNewPackage ?? false);
@@ -52,10 +79,10 @@ const PackageView: React.FC = () => {
 	}, [isNewPackage]);
 
 	React.useEffect(() => {
-		if (siquester.roundIndex !== undefined) {
-			setRoundIndex(siquester.roundIndex);
+		if (roundIndexFromState !== undefined) {
+			setRoundIndex(roundIndexFromState);
 		}
-	}, [siquester.roundIndex]);
+	}, [roundIndexFromState]);
 
 	const onUndo = () => appDispatch(undo());
 	const onRedo = () => appDispatch(redo());
