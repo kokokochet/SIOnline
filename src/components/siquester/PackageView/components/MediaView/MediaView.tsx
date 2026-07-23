@@ -35,7 +35,6 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 		html: []
 	});
 	const [loading, setLoading] = React.useState(true);
-	const [displayedFiles, setDisplayedFiles] = React.useState<MediaFile[]>([]);
 
 	const zipRevision = useAppSelector(state => state.siquester.zipRevision);
 
@@ -99,24 +98,12 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 		});
 
 		setMediaFiles(files);
-		setDisplayedFiles(files[activeTab]);
 		setLoading(false);
 	};
 
 	React.useEffect(() => {
 		loadMediaFiles();
 	}, [zip, zipRevision]);
-
-	React.useEffect(() => {
-		// Clear displayed files when switching tabs
-		setDisplayedFiles([]);
-		// Use a small delay to ensure the previous content is cleared before showing new content
-		const timer = setTimeout(() => {
-			setDisplayedFiles(mediaFiles[activeTab]);
-		}, 0);
-
-		return () => clearTimeout(timer);
-	}, [activeTab, mediaFiles]);
 
 	const getTabLabel = (tab: MediaTab, count: number): string => {
 		switch (tab) {
@@ -132,6 +119,15 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 				return `${tab} (${count})`;
 		}
 	};
+
+	// Derive displayed files from mediaFiles + activeTab — no intermediate
+	// "empty" state. The previous implementation did new→[]→new via setTimeout(0),
+	// which flashed "No files found" for one frame on every zip rescan
+	// (zipRevision bump). useMemo produces a single render with the new list.
+	const displayedFiles = React.useMemo(
+		() => mediaFiles[activeTab],
+		[mediaFiles, activeTab],
+	);
 
 	if (loading) {
 		return <div className="mediaView__loading">Loading media files...</div>;
