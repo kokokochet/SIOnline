@@ -1506,15 +1506,27 @@ export const siquesterSlice = createSlice({
 			}
 		},
 		bulkCompressionFinished: (state, action: PayloadAction<{ summary: BulkCompressionSummary }>) => {
-			if (state.bulkCompression) {
+			// Gate: only a running run can legitimately terminate as done. A
+			// late Finished dispatch (after Cancelled or after a prior Finished)
+			// must NOT clobber the terminal state. Also covers Phase 2's 'failed'
+			// phase (treated as terminal, like 'done'/'cancelled').
+			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.phase = 'done';
 				state.bulkCompression.completed = state.bulkCompression.total;
+				state.bulkCompression.currentFile = undefined;
 				state.bulkCompression.summary = action.payload.summary;
 			}
 		},
 		bulkCompressionCancelled: (state) => {
-			if (state.bulkCompression) {
+			// Gate: symmetric to Finished — only a running run can terminate
+			// as cancelled. Also clears the now-stale cancelRequested flag (the
+			// cancel has been acknowledged) and currentFile (no file is being
+			// processed anymore). completed is kept as informational (count at
+			// termination, used by the cancelled-summary UI).
+			if (state.bulkCompression?.phase === 'running') {
 				state.bulkCompression.phase = 'cancelled';
+				state.bulkCompression.cancelRequested = false;
+				state.bulkCompression.currentFile = undefined;
 			}
 		},
 		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
