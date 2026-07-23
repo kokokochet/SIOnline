@@ -19,6 +19,15 @@ import { validateVideoWorkerMessage } from '../workerInputValidation';
 import { configureWithCleanup } from '../configureWithCleanup';
 
 /**
+ * AAC muxer fallbacks for MP4 tracks whose `audio` box lacks explicit
+ * `sample_rate`/`channel_count`. Used twice: once for the muxer config and
+ * once for the passthrough `decoderConfig` — defined once here so the two
+ * sites cannot drift.
+ */
+const AAC_FALLBACK_SAMPLE_RATE = 44100;
+const AAC_FALLBACK_CHANNELS = 2;
+
+/**
  * postMessage(message, transfer) view of the worker global. Under the WebWorker
  * lib (`tsconfig.worker.json`) `self.postMessage` already has this overload
  * natively, so no cast is needed for correctness. This alias exists only so the
@@ -109,8 +118,8 @@ async function compressVideoData(
         audio: (audioTrack && isAAC)
             ? {
                   codec: 'aac',
-                  sampleRate: audioTrack.audio?.sample_rate ?? 44100,
-                  numberOfChannels: audioTrack.audio?.channel_count ?? 2,
+                  sampleRate: audioTrack.audio?.sample_rate ?? AAC_FALLBACK_SAMPLE_RATE,
+                  numberOfChannels: audioTrack.audio?.channel_count ?? AAC_FALLBACK_CHANNELS,
               }
             : undefined,
         fastStart: 'in-memory',
@@ -383,8 +392,8 @@ function passThroughAudio(
             muxer.addAudioChunk(chunk, {
                 decoderConfig: {
                     codec: track.codec,
-                    sampleRate: track.audio?.sample_rate ?? 44100,
-                    numberOfChannels: track.audio?.channel_count ?? 2,
+                    sampleRate: track.audio?.sample_rate ?? AAC_FALLBACK_SAMPLE_RATE,
+                    numberOfChannels: track.audio?.channel_count ?? AAC_FALLBACK_CHANNELS,
                 },
             });
             firstChunk = false;
