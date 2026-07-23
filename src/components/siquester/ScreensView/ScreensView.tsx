@@ -172,7 +172,14 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const [isCompressing, setIsCompressing] = React.useState(false);
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 	const compressionEnabled = mediaCompression.enabled;
-	const compressionOptions = resolveCompressionOptions(mediaCompression.presets);
+	// Memoize: resolveCompressionOptions allocates a fresh object every call,
+	// which would break downstream referential checks (and re-trigger any
+	// effect or memo keyed on compressionOptions). Recompute only when the
+	// presets selection actually changes.
+	const compressionOptions = React.useMemo(
+		() => resolveCompressionOptions(mediaCompression.presets),
+		[mediaCompression.presets],
+	);
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);
 	const fileInputRefs = React.useRef<Record<MediaContentType, HTMLInputElement | null>>({
