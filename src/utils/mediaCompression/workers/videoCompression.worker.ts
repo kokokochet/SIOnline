@@ -17,6 +17,7 @@ import { validateAvcLevel } from '../avcLevelValidation';
 import { waitForQueueDrain } from './workerBackpressure';
 import { validateVideoWorkerMessage } from '../workerInputValidation';
 import { configureWithCleanup } from '../configureWithCleanup';
+import { DtsAccumulator } from './dtsAccumulator';
 
 /**
  * AAC muxer fallbacks for MP4 tracks whose `audio` box lacks explicit
@@ -261,19 +262,23 @@ async function reencodeVideo(
         // the encoder reorders frames for B-frames into its own decode order,
         // and mp4-muxer requires DTS to be monotonically increasing in arrival
         // order — the source decode order cannot be assumed.
-        let nextDecodeTimestamp = 0;
-        const frameDurationFallback = Math.round(1_000_000 / framerate);
+        // Drift-bounded DTS accumulator. Math.round(1e6/fps) per fallback frame
+        // drifts ~712ms/2h for NTSC 29.97; the accumulator computes the fallback
+        // increment from a frame counter (added to nextDts, not replacing it) so
+        // total drift stays < 1 µs and DTS stays monotonic for mixed
+        // explicit/fallback streams. See dtsAccumulator.ts for the full rationale.
+        const dts = new DtsAccumulator(framerate);
 
         const encoder = new VideoEncoder({
             output: (chunk, metadata) => {
                 try {
+                    const nextDecodeTimestamp = dts.advance(chunk.duration);
                     // Clamp to >= 0: mp4-muxer writes ctts as a version-0 UNSIGNED
                     // u32, so a negative offset (legal for B-frames when the encoder
                     // ignores latencyMode:'realtime') wraps to ~4.29 billion and
                     // corrupts PTS order. Realtime mode should prevent this entirely;
                     // the clamp is the backstop.
                     const compositionTimeOffset = Math.max(0, chunk.timestamp - nextDecodeTimestamp);
-                    nextDecodeTimestamp += chunk.duration ?? frameDurationFallback;
                     muxer.addVideoChunk(chunk, metadata, chunk.timestamp, compositionTimeOffset);
                 } catch (err) {
                     // Reject raw: a DOMException (e.g. muxer addVideoChunk failure)
