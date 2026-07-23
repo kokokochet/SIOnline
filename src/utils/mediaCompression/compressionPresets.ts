@@ -15,7 +15,7 @@ export const lowPreset: CompressionOptions = {
     video: {
         maxHeight: 720,
         bitrate: 350_000,
-        codec: 'avc1.64001F',
+        codec: 'avc',
     },
 };
 
@@ -34,14 +34,13 @@ export const mediumPreset: CompressionOptions = {
     video: {
         maxHeight: 720,
         bitrate: 500_000,
-        codec: 'avc1.64001F',
+        codec: 'avc',
     },
 };
 
 /**
- * High quality preset — favors quality over file size.
- * Uses H.264 Level 4.0 (avc1.640028), which covers 1080p up to 30 fps;
- * 1080p60+ would require Level 4.2 (avc1.64002A).
+ * High quality preset — favors quality over file size. Output is H.264 (AVC);
+ * Mediabunny selects the appropriate profile/level for the target resolution.
  */
 export const highPreset: CompressionOptions = {
     image: {
@@ -57,7 +56,7 @@ export const highPreset: CompressionOptions = {
     video: {
         maxHeight: 1080,
         bitrate: 1_500_000,
-        codec: 'avc1.640028',
+        codec: 'avc',
     },
 };
 

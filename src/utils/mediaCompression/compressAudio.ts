@@ -1,21 +1,22 @@
-import { AudioCompressionOptions, CompressedMedia, AudioWorkerRequest, AudioWorkerResponse } from './compressionTypes';
+import { Input, Output, BufferTarget, BlobSource, OggOutputFormat, Conversion, MP3, WAVE, OGG, MP4, WEBM, FLAC } from 'mediabunny';
+import type { AudioCodec } from 'mediabunny';
+import { CompressedMedia, AudioCompressionOptions } from './compressionTypes';
 import { isAudioCompressionSupported } from './featureDetection';
-import { createAudioWorker } from './workerFactory';
-import { passthroughMedia } from './passthrough';
-import { abortRace } from './abortUtils';
-import { namedError } from './workerErrors';
-import { WORKER_TIMEOUT_MS } from './limits';
+import { passthroughFromFile } from './passthrough';
+import { runConversion } from './conversionRun';
 
 /**
- * Compresses an audio file using WebCodecs AudioEncoder in a Web Worker.
+ * Compresses an audio file by transcoding it to OGG/Opus via Mediabunny's
+ * high-level `Conversion` API. The input (MP3/WAV/OGG/MP4/WebM/FLAC) is
+ * decoded, resampled/remixed to 48 kHz / `options.channels`, re-encoded as
+ * Opus at `options.bitrate`, and muxed into an OGG container (`.opus`).
+ * Decode/encode, resampling and backpressure are all handled by Mediabunny —
+ * this replaces the former hand-rolled `AudioEncoder` loop and the custom
+ * 250-line OGG/Opus muxer.
  *
- * Decode runs in the worker so PCM never touches the main thread. Output is
- * Opus (48 kHz, options.bitrate) muxed into OGG with a .opus extension.
- *
- * Passthrough (returns the original unchanged) when WebCodecs AudioEncoder is
- * unavailable or the compressed output is empty/larger than the original.
- * Decode/encode failures and worker timeouts reject with a named error
- * (preserving `DOMException.name`); AbortError propagates for cancel handling.
+ * Progressive enhancement: when WebCodecs (`AudioEncoder`) is unavailable, the
+ * conversion is invalid, or the output is not smaller than the input, the
+ * original file is returned unchanged. `AbortSignal` aborts the conversion.
  */
 export async function compressAudio(
     file: File,
@@ -26,67 +27,50 @@ export async function compressAudio(
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    const originalData = new Uint8Array(await file.arrayBuffer());
-
     if (!isAudioCompressionSupported()) {
-        return passthroughMedia(originalData, file.name);
+        return passthroughFromFile(file);
     }
 
-    const worker = createAudioWorker();
+    const target = new BufferTarget();
+    const output = new Output({
+        format: new OggOutputFormat(),
+        target,
+    });
+    const input = new Input({
+        formats: [MP3, WAVE, OGG, MP4, WEBM, FLAC],
+        source: new BlobSource(file),
+    });
 
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
-        const compressedBuffer = await Promise.race([
-            new Promise<ArrayBuffer>((resolve, reject) => {
-                worker.onmessage = (e: MessageEvent<AudioWorkerResponse>) => {
-                    if (e.data.type === 'done' && e.data.data) {
-                        resolve(e.data.data);
-                    } else if (e.data.type === 'error') {
-                        reject(namedError(e.data.name ?? 'Error', e.data.error));
-                    } else if (e.data.type === 'cancelled') {
-                        reject(new DOMException('Aborted', 'AbortError'));
-                    }
-                };
+    const conversion = await Conversion.init({
+        input,
+        output,
+        audio: {
+            codec: options.codec as AudioCodec,
+            bitrate: options.bitrate,
+            numberOfChannels: options.channels,
+            sampleRate: 48000,
+        },
+        showWarnings: false,
+    });
 
-                worker.onerror = (e: ErrorEvent) => {
-                    // Suppress the uncaught worker error (dev-server overlay);
-                    // the failure is surfaced via reject instead.
-                    e.preventDefault();
-                    reject(namedError('Error', e.message || 'Worker error'));
-                };
-
-                const request: AudioWorkerRequest = {
-                    data: originalData.buffer.slice(0) as ArrayBuffer,
-                    options,
-                };
-
-                // Transfer the encoded input (zero-copy); PCM stays in the worker.
-                worker.postMessage(request, [request.data]);
-            }),
-            new Promise<ArrayBuffer>((_, reject) => {
-                timeoutId = setTimeout(() => reject(new Error('Audio compression worker timeout')), WORKER_TIMEOUT_MS);
-            }),
-            abortRace(signal, worker),
-        ]);
-
-        const compressedData = new Uint8Array(compressedBuffer);
-
-        if (compressedData.length === 0 || compressedData.length >= originalData.length) {
-            return passthroughMedia(originalData, file.name);
-        }
-
-        const baseName = file.name.replace(/\.[^.]+$/, '');
-        const newFileName = `${baseName}.opus`;
-
-        return {
-            data: compressedData,
-            fileName: newFileName,
-            originalSize: originalData.length,
-            compressedSize: compressedData.length,
-            wasCompressed: true,
-        };
-    } finally {
-        if (timeoutId) { clearTimeout(timeoutId); }
-        worker.terminate();
+    if (!conversion.isValid) {
+        return passthroughFromFile(file);
     }
+
+    await runConversion(conversion, signal);
+
+    const buffer = target.buffer;
+    if (!buffer || buffer.byteLength === 0 || buffer.byteLength >= file.size) {
+        return passthroughFromFile(file);
+    }
+
+    const data = new Uint8Array(buffer);
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    return {
+        data,
+        fileName: `${baseName}.opus`,
+        originalSize: file.size,
+        compressedSize: data.length,
+        wasCompressed: true,
+    };
 }

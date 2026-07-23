@@ -13,3 +13,14 @@ export function passthroughMedia(data: Uint8Array, fileName: string): Compressed
         wasCompressed: false,
     };
 }
+
+/**
+ * Reads a file lazily and returns it unchanged. Used by the audio/video
+ * compressors on every non-compressing path (unsupported codec, invalid
+ * conversion, output not smaller, aborted). The file is only read into memory
+ * when we actually fall through to passthrough.
+ */
+export async function passthroughFromFile(file: File): Promise<CompressedMedia> {
+    const data = new Uint8Array(await file.arrayBuffer());
+    return passthroughMedia(data, file.name);
+}

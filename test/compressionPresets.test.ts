@@ -17,7 +17,7 @@ describe('compressionPresets', () => {
         expect(lowPreset.audio.channels).toBe(2);
         expect(lowPreset.video.maxHeight).toBe(720);
         expect(lowPreset.video.bitrate).toBe(350_000);
-        expect(lowPreset.video.codec).toBe('avc1.64001F');
+        expect(lowPreset.video.codec).toBe('avc');
     });
 
     test('mediumPreset has balanced compression values', () => {
@@ -29,7 +29,7 @@ describe('compressionPresets', () => {
         expect(mediumPreset.audio.channels).toBe(2);
         expect(mediumPreset.video.maxHeight).toBe(720);
         expect(mediumPreset.video.bitrate).toBe(500_000);
-        expect(mediumPreset.video.codec).toBe('avc1.64001F');
+        expect(mediumPreset.video.codec).toBe('avc');
     });
 
     test('highPreset favors quality', () => {
@@ -41,8 +41,8 @@ describe('compressionPresets', () => {
         expect(highPreset.audio.channels).toBe(2);
         expect(highPreset.video.maxHeight).toBe(1080);
         expect(highPreset.video.bitrate).toBe(1_500_000);
-        // Level 4.0 (avc1.640028) required for 1080p
-        expect(highPreset.video.codec).toBe('avc1.640028');
+        // AVC base codec; Mediabunny selects profile/level for the target resolution.
+        expect(highPreset.video.codec).toBe('avc');
     });
 
     test('compressionPresets map has all three keys', () => {

@@ -53,14 +53,7 @@ module.exports = (env, argv) => {
 		},
 		module: {
 			rules: [
-				{
-					test: /\.worker\.tsx?$/,
-					use: [{
-						loader: 'ts-loader',
-						options: { configFile: path.resolve(__dirname, 'tsconfig.worker.json') },
-					}],
-				},
-				{ test: /\.tsx?$/, exclude: /\.worker\.tsx?$/, use: 'ts-loader' },
+				{ test: /\.tsx?$/, use: 'ts-loader' },
 				{ test: /\.css$/, use: argv.mode === 'development' ? ['style-loader', 'css-loader'] : ['style-loader', 'css-loader', 'postcss-loader'] },
 				{
 					test: /\.scss$/,

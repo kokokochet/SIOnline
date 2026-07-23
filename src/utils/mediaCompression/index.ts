@@ -17,16 +17,7 @@ export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
 } from './featureDetection';
-export { UnsupportedAudioCodecError, assertAudioMp4Compatible } from './audioCodecSupport';
-export { OGGSegmentTableOverflowError } from './oggOpusMuxer';
-export { MAX_MEDIA_BYTES, MAX_DECODED_AUDIO_BYTES } from './limits';
-export { formatWorkerError, namedError, buildErrorResponse } from './workerErrors';
-export type { WorkerErrorInfo, WorkerErrorResponse } from './workerErrors';
-export { WorkerValidationError, validateAudioWorkerMessage, validateVideoWorkerMessage } from './workerInputValidation';
-export { configureWithCleanup } from './configureWithCleanup';
-export type { ConfigureWithCleanupArgs } from './configureWithCleanup';
-export { validateAvcLevel } from './avcLevelValidation';
-export type { AvcLevelCheck } from './avcLevelValidation';
+export { MAX_MEDIA_BYTES } from './limits';
 export type {
     CompressibleMediaType,
     CompressedMedia,

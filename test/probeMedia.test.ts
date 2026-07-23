@@ -43,14 +43,14 @@ describe('decode-before-probe — fast pre-flight', () => {
 	test('video probe returns supported when VideoEncoder.isConfigSupported agrees', async () => {
 		installVideoEncoder(async () => ({ supported: true }));
 		const result = await probeMedia('video', compressionPresets.medium);
-		expect(result).toEqual({ type: 'video', supported: true, codec: 'avc1.64001F' });
+		expect(result).toEqual({ type: 'video', supported: true, codec: 'avc' });
 	});
 
 	test('video probe returns unsupported when VideoEncoder.isConfigSupported denies', async () => {
 		installVideoEncoder(async () => ({ supported: false }));
 		const result = await probeMedia('video', compressionPresets.medium);
 		expect(result.supported).toBe(false);
-		expect(result.codec).toMatch(/^avc1\./);
+		expect(result.codec).toBe('avc');
 	});
 
 	test('image probe is always supported (canvas)', async () => {

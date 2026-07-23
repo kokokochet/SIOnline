@@ -1,18 +1,24 @@
-import { CompressedMedia, VideoCompressionOptions, WorkerCompressRequest, WorkerCompressResponse } from './compressionTypes';
+import { Input, Output, BufferTarget, BlobSource, Mp4OutputFormat, Conversion, MP4, WEBM, QTFF } from 'mediabunny';
+import type { VideoCodec } from 'mediabunny';
+import { CompressedMedia, VideoCompressionOptions } from './compressionTypes';
 import { isVideoCompressionSupported } from './featureDetection';
-import { createVideoWorker } from './workerFactory';
-import { passthroughMedia } from './passthrough';
-import { abortRace } from './abortUtils';
-import { namedError } from './workerErrors';
-import { WORKER_TIMEOUT_MS } from './limits';
+import { passthroughFromFile } from './passthrough';
+import { runConversion } from './conversionRun';
 
 /**
- * Compresses a video file using a WebCodecs worker.
+ * Compresses a video file by transcoding it with Mediabunny's high-level
+ * `Conversion` API: the input (MP4/WebM/MOV) is decoded, the video is resized
+ * to fit within `options.maxHeight` and re-encoded as AVC at `options.bitrate`,
+ * and the result is re-muxed into an MP4 (Fast Start). Decode/encode, frame
+ * timing, B-frames and backpressure are all handled by Mediabunny.
  *
- * Passthrough (returns the original unchanged) when WebCodecs is unavailable
- * or the compressed output is not smaller than the input. Decode/encode
- * failures and worker timeouts reject with a named error (preserving
- * `DOMException.name`); AbortError propagates for cancel handling.
+ * Audio is normalized to AAC where possible. To avoid silently producing a
+ * muted clip, if the input carried audio that could not be carried over, the
+ * original file is returned unchanged.
+ *
+ * Progressive enhancement: when WebCodecs (`VideoEncoder`) is unavailable, the
+ * conversion is invalid, or the output is not smaller than the input, the
+ * original file is returned unchanged. `AbortSignal` aborts the conversion.
  */
 export async function compressVideo(
     file: File,
@@ -23,63 +29,55 @@ export async function compressVideo(
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    const originalData = new Uint8Array(await file.arrayBuffer());
-
     if (!isVideoCompressionSupported()) {
-        return passthroughMedia(originalData, file.name);
+        return passthroughFromFile(file);
     }
 
-    const worker = createVideoWorker();
+    const target = new BufferTarget();
+    const output = new Output({
+        format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+        target,
+    });
+    const input = new Input({
+        formats: [MP4, WEBM, QTFF],
+        source: new BlobSource(file),
+    });
 
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
-        const compressedBuffer = await Promise.race([
-            new Promise<ArrayBuffer>((resolve, reject) => {
-                worker.onmessage = (e: MessageEvent<WorkerCompressResponse>) => {
-                    if (e.data.type === 'done' && e.data.data) {
-                        resolve(e.data.data);
-                    } else if (e.data.type === 'error') {
-                        reject(namedError(e.data.name ?? 'Error', e.data.error));
-                    } else if (e.data.type === 'cancelled') {
-                        reject(new DOMException('Aborted', 'AbortError'));
-                    }
-                };
+    const conversion = await Conversion.init({
+        input,
+        output,
+        video: {
+            height: options.maxHeight,
+            fit: 'contain',
+            codec: options.codec as VideoCodec,
+            bitrate: options.bitrate,
+        },
+        audio: {
+            codec: 'aac',
+        },
+        showWarnings: false,
+    });
 
-                worker.onerror = (e: ErrorEvent) => {
-                    // Suppress the uncaught worker error (dev-server overlay);
-                    // the failure is surfaced via reject instead.
-                    e.preventDefault();
-                    reject(namedError('Error', e.message || 'Worker error'));
-                };
-
-                const request: WorkerCompressRequest = {
-                    data: originalData.buffer.slice(0) as ArrayBuffer,
-                    options,
-                };
-
-                worker.postMessage(request, [request.data]);
-            }),
-            new Promise<ArrayBuffer>((_, reject) => {
-                timeoutId = setTimeout(() => reject(new Error('Video compression worker timeout')), WORKER_TIMEOUT_MS);
-            }),
-            abortRace(signal, worker),
-        ]);
-
-        const compressedData = new Uint8Array(compressedBuffer);
-
-        if (compressedData.length === 0 || compressedData.length >= originalData.length) {
-            return passthroughMedia(originalData, file.name);
-        }
-
-        return {
-            data: compressedData,
-            fileName: file.name,
-            originalSize: originalData.length,
-            compressedSize: compressedData.length,
-            wasCompressed: true,
-        };
-    } finally {
-        if (timeoutId) { clearTimeout(timeoutId); }
-        worker.terminate();
+    // Never silently mute: if the source had audio that couldn't be carried
+    // (undecodable codec / no AAC encoder available), keep the original file.
+    const audioDropped = conversion.discardedTracks.some((d) => d.track.type === 'audio');
+    if (!conversion.isValid || audioDropped) {
+        return passthroughFromFile(file);
     }
+
+    await runConversion(conversion, signal);
+
+    const { buffer } = target;
+    if (!buffer || buffer.byteLength === 0 || buffer.byteLength >= file.size) {
+        return passthroughFromFile(file);
+    }
+
+    const data = new Uint8Array(buffer);
+    return {
+        data,
+        fileName: file.name,
+        originalSize: file.size,
+        compressedSize: data.length,
+        wasCompressed: true,
+    };
 }

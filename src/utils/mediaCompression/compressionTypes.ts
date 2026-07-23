@@ -23,23 +23,23 @@ export interface ImageCompressionOptions {
     lossless?: boolean;
 }
 
-/** Options for audio compression via WebCodecs AudioEncoder. */
+/** Options for audio compression; output is OGG/Opus via Mediabunny. */
 export interface AudioCompressionOptions {
     /** Target bitrate in bits per second. */
     bitrate: number;
-    /** WebCodecs codec string (e.g. 'opus'). */
+    /** Output codec name (e.g. 'opus'). See Mediabunny's `AudioCodec`. */
     codec: string;
     /** Number of audio channels (1 or 2 only — OGG Opus mapping family 0). */
     channels: 1 | 2;
 }
 
-/** Options for video compression via WebCodecs VideoEncoder. */
+/** Options for video compression; output is MP4/AVC via Mediabunny. */
 export interface VideoCompressionOptions {
-    /** Maximum height in pixels. Width scales proportionally. */
+    /** Maximum height in pixels. Width scales proportionally (fit: 'contain'). */
     maxHeight: number;
     /** Target bitrate in bits per second. */
     bitrate: number;
-    /** WebCodecs codec string (e.g. 'avc1.64001F' for H.264 High 3.1). */
+    /** Base video codec name (e.g. 'avc' for H.264). Profile/level is auto-selected. */
     codec: string;
 }
 
@@ -63,41 +63,3 @@ export interface CompressedMedia {
     /** Whether compression actually occurred (false = passthrough). */
     wasCompressed: boolean;
 }
-
-/** Message from the main thread to a video compression worker. */
-export interface WorkerCompressRequest {
-    data: ArrayBuffer;
-    options: VideoCompressionOptions;
-}
-
-/** Message from the main thread to abort an in-flight compression. */
-export type WorkerAbortMessage = { type: 'abort' };
-
-/**
- * Message from a video compression worker to main thread.
- * The error variant carries `name` (programmatic, e.g. NotSupportedError) so
- * callers/telemetry can triage without parsing locale-dependent `error` text.
- */
-export type WorkerCompressResponse =
-    | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; name: string; error: string }
-    | { type: 'cancelled' };
-
-/**
- * Message from main thread to audio worker — raw encoded bytes.
- *
- * Decoding (decodeAudioData) runs INSIDE the worker to keep multi-hundred-MB
- * PCM off the main thread. The worker probes OfflineAudioContext / AudioContext
- * availability and throws if neither exists (caller surfaces as passthrough).
- */
-export interface AudioWorkerRequest {
-    /** Raw encoded audio bytes (MP3, WAV, OGG, …). Worker decodes via decodeAudioData. */
-    data: ArrayBuffer;
-    options: AudioCompressionOptions;
-}
-
-/** Message from an audio worker to main thread. */
-export type AudioWorkerResponse =
-    | { type: 'done'; data: ArrayBuffer }
-    | { type: 'error'; name: string; error: string }
-    | { type: 'cancelled' };

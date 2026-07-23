@@ -26,7 +26,7 @@ describe('mediaCompression', () => {
         test('video defaults: 720px height, 500 kbps, H.264', () => {
             expect(defaultCompressionOptions.video.maxHeight).toBe(720);
             expect(defaultCompressionOptions.video.bitrate).toBe(500_000);
-            expect(defaultCompressionOptions.video.codec).toMatch(/^avc1\./);
+            expect(defaultCompressionOptions.video.codec).toBe('avc');
         });
 
         test('defaultCompressionOptions IS the medium preset (single source of truth)', () => {
