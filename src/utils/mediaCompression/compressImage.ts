@@ -37,13 +37,9 @@ export function calculateTargetDimensions(
 }
 
 /**
- * Reads pixel dimensions from a compressed image's raw bytes WITHOUT decoding
- * it. Supports PNG (IHDR chunk) and JPEG (SOF markers). Used as a
- * decompression-bomb pre-check: a crafted 40000x40000 PNG would otherwise be
- * fully decoded (~6.4 GB raster) before the MAX_IMAGE_PIXELS guard runs.
- *
- * Returns null for unrecognized or truncated inputs — callers treat null as
- * "cannot pre-screen" and fall through to the post-decode guard.
+ * Reads pixel dimensions from raw bytes without decoding (PNG IHDR / JPEG SOF).
+ * Decompression-bomb pre-check: a crafted 40000×40000 PNG would allocate ~6.4 GB
+ * before MAX_IMAGE_PIXELS runs. Returns null for unrecognized/truncated input.
  */
 export function parseImageDimensions(data: Uint8Array): { width: number; height: number } | null {
     // PNG: 8-byte signature, then first chunk is always IHDR (13 bytes payload).

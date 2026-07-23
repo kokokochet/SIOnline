@@ -1,6 +1,5 @@
 import { CompressionOptions, CompressionPreset, MediaCompressionPresets } from './compressionTypes';
 
-/** Low quality preset — aggressive compression for smallest file size. */
 export const lowPreset: CompressionOptions = {
     image: {
         maxDimension: 1000,
@@ -19,7 +18,6 @@ export const lowPreset: CompressionOptions = {
     },
 };
 
-/** Medium quality preset — balanced. */
 export const mediumPreset: CompressionOptions = {
     image: {
         maxDimension: 1200,
@@ -38,10 +36,7 @@ export const mediumPreset: CompressionOptions = {
     },
 };
 
-/**
- * High quality preset — favors quality over file size. Output is H.264 (AVC);
- * Mediabunny selects the appropriate profile/level for the target resolution.
- */
+/** High quality preset. Mediabunny selects the AVC profile/level for the target resolution. */
 export const highPreset: CompressionOptions = {
     image: {
         maxDimension: 1500,
@@ -60,17 +55,13 @@ export const highPreset: CompressionOptions = {
     },
 };
 
-/** Lookup map from preset key to options. Used by the UI to resolve the active preset. */
 export const compressionPresets: Record<CompressionPreset, CompressionOptions> = {
     low: lowPreset,
     medium: mediumPreset,
     high: highPreset,
 };
 
-/**
- * Builds CompressionOptions by picking each media type's section from its own
- * selected preset. Used by both upload-time and bulk compression.
- */
+/** Picks each media type's section from its own selected preset. */
 export function resolveCompressionOptions(presets: MediaCompressionPresets): CompressionOptions {
     return {
         image: compressionPresets[presets.image].image,

@@ -9,21 +9,9 @@ export interface MediaProbeResult {
 }
 
 /**
- * Fast pre-flight: checks whether the OUTPUT encoder for the given media type
- * is supported, WITHOUT decoding the file.
- *
- * Why: compressAudio/compressVideo decode the full input before the worker
- * checks the encoder config, so an unsupported codec wastes time then silently
- * passes through. The output codec is fixed by the preset (not the file), so
- * the result is deterministic per type.
- *
- * Advisory: isConfigSupported results are NOT authoritative (WebCodecs spec);
- * some engines return false negatives. This is a warning, not a blocker.
- *
- * - image: always supported (canvas) — no WebCodecs.
- * - audio: AudioEncoder.isConfigSupported({ codec, sampleRate, numberOfChannels }).
- * - video: VideoEncoder.isConfigSupported({ codec }) (dimensions not required
- *   for codec support; full config validated in the worker).
+ * Pre-flight encoder support check WITHOUT decoding. Output codec is fixed by
+ * the preset, so this is deterministic per type. Advisory only:
+ * isConfigSupported can return false negatives (WebCodecs spec).
  */
 export async function probeMedia(
 	type: CompressibleMediaType,
@@ -54,7 +42,6 @@ export async function probeMedia(
 		}
 	}
 
-	// type === 'video'
 	const codec = options.video.codec;
 	if (!isVideoCompressionSupported()) {
 		return { type: 'video', supported: false, codec, reason: 'VideoEncoder unavailable in this browser' };

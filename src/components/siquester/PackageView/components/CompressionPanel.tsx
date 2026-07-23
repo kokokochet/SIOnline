@@ -21,13 +21,7 @@ interface CompressionPanelProps {
 	onClose: () => void;
 }
 
-/**
- * Side-dialog for media compression settings (toggle + per-type preset radios).
- *
- * Outside-press closing uses `mousedown` (not `click`) so the panel closes
- * before the subsequent `click` reaches whatever was behind it (e.g. a toolbar
- * button); `layout.contains(target)` keeps in-panel presses from closing it.
- */
+// Outside-press closing uses mousedown (not click) so the panel closes before the subsequent click hits what's behind it.
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);

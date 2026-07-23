@@ -30,10 +30,6 @@ export type {
 } from './compressionTypes';
 export { getCompressionDoneSummaryKey, formatSavedBytes } from './compressionI18n';
 
-/**
- * Creates a passthrough result — the original file returned unchanged.
- * Used for unknown media types or as a fallback.
- */
 async function passthrough(file: File): Promise<CompressedMedia> {
     const data = new Uint8Array(await file.arrayBuffer());
     return {
@@ -46,10 +42,8 @@ async function passthrough(file: File): Promise<CompressedMedia> {
 }
 
 /**
- * Compresses a media file (image/audio/video) with lossy compression; HTML is
- * passed through byte-exact. Progressive enhancement: when the relevant
- * WebCodecs encoder is unavailable, the file is returned as-is. If the
- * compressed output is not smaller than the original, the original is returned.
+ * Compresses image/audio/video; HTML and unknown types pass through.
+ * Returns the original when the encoder is unavailable or output isn't smaller.
  */
 export async function compressMedia(
     file: File,
@@ -61,9 +55,7 @@ export async function compressMedia(
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    // HTML is text-only and must be stored byte-exact: re-encoding via
-    // file.text() + TextEncoder would strip a BOM and mangle windows-1251 /
-    // UTF-16 bytes (mismatch with the compression-OFF path in ScreensView).
+    // HTML must stay byte-exact: re-encoding via text() would strip a BOM and mangle windows-1251/UTF-16 bytes.
     if (type === 'html') {
         return passthrough(file);
     }

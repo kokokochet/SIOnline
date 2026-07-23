@@ -6,19 +6,10 @@ import { passthroughFromFile } from './passthrough';
 import { runConversion } from './conversionRun';
 
 /**
- * Compresses a video file by transcoding it with Mediabunny's high-level
- * `Conversion` API: the input (MP4/WebM/MOV) is decoded, the video is resized
- * to fit within `options.maxHeight` and re-encoded as AVC at `options.bitrate`,
- * and the result is re-muxed into an MP4 (Fast Start). Decode/encode, frame
- * timing, B-frames and backpressure are all handled by Mediabunny.
- *
- * Audio is normalized to AAC where possible. To avoid silently producing a
- * muted clip, if the input carried audio that could not be carried over, the
- * original file is returned unchanged.
- *
- * Progressive enhancement: when WebCodecs (`VideoEncoder`) is unavailable, the
- * conversion is invalid, or the output is not smaller than the input, the
- * original file is returned unchanged. `AbortSignal` aborts the conversion.
+ * Transcodes video to AVC MP4 via Mediabunny, resizing to fit options.maxHeight.
+ * Never silently mutes: if source audio can't be carried over, returns original.
+ * Progressive enhancement: returns original when WebCodecs is unavailable,
+ * the conversion is invalid, or the output isn't smaller than the input.
  */
 export async function compressVideo(
     file: File,
@@ -58,8 +49,7 @@ export async function compressVideo(
         showWarnings: false,
     });
 
-    // Never silently mute: if the source had audio that couldn't be carried
-    // (undecodable codec / no AAC encoder available), keep the original file.
+    // Never silently mute: keep original if source audio couldn't be carried over.
     const audioDropped = conversion.discardedTracks.some((d) => d.track.type === 'audio');
     if (!conversion.isValid || audioDropped) {
         return passthroughFromFile(file);

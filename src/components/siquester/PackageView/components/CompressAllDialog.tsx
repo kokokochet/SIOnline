@@ -49,14 +49,7 @@ function getPresetLabel(preset: CompressionPreset): string {
 	}
 }
 
-/**
- * Modal dialog for bulk media compression, driven by
- * `state.siquester.bulkCompression.phase` (confirm/running/done/cancelled/failed).
- *
- * While `phase === 'running'`, `onClose` dispatches `cancelBulkCompression()`
- * instead of closing, so Escape/× cannot close the dialog mid-run (idempotent
- * on repeat).
- */
+// While phase === 'running', onClose cancels instead of closing, so Escape/× can't abort mid-run.
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
 	const bulk = useAppSelector(state => state.siquester.bulkCompression);
@@ -97,8 +90,7 @@ const CompressAllDialog: React.FC = () => {
 	phaseRef.current = bulk?.phase;
 
 	React.useEffect(() => () => {
-		// Unmount while running → cancel so the orphaned thunk does not stage
-		// results into state.zip (same-package re-open race).
+		// Unmount while running → cancel: orphaned thunk would stage results into state.zip (re-open race).
 		if (phaseRef.current === 'running') {
 			appDispatch(cancelBulkCompression());
 		}

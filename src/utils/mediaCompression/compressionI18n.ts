@@ -1,12 +1,7 @@
 /**
- * Plural-form key selection for the bulk-compression summary, following the
- * codebase's manual one / `2` / `5` suffix convention (see TimeHelpers.ts).
- * `localized-strings` has no built-in plural engine, so we pick the flat
- * property name from the count and let each locale supply the string.
- *
- * Intentionally diverges from `TimeHelpers.getLocalizedMinutes` for counts
- * ≥111: TimeHelpers uses `!= 11` (absolute), so 111/211 wrongly return `one`;
- * this selector uses `mod100 !== 11`, so they correctly return `many`.
+ * Plural-form key selection (one/2/5 suffix per TimeHelpers.ts convention;
+ * localized-strings has no plural engine). Diverges from TimeHelpers for
+ * counts >=111: uses mod100 !== 11 so 111/211 correctly return `many`.
  */
 export function getCompressionDoneSummaryKey(totalCount: number): 'compressionDoneSummary' | 'compressionDoneSummary2' | 'compressionDoneSummary5' {
 	const mod10 = totalCount % 10;
@@ -23,11 +18,7 @@ export function getCompressionDoneSummaryKey(totalCount: number): 'compressionDo
 	return 'compressionDoneSummary5';
 }
 
-/**
- * Formats a byte count as a localized "x.x <unit>" string. The unit label and
- * locale are passed in (not read from the `localized-strings` singleton) so
- * this stays a pure, testable function.
- */
+/** Formats bytes as a localized "x.x <unit>"; unit/locale passed in to stay pure and testable. */
 export function formatSavedBytes(bytes: number, locale: string, unitLabel: string): string {
 	const mebibytes = bytes / (1024 * 1024);
 	const number = new Intl.NumberFormat(locale, {

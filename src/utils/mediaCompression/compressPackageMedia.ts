@@ -2,27 +2,24 @@ import JSZip from 'jszip';
 import { ContentItem, Package } from '../../model/siquester/package';
 import { CompressibleMediaType } from './compressionTypes';
 
-/** A media file referenced by at least one question in the package. */
+/** Media file referenced by ≥1 question in the package. */
 export interface MediaReference {
     type: CompressibleMediaType;
-    /** Referenced file name (as stored in the content item value). */
     value: string;
 }
 
-/** A compressed file staged for the all-or-nothing bulk apply. */
+/** Compressed file staged for the all-or-nothing bulk apply. */
 export interface StagedMediaFile {
     type: CompressibleMediaType;
     /** Referenced file name before compression. */
     oldValue: string;
     /** Final file name after collision resolution (=== oldValue when unchanged). */
     newValue: string;
-    /** Compressed bytes. */
     data: Uint8Array;
 }
 
 const COMPRESSIBLE_TYPES: ReadonlySet<string> = new Set(['image', 'audio', 'video']);
 
-/** Maps a compressible media type to its package zip folder. */
 export function getMediaFolderName(type: CompressibleMediaType): string {
     switch (type) {
         case 'image':
@@ -71,11 +68,7 @@ function collectFromValue(value: unknown, add: (ref: MediaReference) => void): v
     Object.values(value).forEach(item => collectFromValue(item, add));
 }
 
-/**
- * Collects all media files referenced by at least one question in the package,
- * deduplicated by `${type}:${value}`. Orphan zip entries (not referenced) and
- * HTML/text/external-URL content are excluded by design.
- */
+/** Collects referenced media (deduped by `${type}:${value}`); orphans/HTML/external URLs excluded. */
 export function collectMediaReferences(pack: Package): MediaReference[] {
     const seen = new Set<string>();
     const refs: MediaReference[] = [];
@@ -120,11 +113,7 @@ export function resolveZipEntry(zip: JSZip, folder: string, name: string): JSZip
     return zip.file(`${folder}/${name}`) ?? zip.file(`${folder}/${encodeURIComponent(name)}`);
 }
 
-/**
- * Collects all file names present in the media folders of the zip, keyed
- * `${type}:${name}`. Both raw and URI-decoded variants are included so rename
- * collision checks match MediaItem's raw-then-encoded lookup semantics.
- */
+/** Collects media-folder file names keyed `${type}:${name}` (raw + URI-decoded, to match MediaItem's lookup). */
 export function collectExistingMediaNames(zip: JSZip): Set<string> {
     const folderTypes: Record<string, CompressibleMediaType> = {
         Images: 'image',
@@ -158,16 +147,11 @@ export function collectExistingMediaNames(zip: JSZip): Set<string> {
 }
 
 /**
- * Builds a collision-safe rename plan for staged files, keyed `${type}:${oldValue}`.
- *
- * Pass 1 reserves identity renames (a file compressed in place keeps its name,
- * so no other file may take it). Pass 2 assigns rename candidates, appending
- * `-1`, `-2`, … before the extension while the candidate exists in the zip or
- * is already assigned in this run. Existing names always block — names freed
- * by renames are NOT reused as targets, which keeps the apply safe.
- *
- * Precondition: every staged `oldValue` must be present in `existingNames`
- * (guaranteed when files are staged via `resolveZipEntry` against the same zip).
+ * Builds a collision-safe rename plan keyed `${type}:${oldValue}`. Pass 1
+ * reserves identity renames; pass 2 appends `-1`, `-2`, … while a candidate
+ * exists in the zip or this run. Existing names always block — freed names are
+ * NOT reused (keeps apply safe). Precondition: every staged `oldValue` is in
+ * `existingNames` (staged via `resolveZipEntry` against the same zip).
  */
 export function planRenames(staged: StagedMediaFile[], existingNames: Set<string>): Map<string, string> {
     const renames = new Map<string, string>();
@@ -208,11 +192,7 @@ export function planRenames(staged: StagedMediaFile[], existingNames: Set<string
     return renames;
 }
 
-/**
- * Rewrites the value of every content item whose `${type}:${value}` key is in
- * the rename map. Walks the full question params tree (including nested
- * answerOptions). Mutates `pack` — intended for use inside an Immer reducer.
- */
+/** Rewrites content items in the rename map; walks full params tree (incl. nested answerOptions). Mutates `pack` (Immer). */
 export function renameMediaReferences(pack: Package, renames: Map<string, string>): void {
     const visit = (value: unknown): void => {
         if (!value || typeof value !== 'object') {
@@ -251,17 +231,13 @@ export function renameMediaReferences(pack: Package, renames: Map<string, string
 }
 
 /**
- * Applies staged compressed files to a zip with all-or-nothing atomicity.
+ * Applies staged files to a zip with all-or-nothing atomicity. JSZip isn't
+ * Immer-draftable (file()/remove() mutate zip.files even on throw), so this
+ * snapshots `files` and restores on any error (shallow clone suffices — JSZip
+ * replaces, never mutates, ZipObject entries).
  *
- * JSZip is a class instance Immer cannot draft — `file()`/`remove()` mutate
- * `zip.files` even if the surrounding reducer throws. This helper snapshots
- * the `files` map and restores it on any throw. A shallow clone suffices
- * because JSZip replaces (never mutates) existing ZipObject entries.
- *
- * @returns Rename map `${type}:${oldValue}` → `newValue` (identity renames
- * excluded), for the caller to feed to `renameMediaReferences`.
- * @throws Rethrows any error from the write/remove cycle AFTER restoring the
- * snapshot, so the caller's Immer draft is discarded and state stays consistent.
+ * @returns Rename map `${type}:${oldValue}` → `newValue` (identity excluded).
+ * @throws Rethrows after restoring the snapshot (caller's Immer draft discarded).
  */
 export function applyStagedFilesToZip(
     zip: JSZip,
@@ -312,11 +288,7 @@ export function applyStagedFilesToZip(
     }
 }
 
-/**
- * Returns the `${type}:${value}` keys of referenced media files missing from
- * the zip. An empty result means the package media is intact. Used by tests to
- * assert package integrity after a bulk apply.
- */
+/** Returns `${type}:${value}` keys of referenced media missing from the zip (empty = intact). */
 export function validateMediaReferences(pack: Package, zip: JSZip): string[] {
     const missing: string[] = [];
 

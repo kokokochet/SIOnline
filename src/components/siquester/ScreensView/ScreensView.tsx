@@ -172,8 +172,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const [isCompressing, setIsCompressing] = React.useState(false);
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 	const compressionEnabled = mediaCompression.enabled;
-	// Memoize: resolveCompressionOptions allocates a fresh object every call,
-	// breaking downstream referential checks.
+	// resolveCompressionOptions allocates a fresh object every call, breaking downstream referential checks.
 	const compressionOptions = React.useMemo(
 		() => resolveCompressionOptions(mediaCompression.presets),
 		[mediaCompression.presets],

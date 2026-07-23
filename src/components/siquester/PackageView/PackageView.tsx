@@ -33,10 +33,7 @@ import editImg from '../../../../assets/images/edit.png';
 
 enum Mode { Rounds, Questions, Media }
 
-/**
- * Selects the siquester fields PackageView renders. Returns a fresh object each
- * call, so the consumer must pass `shallowEqual` (react-redux v8 identity check).
- */
+// Returns a fresh object each call; consumer must pass shallowEqual (react-redux v8 identity check).
 export const selectPackageViewSlice = (state: { siquester: SIQuesterState }) => ({
 	zip: state.siquester.zip,
 	pack: state.siquester.pack,
@@ -60,8 +57,7 @@ const PackageView: React.FC = () => {
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
-	// Stabilized so CompressionPanel's mousedown listener isn't re-attached
-	// on every parent re-render (e.g. each keystroke in edit mode).
+	// Stabilized so CompressionPanel's mousedown listener isn't re-attached on each parent re-render.
 	const closeCompressionPanel = React.useCallback(() => setIsCompressionPanelOpen(false), []);
 
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);

@@ -1,10 +1,7 @@
 /**
- * Byte-level image format detection for the compression pipeline.
- *
- * Canvas re-encode (JPEG) destroys PNG/WebP alpha channels and is the wrong
- * choice for transparent imagery. These pure helpers sniff the leading bytes
- * of a file to decide format and alpha presence *without* paying for a full
- * decode.
+ * Byte-level image format detection. Sniffs leading bytes to decide format and
+ * alpha presence without a full decode (canvas JPEG re-encode destroys
+ * PNG/WebP alpha channels).
  */
 
 export type DetectedImageFormat = 'gif' | 'png' | 'jpeg' | 'webp' | 'svg' | 'unknown';
@@ -13,10 +10,8 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const GIF_SIGNATURE_87A = [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]; // "GIF87a"
 const GIF_SIGNATURE_89A = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]; // "GIF89a"
 
-// PNG IHDR color types that carry an alpha channel.
-//   0 = gray, 2 = RGB, 3 = palette, 4 = gray+alpha, 6 = RGBA.
-// Palette (3) MAY carry tRNS transparency; treated as opaque here since the
-// JPEG white-fill is acceptable for it and tRNS is rare in photos.
+// PNG IHDR color types: 0=gray, 2=RGB, 3=palette, 4=gray+alpha, 6=RGBA.
+// Palette (3) tRNS transparency ignored (rare in photos; JPEG white-fill OK).
 const PNG_COLOR_TYPE_GRAY_ALPHA = 4;
 const PNG_COLOR_TYPE_RGBA = 6;
 
@@ -42,7 +37,7 @@ function readUint32LE(data: Uint8Array, offset: number): number {
     );
 }
 
-/** Detects the image format from leading magic bytes. Pure, allocation-free. */
+/** Detects format from leading magic bytes (allocation-free). */
 export function detectImageFormat(data: Uint8Array): DetectedImageFormat {
     if (data.length === 0) {
         return 'unknown';
@@ -116,10 +111,7 @@ function webpHasAlpha(data: Uint8Array): boolean {
     return false;
 }
 
-/**
- * True when the image carries an alpha channel that JPEG re-encode would
- * flatten to white. `compressImage` uses this to switch to PNG output.
- */
+/** True when the image has alpha that JPEG would flatten to white. */
 export function hasAlphaChannel(
     data: Uint8Array,
     format: DetectedImageFormat = detectImageFormat(data),
@@ -144,7 +136,7 @@ function readUint32BE(data: Uint8Array, offset: number): number {
     );
 }
 
-/** Walks PNG chunks (skipping the 8-byte signature), invoking onChunk per chunk. */
+/** Walks PNG chunks (after the 8-byte signature), invoking onChunk per chunk. */
 function forEachPngChunk(
     data: Uint8Array,
     onChunk: (type: string, dataOffset: number, length: number) => boolean | void,
@@ -201,14 +193,8 @@ function webpIsAnimated(data: Uint8Array): boolean {
 }
 
 /**
- * Heuristic animation detection for formats whose JPEG re-encode would keep
- * only the first frame.
- *
- * - `webp`: `ANIM` chunk present (animated WebP).
- * - `png`: `acTL` chunk present (APNG).
- * - `gif`: returns false — GIF is handled by the caller as a format-level
- *   passthrough (all GIFs pass through), so per-frame detection is unnecessary.
- * - others: false (single-frame).
+ * Animation detection for formats whose JPEG re-encode keeps only frame 1.
+ * webp → ANIM chunk; png → acTL (APNG); gif handled by caller as passthrough.
  */
 export function isAnimated(
     data: Uint8Array,
@@ -227,22 +213,13 @@ export function isAnimated(
 const SVG_SNIFF_WINDOW = 1024;
 
 /**
- * True for SVG content: detects the `<svg` tag (optionally after an `<?xml`
- * declaration) in the first 1 KiB, case-insensitive. SVG otherwise rasterizes
- * to a lossy JPEG via canvas.
- *
- * Also recognizes SVGZ (gzip-compressed SVG): files beginning with the gzip
- * magic bytes `0x1f 0x8b`. SVGZ fails every other signature check and its
- * UTF-8 decode yields replacement chars, so without this guard it would fall
- * through to `createImageBitmap` — which rasterizes it to a lossy JPEG on
- * browsers that transparently gunzip. Treating any gzip payload in an image
- * slot as SVGZ is an acceptable heuristic; worst case a non-image gzip stream
- * passes through uncompressed (preserves bytes, never corrupts).
- *
- * Uses TextDecoder (global in DOM and Node 18+) — no Node-only `Buffer`.
+ * True for SVG content: detects `<svg` (optionally after `<?xml`) in the first
+ * 1 KiB. Also recognizes SVGZ (gzip magic `0x1f 0x8b`) — without this guard it
+ * falls through to createImageBitmap, which rasterizes it to lossy JPEG on
+ * browsers that transparently gunzip. Uses TextDecoder (DOM + Node 18+).
  */
 export function isSvg(data: Uint8Array): boolean {
-    // SVGZ: gzip magic bytes. Treat as SVG → passthrough (never rasterize).
+    // SVGZ: gzip magic bytes 0x1f 0x8b → treat as SVG (never rasterize).
     if (data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b) {
         return true;
     }

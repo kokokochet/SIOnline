@@ -6,17 +6,9 @@ import { passthroughFromFile } from './passthrough';
 import { runConversion } from './conversionRun';
 
 /**
- * Compresses an audio file by transcoding it to OGG/Opus via Mediabunny's
- * high-level `Conversion` API. The input (MP3/WAV/OGG/MP4/WebM/FLAC) is
- * decoded, resampled/remixed to 48 kHz / `options.channels`, re-encoded as
- * Opus at `options.bitrate`, and muxed into an OGG container (`.opus`).
- * Decode/encode, resampling and backpressure are all handled by Mediabunny —
- * this replaces the former hand-rolled `AudioEncoder` loop and the custom
- * 250-line OGG/Opus muxer.
- *
- * Progressive enhancement: when WebCodecs (`AudioEncoder`) is unavailable, the
- * conversion is invalid, or the output is not smaller than the input, the
- * original file is returned unchanged. `AbortSignal` aborts the conversion.
+ * Transcodes audio to OGG/Opus via Mediabunny at 48 kHz / options.channels.
+ * Progressive enhancement: returns the original when WebCodecs is unavailable,
+ * the conversion is invalid, or the output isn't smaller than the input.
  */
 export async function compressAudio(
     file: File,

@@ -18,8 +18,7 @@ interface DialogProps {
 	modal?: boolean;
 }
 
-// Focusable selector for the Tab trap; excludes hidden/disabled so an edge
-// .focus() can't silently fail. Assumes a single (non-nested) modal.
+// Focusable selector for the Tab trap; excludes hidden/disabled so an edge .focus() can't silently fail. Assumes a single (non-nested) modal.
 const FOCUSABLE_SELECTOR = [
 	'a[href]',
 	'button:not([disabled])',
@@ -58,7 +57,6 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		}
 	}, [ref]);
 
-	// Escape -> onClose (opt-in via `dismissable`).
 	useEffect(() => {
 		if (!dismissable) {
 			return;
@@ -73,8 +71,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [dismissable, onClose]);
 
-	// ASSUMPTION: Dialog renders inline (no portal/Shadow DOM), so querySelectorAll
-	// reaches descendants.
+	// ASSUMPTION: Dialog renders inline (no portal/Shadow DOM), so querySelectorAll reaches descendants.
 	useEffect(() => {
 		if (!modal) {
 			return;
@@ -119,8 +116,7 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 				firstItem.focus();
 			}
 		};
-		// Snap back focus that escapes via programmatic .focus() or a background
-		// click. Guarded against re-entrant loops by isRestoringFocus.
+		// Snap back focus that escapes via programmatic .focus() or background click (guarded vs re-entrant loops by isRestoringFocus).
 		const onFocusIn = (e: FocusEvent) => {
 			const current = innerRef.current;
 			if (!current || isRestoringFocus.current) {
