@@ -69,6 +69,11 @@ const PackageView: React.FC = () => {
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
+	// Stabilized so CompressionPanel's `hide` useCallback (dep: [onClose]) keeps
+	// the same identity across parent re-renders. Without this, every keystroke
+	// in edit mode (dispatching updateContentItem) would tear down and re-attach
+	// the panel's mousedown listener.
+	const closeCompressionPanel = React.useCallback(() => setIsCompressionPanelOpen(false), []);
 
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
@@ -452,7 +457,7 @@ const PackageView: React.FC = () => {
 					</button>
 					<CompressionPanel
 						open={isCompressionPanelOpen}
-						onClose={() => setIsCompressionPanelOpen(false)}
+						onClose={closeCompressionPanel}
 					/>
 					<CompressAllDialog />
 
