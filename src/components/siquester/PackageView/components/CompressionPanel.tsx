@@ -67,14 +67,9 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 						disabled={presetsDisabled}
 					>
 						<legend className='compressionPanel__title'>{legend}</legend>
-						{type === 'audio' && typeUnsupported ? (
+						{typeUnsupported ? (
 							<div className='compressionPanel__notice' role='note'>
-								{localization.compressionAudioNotSupported}
-							</div>
-						) : null}
-						{type === 'video' && typeUnsupported ? (
-							<div className='compressionPanel__notice' role='note'>
-								{localization.compressionVideoNotSupported}
+								{type === 'audio' ? localization.compressionAudioNotSupported : localization.compressionVideoNotSupported}
 							</div>
 						) : null}
 						{presets.map(({ value, label: presetLabel }) => (
