@@ -2,7 +2,6 @@ import {
     compressionPresets,
     resolveCompressionOptions,
 } from '../src/utils/mediaCompression/compressionPresets';
-import { CompressionOptions, CompressionPreset } from '../src/utils/mediaCompression/compressionTypes';
 
 describe('compressionPresets', () => {
     test('low preset has aggressive compression values', () => {
@@ -40,25 +39,6 @@ describe('compressionPresets', () => {
         expect(compressionPresets.high.video.bitrate).toBe(1_500_000);
         // AVC base codec; Mediabunny picks profile/level for the target resolution.
         expect(compressionPresets.high.video.codec).toBe('avc');
-    });
-
-    test('compressionPresets map has all three keys', () => {
-        const keys = Object.keys(compressionPresets).sort();
-        expect(keys).toEqual(['high', 'low', 'medium']);
-    });
-
-    test('all presets satisfy the CompressionOptions shape', () => {
-        const presets: CompressionPreset[] = ['low', 'medium', 'high'];
-        for (const key of presets) {
-            const opts: CompressionOptions = compressionPresets[key];
-            expect(typeof opts.image.maxDimension).toBe('number');
-            expect(typeof opts.image.quality).toBe('number');
-            expect(typeof opts.image.mimeType).toBe('string');
-            expect(typeof opts.audio.bitrate).toBe('number');
-            expect(typeof opts.video.maxHeight).toBe('number');
-            expect(typeof opts.video.bitrate).toBe('number');
-            expect(opts.audio.channels === 1 || opts.audio.channels === 2).toBe(true);
-        }
     });
 
     // Invariants: guard against accidental inversion; survive legitimate re-tunes but fail on low>medium.

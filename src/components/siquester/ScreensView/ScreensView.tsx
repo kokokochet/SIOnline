@@ -172,11 +172,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const [isCompressing, setIsCompressing] = React.useState(false);
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 	const compressionEnabled = mediaCompression.enabled;
-	// resolveCompressionOptions allocates a fresh object every call, breaking downstream referential checks.
-	const compressionOptions = React.useMemo(
-		() => resolveCompressionOptions(mediaCompression.presets),
-		[mediaCompression.presets],
-	);
+	const compressionOptions = resolveCompressionOptions(mediaCompression.presets);
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);
 	const fileInputRefs = React.useRef<Record<MediaContentType, HTMLInputElement | null>>({
@@ -339,8 +335,6 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			}
 		};
 
-		const mediaKey = `${contentItem.type}:${contentItem.value}:${contentItem.isRef ? 'ref' : 'url'}`;
-
 		// Internal refs now store the original file name in the package model.
 		// MediaItem resolves both raw and legacy encoded ZIP entries.
 		const getMediaSrc = (value: string, isRef: boolean): string => {
@@ -351,6 +345,8 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			// External URL - use as-is
 			return value;
 		};
+
+		const mediaKey = `${contentItem.type}:${contentItem.value}:${contentItem.isRef ? 'ref' : 'url'}`;
 
 		switch (contentItem.type) {
 			case 'text':

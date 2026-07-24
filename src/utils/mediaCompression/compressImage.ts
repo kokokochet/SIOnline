@@ -1,5 +1,6 @@
 import { CompressedMedia, ImageCompressionOptions } from './compressionTypes';
 import { passthroughMedia } from './passthrough';
+import { throwIfAborted } from './conversionRun';
 import { detectImageFormat, hasAlphaChannel, isAnimated, getPngBitDepth } from './imageFormatDetect';
 
 /** Maximum pixel count allowed for decoded images (7680×4320 = 33_177_600, just under 8K UHD). Prevents decompression-bomb OOM. */
@@ -102,9 +103,7 @@ export async function compressImage(
     options: ImageCompressionOptions,
     signal?: AbortSignal,
 ): Promise<CompressedMedia> {
-    if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-    }
+    throwIfAborted(signal);
 
     const originalData = new Uint8Array(await file.arrayBuffer());
 

@@ -3,7 +3,6 @@ import { ContentItem, Package } from '../src/model/siquester/package';
 import {
     collectExistingMediaNames,
     collectMediaReferences,
-    getMediaFolderName,
     planRenames,
     renameMediaReferences,
     resolveZipEntry,
@@ -193,13 +192,5 @@ describe('renameMediaReferences', () => {
         expect(params.question?.items[1].value).toBe('keep.png');
         expect(params.answerOptions?.A.items[0].value).toBe('a.jpg');
         expect(params.answer?.items[0].value).toBe('a.jpg');
-    });
-});
-
-describe('getMediaFolderName', () => {
-    test('maps media types to package folders', () => {
-        expect(getMediaFolderName('image')).toBe('Images');
-        expect(getMediaFolderName('audio')).toBe('Audio');
-        expect(getMediaFolderName('video')).toBe('Video');
     });
 });

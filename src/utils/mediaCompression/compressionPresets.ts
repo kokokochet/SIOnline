@@ -11,7 +11,7 @@ export const compressionPresets: Record<CompressionPreset, CompressionOptions> =
 		audio: { bitrate: 128_000, codec: 'opus', channels: 2 },
 		video: { maxHeight: 720, bitrate: 500_000, codec: 'avc' },
 	},
-	/** High quality preset. Mediabunny selects the AVC profile/level for the target resolution. */
+	/** Mediabunny selects the AVC profile/level for the target resolution. */
 	high: {
 		image: { maxDimension: 1500, quality: 0.9, mimeType: 'image/jpeg' },
 		audio: { bitrate: 192_000, codec: 'opus', channels: 2 },

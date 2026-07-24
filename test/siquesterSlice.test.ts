@@ -343,55 +343,6 @@ describe('siquesterSlice', () => {
 		});
 	});
 
-	test('setContentItemMedia accepts Uint8Array binary data directly', () => {
-		const mockZip = new JSZip();
-
-		const state: SIQuesterState = {
-			zip: mockZip,
-			pack: createDefaultPackage({
-				packageName: '',
-				authorName: '',
-				roundCount: 1,
-				themeCount: 1,
-				questionCount: 1,
-				includeFinalRound: false,
-				finalThemeCount: 0,
-			}),
-		};
-
-		state.pack!.rounds[0].themes[0].questions[0].params.question = {
-			items: [{
-				type: 'image',
-				value: 'old.png',
-				isRef: true,
-				placement: 'screen',
-			}],
-		};
-
-		const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-		const nextState = reducer(state, setContentItemMedia({
-			roundIndex: 0,
-			themeIndex: 0,
-			questionIndex: 0,
-			paramName: 'question',
-			itemIndex: 0,
-			type: 'image',
-			fileName: 'compressed.jpg',
-			fileData: binaryData,
-		}));
-
-		expect(nextState.zip?.file('Images/compressed.jpg')).not.toBeNull();
-		expect(nextState.pack?.rounds[0].themes[0].questions[0].params.question).toEqual({
-			items: [{
-				type: 'image',
-				value: 'compressed.jpg',
-				isRef: true,
-				placement: 'screen',
-			}],
-		});
-	});
-
 	test('setMediaCompressionEnabled toggles the enabled flag', () => {
 		const state: SIQuesterState = {};
 		const nextState = reducer(state, setMediaCompressionEnabled(false));

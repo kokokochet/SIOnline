@@ -41,7 +41,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 	];
 
 	const hide = React.useCallback((e: Event): void => {
-		if (!layout.current || (e.target instanceof Node && layout.current.contains(e.target as Node))) {
+		if (!layout.current || (e.target instanceof Node && layout.current.contains(e.target))) {
 			return;
 		}
 

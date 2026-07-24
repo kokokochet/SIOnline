@@ -28,7 +28,6 @@ export interface ToBlobCall {
 }
 
 export interface ImageCompressionMockHandle {
-    readonly bitmap: { width: number; height: number; close: jest.Mock };
     readonly createImageBitmapCalls: CreateImageBitmapCall[];
     /** Every call to `canvas.toBlob`, capturing `(mimeType, quality)`. */
     readonly toBlobCalls: ToBlobCall[];
@@ -101,7 +100,6 @@ export function installImageCompressionMock(
     } as unknown as typeof document;
 
     activeHandle = {
-        bitmap,
         createImageBitmapCalls,
         toBlobCalls,
         fillRectCalls,

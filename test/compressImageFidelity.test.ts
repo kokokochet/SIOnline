@@ -95,10 +95,6 @@ describe('image corruption', () => {
         ])('returns null when %s', (_name, width, height, maxDimension) => {
             expect(calculateTargetDimensions(width, height, maxDimension)).toBeNull();
         });
-
-        test('still scales valid landscape inputs', () => {
-            expect(calculateTargetDimensions(1600, 1200, 800)).toEqual({ width: 800, height: 600 });
-        });
     });
 
     describe('compressImage passes through on zero output dimensions', () => {

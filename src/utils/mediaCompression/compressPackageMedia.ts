@@ -3,7 +3,7 @@ import { ContentItem, Package } from '../../model/siquester/package';
 import { CompressibleMediaType } from './compressionTypes';
 
 /** Media file referenced by ≥1 question in the package. */
-export interface MediaReference {
+interface MediaReference {
     type: CompressibleMediaType;
     value: string;
 }

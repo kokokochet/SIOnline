@@ -5,11 +5,9 @@ export type CompressionPreset = 'low' | 'medium' | 'high';
 
 export type MediaCompressionPresets = Record<CompressibleMediaType, CompressionPreset>;
 
-/** canvas + toBlob. */
 export interface ImageCompressionOptions {
     /** Maximum dimension (width or height) in pixels. */
     maxDimension: number;
-    /** JPEG quality, 0–1. */
     quality: number;
     mimeType: string;
     /** Skip lossy re-encode; preserves ICC/bit depth/wide gamut (canvas clips to 8-bit sRGB). */
@@ -22,7 +20,7 @@ export interface AudioCompressionOptions {
     bitrate: number;
     /** Codec name (e.g. 'opus'); see Mediabunny's `AudioCodec`. */
     codec: string;
-    /** Number of audio channels (1 or 2 only — OGG Opus mapping family 0). */
+    /** OGG Opus mapping family 0. */
     channels: 1 | 2;
 }
 
@@ -48,6 +46,5 @@ export interface CompressedMedia {
     fileName: string;
     originalSize: number;
     compressedSize: number;
-    /** false = passthrough. */
     wasCompressed: boolean;
 }

@@ -19,7 +19,6 @@
 	}
 
 	&__notice,
-	&__unsupported,
 	&__partial {
 		margin: 8px 0;
 		padding: 6px 10px;
@@ -28,15 +27,6 @@
 		color: #ffd591;
 		font-size: 0.85em;
 		border-radius: 2px;
-	}
-
-	&__unsupportedTitle {
-		font-weight: 600;
-	}
-
-	&__unsupportedList {
-		margin: 4px 0 0;
-		padding-left: 20px;
 	}
 
 	&__empty {

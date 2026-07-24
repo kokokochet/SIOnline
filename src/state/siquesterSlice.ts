@@ -303,10 +303,6 @@ export const loadPackageStatistics = createAsyncThunk(
 /** Safe as singleton: single-entry guaranteed (condition guard + dialogOpened no-op while running). */
 let activeBulkController: AbortController | null = null;
 
-function setActiveBulkController(controller: AbortController | null): void {
-	activeBulkController = controller;
-}
-
 /** Pure side-effect (no Redux state) — safe to call from other thunks and cleanup. */
 export function abortActiveBulkCompression(): void {
 	if (activeBulkController) {
@@ -331,7 +327,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
 
 		const controller = new AbortController();
-		setActiveBulkController(controller);
+		activeBulkController = controller;
 		const signal = controller.signal;
 
 		try {
@@ -471,7 +467,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 			}));
 			return { applied: false };
 		} finally {
-			setActiveBulkController(null);
+			activeBulkController = null;
 		}
 	},
 );
@@ -1473,11 +1469,11 @@ export const siquesterSlice = createSlice({
 			state.isNewPackage = false;
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
-		state.showPackageStats = false;
-		state.bulkCompression = undefined;
-		state.zipRevision = 0;
-	});
-	builder.addCase(createNewPackage.fulfilled, (state, action) => {
+			state.showPackageStats = false;
+			state.bulkCompression = undefined;
+			state.zipRevision = 0;
+		});
+		builder.addCase(createNewPackage.fulfilled, (state, action) => {
 			state.zip = action.payload.zip;
 			state.pack = action.payload.pack;
 			state.roundIndex = undefined;
@@ -1487,11 +1483,11 @@ export const siquesterSlice = createSlice({
 			state.isNewPackage = true;
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
-		state.showPackageStats = false;
-		state.bulkCompression = undefined;
-		state.zipRevision = 0;
-	});
-	builder.addCase(loadPackageStatistics.pending, (state) => {
+			state.showPackageStats = false;
+			state.bulkCompression = undefined;
+			state.zipRevision = 0;
+		});
+		builder.addCase(loadPackageStatistics.pending, (state) => {
 			state.packageStatsLoading = true;
 		});
 		builder.addCase(loadPackageStatistics.fulfilled, (state, action) => {
@@ -1503,9 +1499,9 @@ export const siquesterSlice = createSlice({
 		builder.addCase(loadPackageStatistics.rejected, (state) => {
 			state.packageStatsLoading = false;
 		});
-	builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
-		// Uncovered rejection: 'failed' is honest, not a user cancel.
-		if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
+		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
+			// Uncovered rejection: 'failed' is honest, not a user cancel.
+			if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
 				state.bulkCompression.phase = 'failed';
 				state.bulkCompression.failedReason = action.error.message ?? 'Unexpected compression error';
 			}
