@@ -9,7 +9,6 @@ import {
     resolveZipEntry,
     selectReferencedMediaCounts,
     StagedMediaFile,
-    validateMediaReferences,
 } from '../src/utils/mediaCompression/compressPackageMedia';
 
 function makePackage(items: ContentItem[], extraParams: Record<string, unknown> = {}): Package {
@@ -194,16 +193,6 @@ describe('renameMediaReferences', () => {
         expect(params.question?.items[1].value).toBe('keep.png');
         expect(params.answerOptions?.A.items[0].value).toBe('a.jpg');
         expect(params.answer?.items[0].value).toBe('a.jpg');
-    });
-});
-
-describe('validateMediaReferences', () => {
-    test('returns missing references only', () => {
-        const pack = makePackage([imageRef('present.png'), imageRef('missing.png')]);
-        const zip = new JSZip();
-        zip.file('Images/present.png', new Uint8Array([1]));
-
-        expect(validateMediaReferences(pack, zip)).toEqual(['image:missing.png']);
     });
 });
 

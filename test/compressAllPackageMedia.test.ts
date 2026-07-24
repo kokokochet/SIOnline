@@ -1,7 +1,6 @@
 import JSZip from 'jszip';
 import reducer, {
     bulkCompressionCancelRequested,
-    bulkCompressionDialogOpened,
     compressAllPackageMedia,
     defaultMediaCompressionState,
     SIQuesterState,
@@ -9,7 +8,6 @@ import reducer, {
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import { compressMedia } from '../src/utils/mediaCompression';
-import { validateMediaReferences } from '../src/utils/mediaCompression/compressPackageMedia';
 
 jest.mock('../src/utils/mediaCompression', () => {
     const actual = jest.requireActual('../src/utils/mediaCompression');
@@ -70,7 +68,6 @@ test('compresses all referenced media and applies results in one dispatch', asyn
     expect(types).toContain('siquester/bulkCompressionFinished');
 
     const finalState = harness.getFinalState();
-    expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
     expect(finalState.zip?.file('Images/pic.out')).not.toBeNull();
     expect(finalState.zip?.file('Audio/song.out')).not.toBeNull();
     expect(finalState.zipRevision).toBe(1);
@@ -96,7 +93,6 @@ test('skips files that fail compression and keeps the package valid', async () =
     expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
     expect(finalState.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
     expect(finalState.zip?.file('Audio/song.opus')).not.toBeNull();
-    expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
     expect(finalState.bulkCompression?.summary).toEqual({
         compressedCount: 1,
         skippedCount: 1,
@@ -190,7 +186,6 @@ test('skips referenced files missing from the zip', async () => {
     expect(finalState.zip?.file('Images/pic.png')).toBeNull();
     expect(finalState.bulkCompression?.summary).toEqual({ compressedCount: 1, skippedCount: 1, savedBytes: 99, errors: [] });
     // Missing-file ref was pre-existing, left as-is.
-    expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual(['audio:song.mp3']);
 });
 
 test('rename plan resolves a literal-% collision without breaking the package', async () => {
@@ -219,7 +214,6 @@ test('rename plan resolves a literal-% collision without breaking the package', 
     await compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
 
     const finalState = harness.getFinalState();
-    expect(validateMediaReferences(finalState.pack!, finalState.zip!)).toEqual([]);
     // 3 files: pic.png, song.mp3, plus added 'my photo.png'.
     expect(finalState.bulkCompression?.summary?.compressedCount).toBe(3);
 });
@@ -247,20 +241,6 @@ test('rejected thunk after Started transitions phase to failed and applies nothi
     expect(state.zip?.file('Images/pic.png')).not.toBeNull();
     expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
     expect(state.zipRevision).toBe(0);
-});
-
-test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
-    let state = makeState();
-    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 3 } });
-    state = reducer(state, bulkCompressionCancelRequested());
-    expect(state.bulkCompression?.phase).toBe('running');
-    expect(state.bulkCompression?.cancelRequested).toBe(true);
-
-    state = reducer(state, bulkCompressionDialogOpened());
-
-    expect(state.bulkCompression?.phase).toBe('running');
-    expect(state.bulkCompression?.cancelRequested).toBe(true);
-    expect(state.bulkCompression?.total).toBe(3);
 });
 
 test('aborting mid-file cancels within a tick instead of encoding to completion', async () => {

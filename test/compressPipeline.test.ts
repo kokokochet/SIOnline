@@ -1,6 +1,6 @@
 import { compressVideo } from '../src/utils/mediaCompression/compressVideo';
 import { compressAudio } from '../src/utils/mediaCompression/compressAudio';
-import { mediumPreset } from '../src/utils/mediaCompression/compressionPresets';
+import { compressionPresets } from '../src/utils/mediaCompression/compressionPresets';
 import { CompressedMedia } from '../src/utils/mediaCompression/compressionTypes';
 import {
     setConversionResult,
@@ -38,7 +38,7 @@ const cases: CodecCase[] = [
         name: 'compressVideo',
         encoder: 'VideoEncoder',
         compress: compressVideo as unknown as CompressFn,
-        options: mediumPreset.video,
+        options: compressionPresets.medium.video,
         makeFile: (bytes) => new File([new Uint8Array(bytes).fill(0xaa)], 'in.mp4', { type: 'video/mp4' }),
         happy: { buffer: 100, fileName: 'in.mp4' },
     },
@@ -46,7 +46,7 @@ const cases: CodecCase[] = [
         name: 'compressAudio',
         encoder: 'AudioEncoder',
         compress: compressAudio as unknown as CompressFn,
-        options: mediumPreset.audio,
+        options: compressionPresets.medium.audio,
         makeFile: (bytes) => new File([new Uint8Array(bytes).fill(0x11)], 'clip.wav', { type: 'audio/wav' }),
         happy: { buffer: 50, fileName: 'clip.opus' },
     },
@@ -186,7 +186,7 @@ describe('compressVideo dropped-track guard', () => {
         });
         const file = new File([new Uint8Array(64).fill(0xaa)], 'in.mp4', { type: 'video/mp4' });
 
-        const result = await compressVideo(file, mediumPreset.video);
+        const result = await compressVideo(file, compressionPresets.medium.video);
 
         expect(result.wasCompressed).toBe(false);
         expect(result.data.length).toBe(64);

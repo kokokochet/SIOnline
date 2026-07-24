@@ -1365,26 +1365,17 @@ export const siquesterSlice = createSlice({
 			}
 			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
 		},
-		bulkCompressionDialogOpened: (state) => {
-			// Never reopen confirm while running — would mask an in-flight run.
-			if (state.bulkCompression?.phase === 'running') {
-				return;
-			}
-			state.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
-		},
+	bulkCompressionDialogOpened: (state) => {
+		state.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
+	},
 		bulkCompressionDialogClosed: (state) => {
 			state.bulkCompression = { phase: 'idle', total: 0, completed: 0, cancelRequested: false };
 		},
-		bulkCompressionCancelRequested: (state) => {
-			if (!state.bulkCompression) {
-				return;
-			}
-			if (state.bulkCompression.phase === 'running') {
-				state.bulkCompression.cancelRequested = true;
-			} else if (state.bulkCompression.phase === 'confirm') {
-				state.bulkCompression.phase = 'idle';
-			}
-		},
+	bulkCompressionCancelRequested: (state) => {
+		if (state.bulkCompression?.phase === 'running') {
+			state.bulkCompression.cancelRequested = true;
+		}
+	},
 		bulkCompressionStarted: (state, action: PayloadAction<{ total: number }>) => {
 			state.bulkCompression = {
 				phase: 'running',

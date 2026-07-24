@@ -217,7 +217,7 @@ const SVG_SNIFF_WINDOW = 1024;
  * falls through to createImageBitmap, which rasterizes it to lossy JPEG on
  * browsers that transparently gunzip. Uses TextDecoder (DOM + Node 18+).
  */
-export function isSvg(data: Uint8Array): boolean {
+function isSvg(data: Uint8Array): boolean {
     if (data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b) {
         return true;
     }

@@ -56,16 +56,6 @@ const CompressAllDialog: React.FC = () => {
 
 	const counts = React.useMemo(() => selectReferencedMediaCounts(pack), [pack]);
 
-	const phaseRef = React.useRef(bulk?.phase);
-	phaseRef.current = bulk?.phase;
-
-	React.useEffect(() => () => {
-		// Unmount while running → cancel: orphaned thunk would stage results into state.zip (re-open race).
-		if (phaseRef.current === 'running') {
-			appDispatch(cancelBulkCompression());
-		}
-	}, [appDispatch]);
-
 	if (!bulk || bulk.phase === 'idle') {
 		return null;
 	}

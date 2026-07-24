@@ -478,12 +478,8 @@ describe('siquesterSlice', () => {
 		expect(state.bulkCompression?.phase).toBe('idle');
 	});
 
-	test('bulkCompressionCancelRequested closes from confirm, flags from running', () => {
+	test('bulkCompressionCancelRequested flags cancelRequested from running', () => {
 		let state: SIQuesterState = {};
-		state = reducer(state, bulkCompressionDialogOpened());
-		state = reducer(state, bulkCompressionCancelRequested());
-		expect(state.bulkCompression?.phase).toBe('idle');
-
 		state = reducer(state, bulkCompressionDialogOpened());
 		state = reducer(state, bulkCompressionStarted({ total: 1 }));
 		state = reducer(state, bulkCompressionCancelRequested());

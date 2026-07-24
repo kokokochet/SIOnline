@@ -1,5 +1,5 @@
 import { parseImageDimensions, calculateTargetDimensions, compressImage } from '../src/utils/mediaCompression/compressImage';
-import { mediumPreset } from '../src/utils/mediaCompression/compressionPresets';
+import { compressionPresets } from '../src/utils/mediaCompression/compressionPresets';
 
 /** Minimal PNG byte stream with the given IHDR width/height and no pixel data. */
 function makePng(width: number, height: number): Uint8Array {
@@ -101,7 +101,7 @@ describe('compressImage decompression-bomb guard', () => {
         const bytes = new Uint8Array([...sig, ...length, ...type, ...w, ...h, ...rest, ...crc]);
         const file = new File([bytes], 'bomb.png', { type: 'image/png' });
 
-        const result = await compressImage(file, mediumPreset.image);
+        const result = await compressImage(file, compressionPresets.medium.image);
 
         expect(createBitmapMock).not.toHaveBeenCalled();
         expect(result.wasCompressed).toBe(false);
@@ -121,7 +121,7 @@ describe('compressImage decompression-bomb guard', () => {
         const small = makePng(100, 100);
         const file = new File([new Uint8Array(small)], 'small.png', { type: 'image/png' });
 
-        await compressImage(file, mediumPreset.image);
+        await compressImage(file, compressionPresets.medium.image);
 
         expect(createBitmapMock).toHaveBeenCalledTimes(1);
     });

@@ -277,15 +277,3 @@ export function applyStagedFilesToZip(
     }
 }
 
-/** Returns `${type}:${value}` keys of referenced media missing from the zip (empty = intact). */
-export function validateMediaReferences(pack: Package, zip: JSZip): string[] {
-    const missing: string[] = [];
-
-    for (const ref of collectMediaReferences(pack)) {
-        if (!resolveZipEntry(zip, getMediaFolderName(ref.type), ref.value)) {
-            missing.push(`${ref.type}:${ref.value}`);
-        }
-    }
-
-    return missing;
-}
