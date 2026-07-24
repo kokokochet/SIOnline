@@ -49,7 +49,7 @@ function getPresetLabel(preset: CompressionPreset): string {
 	}
 }
 
-// While phase === 'running', onClose cancels instead of closing, so Escape/× can't abort mid-run.
+// While phase === 'running', onClose cancels instead of closing, so × can't abort mid-run.
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
 	const bulk = useAppSelector(state => state.siquester.bulkCompression);
@@ -118,8 +118,6 @@ const CompressAllDialog: React.FC = () => {
 			title={localization.compressAllMedia}
 			onClose={onClose}
 			className='compressAllDialog'
-			dismissable
-			modal
 		>
 			{bulk.phase === 'confirm' ? (
 				<div className='compressAllDialog__confirm'>

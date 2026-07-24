@@ -37,7 +37,7 @@ function makePackWithImageRef(): Package {
 }
 
 describe('CompressAllDialog', () => {
-	test('Escape during running requests cancel and shows a Cancelling overlay (no immediate close)', () => {
+	test('Cancel button during running requests cancel and shows a Cancelling overlay (no immediate close)', () => {
 		const store = makeStore({});
 		render(
 			<Provider store={store}>
@@ -50,7 +50,7 @@ describe('CompressAllDialog', () => {
 		});
 		expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
-		fireEvent.keyDown(window, { key: 'Escape' });
+		fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
 
 		expect(screen.getByText(/Cancelling/i)).toBeInTheDocument();
 		expect((store.getState() as any).siquester.bulkCompression.cancelRequested).toBe(true);

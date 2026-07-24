@@ -61,17 +61,4 @@ describe('CompressAllDialog live regions', () => {
 		expect(status).not.toBeNull();
 		expect(status!.textContent).toContain(localization.compressionCancelled);
 	});
-
-	it('renders as a modal dialog (role=dialog, aria-modal)', () => {
-		renderDialogWithBulk({
-			phase: 'confirm',
-			total: 3,
-			completed: 0,
-			currentFile: null,
-			cancelRequested: false,
-			summary: null,
-		});
-		const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
-		expect(dialog).not.toBeNull();
-	});
 });
