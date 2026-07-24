@@ -3,7 +3,7 @@ import type { VideoCodec } from 'mediabunny';
 import { CompressedMedia, VideoCompressionOptions } from './compressionTypes';
 import { isVideoCompressionSupported } from './featureDetection';
 import { passthroughFromFile } from './passthrough';
-import { runConversion } from './conversionRun';
+import { runConversion, throwIfAborted, buildCompressedMedia } from './conversionRun';
 
 /**
  * Transcodes video to AVC MP4 via Mediabunny, resizing to fit options.maxHeight.
@@ -16,9 +16,7 @@ export async function compressVideo(
     options: VideoCompressionOptions,
     signal?: AbortSignal,
 ): Promise<CompressedMedia> {
-    if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-    }
+    throwIfAborted(signal);
 
     if (!isVideoCompressionSupported()) {
         return passthroughFromFile(file);
@@ -57,17 +55,5 @@ export async function compressVideo(
 
     await runConversion(conversion, signal);
 
-    const { buffer } = target;
-    if (!buffer || buffer.byteLength === 0 || buffer.byteLength >= file.size) {
-        return passthroughFromFile(file);
-    }
-
-    const data = new Uint8Array(buffer);
-    return {
-        data,
-        fileName: file.name,
-        originalSize: file.size,
-        compressedSize: data.length,
-        wasCompressed: true,
-    };
+    return buildCompressedMedia(target, file.name, file.size) ?? passthroughFromFile(file);
 }

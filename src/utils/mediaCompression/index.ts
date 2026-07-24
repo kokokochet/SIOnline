@@ -2,17 +2,11 @@ import { CompressibleMediaType, CompressedMedia, CompressionOptions } from './co
 import { compressImage } from './compressImage';
 import { compressVideo } from './compressVideo';
 import { compressAudio } from './compressAudio';
+import { passthroughFromFile } from './passthrough';
 
-export { defaultCompressionOptions } from './defaultOptions';
 export { probeMedia } from './probeMedia';
 export type { MediaProbeResult } from './probeMedia';
-export {
-    lowPreset,
-    mediumPreset,
-    highPreset,
-    compressionPresets,
-    resolveCompressionOptions,
-} from './compressionPresets';
+export { compressionPresets, resolveCompressionOptions } from './compressionPresets';
 export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -28,18 +22,6 @@ export type {
     AudioCompressionOptions,
     VideoCompressionOptions,
 } from './compressionTypes';
-export { getCompressionDoneSummaryKey, formatSavedBytes } from './compressionI18n';
-
-async function passthrough(file: File): Promise<CompressedMedia> {
-    const data = new Uint8Array(await file.arrayBuffer());
-    return {
-        data,
-        fileName: file.name,
-        originalSize: data.length,
-        compressedSize: data.length,
-        wasCompressed: false,
-    };
-}
 
 /**
  * Compresses image/audio/video; HTML and unknown types pass through.
@@ -57,7 +39,7 @@ export async function compressMedia(
 
     // HTML must stay byte-exact: re-encoding via text() would strip a BOM and mangle windows-1251/UTF-16 bytes.
     if (type === 'html') {
-        return passthrough(file);
+        return passthroughFromFile(file);
     }
 
     switch (type) {
@@ -71,6 +53,6 @@ export async function compressMedia(
             return compressVideo(file, options.video, signal);
 
         default:
-            return passthrough(file);
+            return passthroughFromFile(file);
     }
 }

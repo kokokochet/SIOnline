@@ -42,4 +42,45 @@ describe('Dialog', () => {
         // dismissable alone does not set aria-modal.
         expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-modal');
     });
+
+    test('moves focus into the modal dialog and restores it on unmount (WCAG 2.4.3)', () => {
+        const trigger = document.createElement('button');
+        trigger.textContent = 'open';
+        document.body.appendChild(trigger);
+        trigger.focus();
+        expect(document.activeElement).toBe(trigger);
+
+        const { unmount } = render(
+            <Dialog title='T' onClose={jest.fn()} modal>
+                <button>inside</button>
+            </Dialog>,
+        );
+
+        const dialog = document.querySelector('[role="dialog"]');
+        expect(dialog).not.toBeNull();
+        expect(dialog!.contains(document.activeElement)).toBe(true);
+
+        unmount();
+        expect(document.activeElement).toBe(trigger);
+
+        document.body.removeChild(trigger);
+    });
+
+    test('traps Tab focus inside the modal dialog', () => {
+        const { container } = render(
+            <Dialog title='T' onClose={jest.fn()} modal>
+                <button>a</button>
+                <button>b</button>
+            </Dialog>,
+        );
+        const lastBtn = container.querySelectorAll('button')[2];
+
+        lastBtn.focus();
+        expect(document.activeElement).toBe(lastBtn);
+
+        fireEvent.keyDown(window, { key: 'Tab' });
+        // Close (X) renders before children, so Tab past the last focusable wraps to it.
+        const closeButton = container.querySelector('.dialog_closeButton') as HTMLElement;
+        expect(document.activeElement).toBe(closeButton);
+    });
 });

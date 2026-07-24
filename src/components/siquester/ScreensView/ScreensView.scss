@@ -167,7 +167,7 @@
 	cursor: pointer;
 	transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 
-	&:hover {
+	&:not(:disabled):hover {
 		border-color: #2860ef;
 		color: #2860ef;
 	}
@@ -186,11 +186,6 @@
 	&:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-
-		&:hover {
-			border-color: #c8ced8;
-			color: #4a5568;
-		}
 	}
 }
 

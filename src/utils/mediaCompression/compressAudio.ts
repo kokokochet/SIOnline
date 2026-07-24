@@ -3,7 +3,7 @@ import type { AudioCodec } from 'mediabunny';
 import { CompressedMedia, AudioCompressionOptions } from './compressionTypes';
 import { isAudioCompressionSupported } from './featureDetection';
 import { passthroughFromFile } from './passthrough';
-import { runConversion } from './conversionRun';
+import { runConversion, throwIfAborted, buildCompressedMedia } from './conversionRun';
 
 /**
  * Transcodes audio to OGG/Opus via Mediabunny at 48 kHz / options.channels.
@@ -15,9 +15,7 @@ export async function compressAudio(
     options: AudioCompressionOptions,
     signal?: AbortSignal,
 ): Promise<CompressedMedia> {
-    if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-    }
+    throwIfAborted(signal);
 
     if (!isAudioCompressionSupported()) {
         return passthroughFromFile(file);
@@ -51,18 +49,6 @@ export async function compressAudio(
 
     await runConversion(conversion, signal);
 
-    const buffer = target.buffer;
-    if (!buffer || buffer.byteLength === 0 || buffer.byteLength >= file.size) {
-        return passthroughFromFile(file);
-    }
-
-    const data = new Uint8Array(buffer);
     const baseName = file.name.replace(/\.[^.]+$/, '');
-    return {
-        data,
-        fileName: `${baseName}.opus`,
-        originalSize: file.size,
-        compressedSize: data.length,
-        wasCompressed: true,
-    };
+    return buildCompressedMedia(target, `${baseName}.opus`, file.size) ?? passthroughFromFile(file);
 }
