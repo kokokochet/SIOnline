@@ -16,7 +16,6 @@ import {
 	addQuestion,
 	undo,
 	redo,
-	defaultMediaCompressionState
 } from '../../../state/siquesterSlice';
 import type { SIQuesterState } from '../../../state/siquesterSlice';
 import PackageItem from './components/PackageItem';
@@ -60,7 +59,7 @@ const PackageView: React.FC = () => {
 	// Stabilized so CompressionPanel's mousedown listener isn't re-attached on each parent re-render.
 	const closeCompressionPanel = React.useCallback(() => setIsCompressionPanelOpen(false), []);
 
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
 
 	React.useEffect(() => {
 		if (isNewPackage) {

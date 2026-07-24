@@ -2,7 +2,6 @@ import * as React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
 	bulkCompressionDialogOpened,
-	defaultMediaCompressionState,
 	setMediaCompressionEnabled,
 	setMediaCompressionPreset,
 } from '../../../../state/siquesterSlice';
@@ -24,7 +23,7 @@ interface CompressionPanelProps {
 // Outside-press closing uses mousedown (not click) so the panel closes before the subsequent click hits what's behind it.
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
 	const bulk = useAppSelector(state => state.siquester.bulkCompression);
 	const layout = React.useRef<HTMLDivElement>(null);
 

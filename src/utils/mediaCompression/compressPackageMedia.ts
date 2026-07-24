@@ -67,6 +67,17 @@ function collectFromValue(value: unknown, add: (ref: MediaReference) => void): v
     Object.values(value).forEach(item => collectFromValue(item, add));
 }
 
+/** Walks every question's params across all rounds/themes (the package media tree). */
+function forEachQuestionParams(pack: Package, fn: (params: unknown) => void): void {
+    for (const round of pack.rounds) {
+        for (const theme of round.themes) {
+            for (const question of theme.questions) {
+                fn(question.params);
+            }
+        }
+    }
+}
+
 /** Collects referenced media (deduped by `${type}:${value}`); orphans/HTML/external URLs excluded. */
 export function collectMediaReferences(pack: Package): MediaReference[] {
     const seen = new Set<string>();
@@ -81,13 +92,7 @@ export function collectMediaReferences(pack: Package): MediaReference[] {
         }
     };
 
-    for (const round of pack.rounds) {
-        for (const theme of round.themes) {
-            for (const question of theme.questions) {
-                collectFromValue(question.params, add);
-            }
-        }
-    }
+    forEachQuestionParams(pack, params => collectFromValue(params, add));
 
     return refs;
 }
@@ -218,13 +223,7 @@ export function renameMediaReferences(pack: Package, renames: Map<string, string
         Object.values(value).forEach(visit);
     };
 
-    for (const round of pack.rounds) {
-        for (const theme of round.themes) {
-            for (const question of theme.questions) {
-                visit(question.params);
-            }
-        }
-    }
+    forEachQuestionParams(pack, visit);
 }
 
 /**

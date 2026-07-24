@@ -7,18 +7,12 @@
 	min-width: 320px;
 	max-width: 420px;
 
-	&__counts {
-		margin: 8px 0;
-		padding-left: 20px;
-	}
-
 	&__warning {
 		margin: 8px 0;
 		font-size: 0.9em;
 		color: #b03030;
 	}
 
-	&__notice,
 	&__partial {
 		margin: 8px 0;
 		padding: 6px 10px;

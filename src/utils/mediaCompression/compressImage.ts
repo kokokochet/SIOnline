@@ -39,13 +39,11 @@ export function calculateTargetDimensions(
  * before MAX_IMAGE_PIXELS runs. Returns null for unrecognized/truncated input.
  */
 export function parseImageDimensions(data: Uint8Array): { width: number; height: number } | null {
-    // PNG: 8-byte signature, then first chunk is always IHDR (13 bytes payload).
+    const format = detectImageFormat(data);
+
+    // PNG: first chunk is always IHDR (13 bytes payload).
     // Width and height are big-endian u32 at byte offsets 16 and 20.
-    if (
-        data.length >= 24 &&
-        data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47 &&
-        data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a
-    ) {
+    if (format === 'png' && data.length >= 24) {
         const width = (data[16] * 0x1000000) + (data[17] << 16) + (data[18] << 8) + data[19];
         const height = (data[20] * 0x1000000) + (data[21] << 16) + (data[22] << 8) + data[23];
         return { width: width >>> 0, height: height >>> 0 };
@@ -53,7 +51,7 @@ export function parseImageDimensions(data: Uint8Array): { width: number; height:
 
     // JPEG: scan markers. SOI (FFD8) then a sequence of segments; the SOFn
     // segment carries height (u16 BE) then width (u16 BE) right after precision.
-    if (data.length >= 4 && data[0] === 0xff && data[1] === 0xd8) {
+    if (format === 'jpeg' && data.length >= 4) {
         let offset = 2;
         while (offset + 8 < data.length) {
             if (data[offset] !== 0xff) {

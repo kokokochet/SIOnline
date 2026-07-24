@@ -4,14 +4,8 @@ import {
 	bulkCompressionDialogClosed,
 	cancelBulkCompression,
 	compressAllPackageMedia,
-	defaultMediaCompressionState,
 } from '../../../../state/siquesterSlice';
 import { selectReferencedMediaCounts } from '../../../../utils/mediaCompression/compressPackageMedia';
-import {
-	isAudioCompressionSupported,
-	isVideoCompressionSupported,
-} from '../../../../utils/mediaCompression';
-import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
 import localization from '../../../../model/resources/localization';
 import { getCompressionDoneSummaryKey, formatSavedBytes } from '../../../../utils/mediaCompression/compressionI18n';
 import Dialog from '../../../common/Dialog/Dialog';
@@ -19,40 +13,11 @@ import ProgressBar from '../../../common/ProgressBar/ProgressBar';
 
 import './CompressAllDialog.scss';
 
-const mediaTypes: ReadonlyArray<CompressibleMediaType> = ['image', 'audio', 'video'];
-
-function getMediaTypeLabel(type: CompressibleMediaType): string {
-	switch (type) {
-		case 'image':
-			return localization.images;
-		case 'audio':
-			return localization.audio;
-		case 'video':
-			return localization.video;
-		default:
-			return type;
-	}
-}
-
-function getPresetLabel(preset: CompressionPreset): string {
-	switch (preset) {
-		case 'low':
-			return localization.compressionLow;
-		case 'medium':
-			return localization.compressionMedium;
-		case 'high':
-			return localization.compressionHigh;
-		default:
-			return preset;
-	}
-}
-
 // While phase === 'running', onClose cancels instead of closing, so × can't abort mid-run.
 const CompressAllDialog: React.FC = () => {
 	const appDispatch = useAppDispatch();
 	const bulk = useAppSelector(state => state.siquester.bulkCompression);
 	const pack = useAppSelector(state => state.siquester.pack);
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
 	const counts = React.useMemo(() => selectReferencedMediaCounts(pack), [pack]);
 
@@ -81,31 +46,13 @@ const CompressAllDialog: React.FC = () => {
 		>
 			{bulk.phase === 'confirm' ? (
 				<div className='compressAllDialog__confirm'>
-					{total === 0 ? (
-						<div className='compressAllDialog__empty'>{localization.compressionNoMedia}</div>
-					) : (
-						<>
-							<ul className='compressAllDialog__counts'>
-								{mediaTypes.map(type => (
-									<li key={type}>
-										{`${getMediaTypeLabel(type)}: ${counts[type]} — ${getPresetLabel(mediaCompression.presets[type])}`}
-									</li>
-								))}
-						</ul>
-						{counts.audio > 0 && !isAudioCompressionSupported() ? (
-							<div className='compressAllDialog__notice' role='note'>
-								{localization.compressionAudioNotSupported}
-							</div>
-						) : null}
-						{counts.video > 0 && !isVideoCompressionSupported() ? (
-							<div className='compressAllDialog__notice' role='note'>
-								{localization.compressionVideoNotSupported}
-							</div>
-						) : null}
-						<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
-						<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
-					</>
-					)}
+				{total === 0 ? (
+					<div className='compressAllDialog__empty'>{localization.compressionNoMedia}</div>
+				) : (
+					<div className='compressAllDialog__warning'>
+						{localization.compressionIrreversible} {localization.compressionHistoryNote}
+					</div>
+				)}
 					<div className='compressAllDialog__buttons'>
 						{total > 0 ? (
 							<button
@@ -130,7 +77,7 @@ const CompressAllDialog: React.FC = () => {
 					value={bulk.total > 0 ? bulk.completed / bulk.total : 0}
 					title={localization.compressing}
 				/>
-				<div className='compressAllDialog__currentFile' title={bulk.currentFile}>{bulk.currentFile}</div>
+				<div className='compressAllDialog__currentFile'>{bulk.currentFile}</div>
 					{isCancelling ? (
 						<div className='compressAllDialog__cancelling' role='status' aria-live='polite'>
 							{localization.compressionCancelling}

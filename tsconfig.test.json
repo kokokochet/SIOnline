@@ -6,7 +6,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
-    "types": ["jest", "node", "dom-webcodecs", "@testing-library/jest-dom"]
+    "types": ["jest", "node", "dom-webcodecs"]
   },
   "include": [
     "src",

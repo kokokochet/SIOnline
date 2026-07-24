@@ -16,7 +16,6 @@ import {
 	removeContentScreen,
 	addScreenContentItem,
 	removeScreenContentItem,
-	defaultMediaCompressionState,
 } from '../../../state/siquesterSlice';
 
 import './ScreensView.scss';
@@ -170,7 +169,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const dispatch = useAppDispatch();
 	const [screenIndex, setScreenIndex] = React.useState(0);
 	const [isCompressing, setIsCompressing] = React.useState(false);
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
+	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
 	const compressionEnabled = mediaCompression.enabled;
 	const compressionOptions = resolveCompressionOptions(mediaCompression.presets);
 	const contentRef = React.useRef(content);
@@ -597,6 +596,15 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 
 		const maxFileSizeMb = maxFileSizeMbByType[type];
 
+		const payloadBase = {
+			roundIndex: roundIndex as number,
+			themeIndex: themeIndex as number,
+			questionIndex: questionIndex as number,
+			paramName: paramName as string,
+			itemIndex: target.itemIndex,
+			type,
+		};
+
 		if (compressionEnabled) {
 			// Check the size limit only after compression — a large original may shrink under the limit.
 			setIsCompressing(true);
@@ -608,16 +616,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 					return;
 				}
 
-				dispatch(setContentItemMedia({
-					roundIndex: roundIndex as number,
-					themeIndex: themeIndex as number,
-					questionIndex: questionIndex as number,
-					paramName: paramName as string,
-					itemIndex: target.itemIndex,
-					type,
-					fileName: compressed.fileName,
-					fileData: compressed.data,
-				}));
+				dispatch(setContentItemMedia({ ...payloadBase, fileName: compressed.fileName, fileData: compressed.data }));
 			} catch (err) {
 				console.warn('Media compression failed:', err);
 				dispatch(userErrorChanged(localization.compressionFailed));
@@ -631,16 +630,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			}
 
 			const data = new Uint8Array(await file.arrayBuffer());
-			dispatch(setContentItemMedia({
-				roundIndex: roundIndex as number,
-				themeIndex: themeIndex as number,
-				questionIndex: questionIndex as number,
-				paramName: paramName as string,
-				itemIndex: target.itemIndex,
-				type,
-				fileName: file.name,
-				fileData: data,
-			}));
+			dispatch(setContentItemMedia({ ...payloadBase, fileName: file.name, fileData: data }));
 		}
 	};
 

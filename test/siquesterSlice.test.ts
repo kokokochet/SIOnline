@@ -19,6 +19,7 @@ import reducer, {
 	bulkCompressionCancelled,
 	bulkCompressionFailed,
 	bulkMediaCompressed,
+	defaultMediaCompressionState,
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import { applyStagedFilesToZip } from '../src/utils/mediaCompression/compressPackageMedia';
@@ -36,6 +37,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		const nextState = reducer(state, addComplexAnswer({
@@ -66,6 +68,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		state.pack!.rounds[0].themes[0].questions[0] = {
@@ -153,6 +156,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		state.pack!.rounds[0].themes[0].questions[0].params.question = {
@@ -205,6 +209,7 @@ describe('siquesterSlice', () => {
 				themeIndex: 0,
 				questionIndex: 0,
 				isPackageSelected: false,
+				mediaCompression: defaultMediaCompressionState,
 			};
 		});
 
@@ -344,7 +349,7 @@ describe('siquesterSlice', () => {
 	});
 
 	test('setMediaCompressionEnabled toggles the enabled flag', () => {
-		const state: SIQuesterState = {};
+		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
 		const nextState = reducer(state, setMediaCompressionEnabled(false));
 		expect(nextState.mediaCompression?.enabled).toBe(false);
 		expect(nextState.mediaCompression?.presets).toEqual({ image: 'medium', audio: 'low', video: 'low' });
@@ -354,7 +359,7 @@ describe('siquesterSlice', () => {
 	});
 
 	test('setMediaCompressionPreset changes the preset for one type only', () => {
-		const state: SIQuesterState = {};
+		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
 		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
 		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'low', video: 'low' });
 		expect(nextState.mediaCompression?.enabled).toBe(false);
@@ -405,11 +410,11 @@ describe('siquesterSlice', () => {
 			],
 		};
 
-		return { pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+		return { mediaCompression: defaultMediaCompressionState, pack, zip, zipRevision: 0, history: { past: [], future: [] } };
 	}
 
 	test('bulkCompression dialog phase actions drive the state machine', () => {
-		let state: SIQuesterState = {};
+		let state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
 		state = reducer(state, bulkCompressionDialogOpened());
 		expect(state.bulkCompression?.phase).toBe('confirm');
 
@@ -430,7 +435,7 @@ describe('siquesterSlice', () => {
 	});
 
 	test('bulkCompressionCancelRequested flags cancelRequested from running', () => {
-		let state: SIQuesterState = {};
+		let state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
 		state = reducer(state, bulkCompressionDialogOpened());
 		state = reducer(state, bulkCompressionStarted({ total: 1 }));
 		state = reducer(state, bulkCompressionCancelRequested());
@@ -565,7 +570,7 @@ describe('siquesterSlice', () => {
 				],
 			};
 
-			const state: SIQuesterState = { pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+			const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState, pack, zip, zipRevision: 0, history: { past: [], future: [] } };
 
 			const files = [
 				{ type: 'image' as const, oldValue: 'my a.png', newValue: 'my a.jpg', data: new Uint8Array([10]) },
@@ -654,11 +659,11 @@ describe('bulkCompressionFailed', () => {
 	test('transitions running -> failed with the error message', () => {
 		let state: SIQuesterState = {
 			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
+			mediaCompression: defaultMediaCompressionState,
 			bulkCompression: { phase: 'running', total: 3, completed: 1, cancelRequested: false },
 		};
 
 		state = reducer(state, bulkCompressionFailed({
-			type: 'setup',
 			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
 			reason: 'no package loaded',
 		}));
@@ -670,11 +675,11 @@ describe('bulkCompressionFailed', () => {
 	test('also recovers a confirm-phase throw (the original strand-on-confirm bug)', () => {
 		let state: SIQuesterState = {
 			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
+			mediaCompression: defaultMediaCompressionState,
 			bulkCompression: { phase: 'confirm', total: 0, completed: 0, cancelRequested: false },
 		};
 
 		state = reducer(state, bulkCompressionFailed({
-			type: 'setup',
 			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
 			reason: 'collectMediaReferences blew up',
 		}));

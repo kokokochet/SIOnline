@@ -22,10 +22,6 @@ export async function compressMedia(
     options: CompressionOptions,
     signal?: AbortSignal,
 ): Promise<CompressedMedia> {
-    if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-    }
-
     // HTML must stay byte-exact: re-encoding via text() would strip a BOM and mangle windows-1251/UTF-16 bytes.
     if (type === 'html') {
         return passthroughFromFile(file);

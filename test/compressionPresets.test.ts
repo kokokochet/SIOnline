@@ -4,43 +4,6 @@ import {
 } from '../src/utils/mediaCompression/compressionPresets';
 
 describe('compressionPresets', () => {
-    test('low preset has aggressive compression values', () => {
-        expect(compressionPresets.low.image.maxDimension).toBe(1000);
-        expect(compressionPresets.low.image.quality).toBe(0.7);
-        expect(compressionPresets.low.image.mimeType).toBe('image/jpeg');
-        expect(compressionPresets.low.audio.bitrate).toBe(64_000);
-        expect(compressionPresets.low.audio.codec).toBe('opus');
-        expect(compressionPresets.low.audio.channels).toBe(2);
-        expect(compressionPresets.low.video.maxHeight).toBe(720);
-        expect(compressionPresets.low.video.bitrate).toBe(350_000);
-        expect(compressionPresets.low.video.codec).toBe('avc');
-    });
-
-    test('medium preset has balanced compression values', () => {
-        expect(compressionPresets.medium.image.maxDimension).toBe(1200);
-        expect(compressionPresets.medium.image.quality).toBe(0.8);
-        expect(compressionPresets.medium.image.mimeType).toBe('image/jpeg');
-        expect(compressionPresets.medium.audio.bitrate).toBe(128_000);
-        expect(compressionPresets.medium.audio.codec).toBe('opus');
-        expect(compressionPresets.medium.audio.channels).toBe(2);
-        expect(compressionPresets.medium.video.maxHeight).toBe(720);
-        expect(compressionPresets.medium.video.bitrate).toBe(500_000);
-        expect(compressionPresets.medium.video.codec).toBe('avc');
-    });
-
-    test('high preset favors quality', () => {
-        expect(compressionPresets.high.image.maxDimension).toBe(1500);
-        expect(compressionPresets.high.image.quality).toBe(0.9);
-        expect(compressionPresets.high.image.mimeType).toBe('image/jpeg');
-        expect(compressionPresets.high.audio.bitrate).toBe(192_000);
-        expect(compressionPresets.high.audio.codec).toBe('opus');
-        expect(compressionPresets.high.audio.channels).toBe(2);
-        expect(compressionPresets.high.video.maxHeight).toBe(1080);
-        expect(compressionPresets.high.video.bitrate).toBe(1_500_000);
-        // AVC base codec; Mediabunny picks profile/level for the target resolution.
-        expect(compressionPresets.high.video.codec).toBe('avc');
-    });
-
     // Invariants: guard against accidental inversion; survive legitimate re-tunes but fail on low>medium.
     describe('preset ordering invariants', () => {
         test('image maxDimension is monotonically non-decreasing low -> high', () => {

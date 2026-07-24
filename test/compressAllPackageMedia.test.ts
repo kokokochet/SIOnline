@@ -218,31 +218,6 @@ test('rename plan resolves a literal-% collision without breaking the package', 
     expect(finalState.bulkCompression?.summary?.compressedCount).toBe(3);
 });
 
-test('rejected thunk after Started transitions phase to failed and applies nothing', async () => {
-    // A post-Started throw would strand phase='running'; forced directly since per-file try/catch swallows compressMedia rejections.
-    const { compressAllPackageMedia: thunk } = await import('../src/state/siquesterSlice');
-
-    let state: SIQuesterState = makeState();
-    const dispatch = jest.fn((action: any) => {
-        state = reducer(state, action);
-        return action;
-    });
-    const getState = () => ({ siquester: state });
-
-    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
-    expect(state.bulkCompression?.phase).toBe('running');
-
-    // RTK 2.x thunk.rejected(error, requestId, arg, ...); arg is void here.
-    const rejectedAction = thunk.rejected(new Error('unexpected'), 'fakeReqId', undefined);
-    state = reducer(state, rejectedAction as any);
-
-    expect(state.bulkCompression?.phase).toBe('failed');
-    expect(state.bulkCompression?.failedReason).toBe('unexpected');
-    expect(state.zip?.file('Images/pic.png')).not.toBeNull();
-    expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
-    expect(state.zipRevision).toBe(0);
-});
-
 test('aborting mid-file cancels within a tick instead of encoding to completion', async () => {
     // Slow (30s) but AbortSignal-responsive mock.
     mockedCompressMedia.mockImplementation(

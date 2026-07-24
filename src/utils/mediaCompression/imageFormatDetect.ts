@@ -81,11 +81,11 @@ function pngHasAlpha(data: Uint8Array): boolean {
     return colorType === PNG_COLOR_TYPE_GRAY_ALPHA || colorType === PNG_COLOR_TYPE_RGBA;
 }
 
-/**
- * WebP alpha: VP8X extended flags bit 0x10, or VP8L packed alpha bit
- * (5th byte of the VP8L payload, bit 0x10). Walks RIFF chunks.
- */
-function webpHasAlpha(data: Uint8Array): boolean {
+/** Walks WebP RIFF chunks after the 12-byte header, invoking onChunk per chunk. */
+function forEachWebpChunk(
+    data: Uint8Array,
+    onChunk: (type: string, dataStart: number) => boolean | void,
+): void {
     let offset = 12; // skip "RIFF"(4) + size(4) + "WEBP"(4)
     while (offset + 8 <= data.length) {
         const type = String.fromCharCode(
@@ -96,16 +96,31 @@ function webpHasAlpha(data: Uint8Array): boolean {
         );
         const size = readUint32LE(data, offset + 4);
         const dataStart = offset + 8;
-        if (type === 'VP8X' && dataStart < data.length) {
-            return (data[dataStart] & 0x10) !== 0;
-        }
-        if (type === 'VP8L' && dataStart + 4 < data.length) {
-            return (data[dataStart + 4] & 0x10) !== 0;
+        if (onChunk(type, dataStart) === false) {
+            return;
         }
         // RIFF chunks are padded to even size.
         offset = dataStart + size + (size % 2);
     }
-    return false;
+}
+
+/**
+ * WebP alpha: VP8X extended flags bit 0x10, or VP8L packed alpha bit
+ * (5th byte of the VP8L payload, bit 0x10). Walks RIFF chunks.
+ */
+function webpHasAlpha(data: Uint8Array): boolean {
+    let hasAlpha = false;
+    forEachWebpChunk(data, (type, dataStart) => {
+        if (type === 'VP8X' && dataStart < data.length) {
+            hasAlpha = (data[dataStart] & 0x10) !== 0;
+            return false;
+        }
+        if (type === 'VP8L' && dataStart + 4 < data.length) {
+            hasAlpha = (data[dataStart + 4] & 0x10) !== 0;
+            return false;
+        }
+    });
+    return hasAlpha;
 }
 
 /** True when the image has alpha that JPEG would flatten to white. */
@@ -171,21 +186,14 @@ function apngIsAnimated(data: Uint8Array): boolean {
 }
 
 function webpIsAnimated(data: Uint8Array): boolean {
-    let offset = 12; // skip "RIFF"(4) + size(4) + "WEBP"(4)
-    while (offset + 8 <= data.length) {
-        const type = String.fromCharCode(
-            data[offset],
-            data[offset + 1],
-            data[offset + 2],
-            data[offset + 3],
-        );
-        const size = readUint32LE(data, offset + 4);
+    let animated = false;
+    forEachWebpChunk(data, type => {
         if (type === 'ANIM') {
-            return true;
+            animated = true;
+            return false;
         }
-        offset = offset + 8 + size + (size % 2); // RIFF chunks are even-padded
-    }
-    return false;
+    });
+    return animated;
 }
 
 /**

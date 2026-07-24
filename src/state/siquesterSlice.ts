@@ -45,8 +45,6 @@ export interface BulkCompressionSummary {
 export type BulkCompressionPhase = 'idle' | 'confirm' | 'running' | 'done' | 'cancelled' | 'failed';
 
 export type BulkCompressionFailedPayload = {
-	/** 'setup' | 'compression-disabled' | 'all-files-failed'. */
-	type: string;
 	summary: BulkCompressionSummary;
 	reason?: string;
 };
@@ -93,7 +91,7 @@ export interface SIQuesterState {
 		}[];
 	};
 	/** Not persisted across sessions. */
-	mediaCompression?: {
+	mediaCompression: {
 		enabled: boolean;
 		presets: MediaCompressionPresets;
 	};
@@ -108,10 +106,7 @@ export const defaultMediaCompressionState: { enabled: boolean; presets: MediaCom
 };
 
 const initialState: SIQuesterState = {
-	mediaCompression: {
-		...defaultMediaCompressionState,
-		presets: { ...defaultMediaCompressionState.presets },
-	},
+	mediaCompression: { ...defaultMediaCompressionState },
 };
 
 function createDefaultQuestion(price = 0): Question {
@@ -336,15 +331,14 @@ export const compressAllPackageMedia = createAsyncThunk(
 				throw new Error('No package loaded');
 			}
 
-			const mediaCompression = getSiqState().mediaCompression ?? defaultMediaCompressionState;
+			const mediaCompression = getSiqState().mediaCompression;
 
 			// Fail honestly rather than silently re-encode (UI normally disables this).
 			if (!mediaCompression.enabled) {
-				thunkAPI.dispatch(bulkCompressionFailed({
-					type: 'compression-disabled',
-					summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-					reason: 'compression-disabled',
-				}));
+			thunkAPI.dispatch(bulkCompressionFailed({
+				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+				reason: 'compression-disabled',
+			}));
 				return { applied: false };
 			}
 
@@ -444,7 +438,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 
 			// All-files-failed → 'failed'; mixed → 'done' with errors as a warning.
 			if (errors.length > 0 && files.length === 0) {
-				thunkAPI.dispatch(bulkCompressionFailed({ type: 'all-files-failed', summary }));
+				thunkAPI.dispatch(bulkCompressionFailed({ summary }));
 				return { applied: false };
 			}
 
@@ -457,11 +451,10 @@ export const compressAllPackageMedia = createAsyncThunk(
 			return { applied: files.length > 0 };
 		} catch (err) {
 			// Setup threw before Started; without this the dialog would strand at 'confirm'.
-			thunkAPI.dispatch(bulkCompressionFailed({
-				type: 'setup',
-				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-				reason: err instanceof Error ? err.message : String(err),
-			}));
+		thunkAPI.dispatch(bulkCompressionFailed({
+			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
+			reason: err instanceof Error ? err.message : String(err),
+		}));
 			return { applied: false };
 		} finally {
 			activeBulkController = null;
@@ -1340,24 +1333,12 @@ export const siquesterSlice = createSlice({
 		togglePackageStats: (state) => {
 			state.showPackageStats = !state.showPackageStats;
 		},
-		setMediaCompressionEnabled: (state, action: PayloadAction<boolean>) => {
-			if (!state.mediaCompression) {
-				state.mediaCompression = {
-					...defaultMediaCompressionState,
-					presets: { ...defaultMediaCompressionState.presets },
-				};
-			}
-			state.mediaCompression.enabled = action.payload;
-		},
-		setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
-			if (!state.mediaCompression) {
-				state.mediaCompression = {
-					...defaultMediaCompressionState,
-					presets: { ...defaultMediaCompressionState.presets },
-				};
-			}
-			state.mediaCompression.presets[action.payload.type] = action.payload.preset;
-		},
+	setMediaCompressionEnabled: (state, action: PayloadAction<boolean>) => {
+		state.mediaCompression.enabled = action.payload;
+	},
+	setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
+		state.mediaCompression.presets[action.payload.type] = action.payload.preset;
+	},
 	bulkCompressionDialogOpened: (state) => {
 		state.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
 	},
@@ -1495,13 +1476,6 @@ export const siquesterSlice = createSlice({
 		});
 		builder.addCase(loadPackageStatistics.rejected, (state) => {
 			state.packageStatsLoading = false;
-		});
-		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
-			// Uncovered rejection: 'failed' is honest, not a user cancel.
-			if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
-				state.bulkCompression.phase = 'failed';
-				state.bulkCompression.failedReason = action.error.message ?? 'Unexpected compression error';
-			}
 		});
 	},
 });

@@ -121,10 +121,7 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 	};
 
 	// Derived to avoid flashing "No files found" for a frame on each zip rescan (old setTimeout(0) did new→[]→new).
-	const displayedFiles = React.useMemo(
-		() => mediaFiles[activeTab],
-		[mediaFiles, activeTab],
-	);
+	const displayedFiles = mediaFiles[activeTab];
 
 	if (loading) {
 		return <div className="mediaView__loading">Loading media files...</div>;
