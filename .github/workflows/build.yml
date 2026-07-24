@@ -25,12 +25,11 @@ jobs:
     - name: Install
       run: npm install
 
-    # Pre-existing lint baseline (113 errors: systemic test-file tsconfig-include, localization max-len, tauri parse). Non-blocking; tracked separately. Do not regress the count.
     - name: Lint
       run: npm run lint
       continue-on-error: true
 
-    - name: Typecheck (program + workers)
+    - name: Typecheck
       run: npm run typecheck
 
     - name: Test
