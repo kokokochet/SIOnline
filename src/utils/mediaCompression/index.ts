@@ -11,7 +11,8 @@ export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
 } from './featureDetection';
-export { MAX_MEDIA_BYTES } from './limits';
+/** Caps media size to bound peak decode memory (upload and bulk compression). */
+export const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 
 /**
  * Compresses image/audio/video; HTML and unknown types pass through.

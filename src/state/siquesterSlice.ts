@@ -1454,20 +1454,12 @@ export const siquesterSlice = createSlice({
 		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
 			// Persists summary so 'all-files-failed' can render per-file errors.
 			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
-			if (!state.bulkCompression) {
-				state.bulkCompression = {
-					phase: 'failed',
-					total: 0,
-					completed: 0,
-					cancelRequested: false,
-					failedReason: reason,
-					summary: action.payload.summary,
-				};
-			} else {
-				state.bulkCompression.phase = 'failed';
-				state.bulkCompression.failedReason = reason;
-				state.bulkCompression.summary = action.payload.summary;
-			}
+			state.bulkCompression = {
+				...(state.bulkCompression ?? { total: 0, completed: 0, cancelRequested: false }),
+				phase: 'failed',
+				failedReason: reason,
+				summary: action.payload.summary,
+			};
 		},
 		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
 			if (!state.zip || !state.pack) {
