@@ -92,17 +92,20 @@ export interface SIQuesterState {
 	};
 	/** Not persisted across sessions. */
 	mediaCompression: {
-		enabled: boolean;
+		compressOnUpload: boolean;
 		presets: MediaCompressionPresets;
+		/** True while a compression job is mutating the zip; serializes single + bulk and gates both buttons. */
+		busy: boolean;
 	};
 	bulkCompression?: BulkCompressionState;
 	/** Bumped on bulk replace so MediaView re-scans (zip instance identity never changes). */
 	zipRevision?: number;
 }
 
-export const defaultMediaCompressionState: { enabled: boolean; presets: MediaCompressionPresets } = {
-	enabled: false,
+export const defaultMediaCompressionState: { compressOnUpload: boolean; presets: MediaCompressionPresets; busy: boolean } = {
+	compressOnUpload: false,
 	presets: { image: 'medium', audio: 'low', video: 'low' },
+	busy: false,
 };
 
 const initialState: SIQuesterState = {
@@ -447,6 +450,91 @@ export const compressAllPackageMedia = createAsyncThunk(
 			return { applied: false };
 		} finally {
 			activeBulkController = null;
+		}
+	},
+);
+
+/** Outcome of compressing a single referenced media file in place. */
+export type SingleCompressionResult =
+	| { kind: 'applied' }
+	| { kind: 'skipped' }
+	| { kind: 'missing' }
+	| { kind: 'busy' }
+	| { kind: 'error'; message: string };
+
+/**
+ * Compresses one referenced media file in place. Reuses the existing bulkMediaCompressed
+ * reducer (atomic apply, reference renames, logo sync, composite undo, zipRevision bump).
+ * Serializes against bulk via the shared mediaCompression.busy flag.
+ */
+export const compressSinglePackageMedia = createAsyncThunk<SingleCompressionResult, { type: CompressibleMediaType; value: string }>(
+	'siquester/compressSinglePackageMedia',
+	async (payload, thunkAPI) => {
+		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
+		const { zip, pack } = getSiqState();
+
+		if (!zip || !pack) {
+			return { kind: 'error', message: 'No package loaded' };
+		}
+
+		const siq = getSiqState();
+
+		if (siq.mediaCompression.busy || siq.bulkCompression?.phase === 'running') {
+			return { kind: 'busy' };
+		}
+
+		// Set busy synchronously before any await so concurrent dispatches serialize.
+		thunkAPI.dispatch(setMediaCompressionBusy(true));
+
+		try {
+			const folder = getCompressibleMediaFolderName(payload.type);
+			const entry = resolveZipEntry(zip, folder, payload.value);
+
+			// Missing entry: bail before staging — zip.file(path, undefined) would create a 0-byte file.
+			if (!entry) {
+				return { kind: 'missing' };
+			}
+
+			// eslint-disable-next-line no-await-in-loop
+			const data = await entry.async('uint8array');
+
+			if (data.byteLength > MAX_MEDIA_BYTES) {
+				return { kind: 'skipped' };
+			}
+
+			const options = resolveCompressionOptions(getSiqState().mediaCompression.presets);
+			const compressed = await compressMedia(
+				new File([new Uint8Array(data)], payload.value),
+				payload.type,
+				options,
+			);
+
+			// No savings: do not dispatch — bulkMediaCompressed would push a phantom undo entry.
+			if (!compressed.wasCompressed) {
+				return { kind: 'skipped' };
+			}
+
+			const staged: StagedMediaFile[] = [{
+				type: payload.type,
+				oldValue: payload.value,
+				newValue: compressed.fileName,
+				data: compressed.data,
+			}];
+
+			const renames = planRenames(staged, collectExistingMediaNames(zip));
+			const files = staged.map(file => ({
+				...file,
+				newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
+			}));
+
+			thunkAPI.dispatch(bulkMediaCompressed({ files }));
+
+			return { kind: 'applied' };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { kind: 'error', message };
+		} finally {
+			thunkAPI.dispatch(setMediaCompressionBusy(false));
 		}
 	},
 );
@@ -1322,8 +1410,11 @@ export const siquesterSlice = createSlice({
 		togglePackageStats: (state) => {
 			state.showPackageStats = !state.showPackageStats;
 		},
-	setMediaCompressionEnabled: (state, action: PayloadAction<boolean>) => {
-		state.mediaCompression.enabled = action.payload;
+	setCompressOnUpload: (state, action: PayloadAction<boolean>) => {
+		state.mediaCompression.compressOnUpload = action.payload;
+	},
+	setMediaCompressionBusy: (state, action: PayloadAction<boolean>) => {
+		state.mediaCompression.busy = action.payload;
 	},
 	setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
 		state.mediaCompression.presets[action.payload.type] = action.payload.preset;
@@ -1507,7 +1598,8 @@ export const {
 	togglePackageStats,
 	addComplexAnswer,
 	resetQuestion,
-	setMediaCompressionEnabled,
+	setCompressOnUpload,
+	setMediaCompressionBusy,
 	setMediaCompressionPreset,
 	bulkCompressionDialogOpened,
 	bulkCompressionDialogClosed,
@@ -1617,6 +1709,10 @@ const ignoreActions = new Set([
 	'siquester/bulkCompressionFinished',
 	'siquester/bulkCompressionCancelled',
 	'siquester/bulkMediaCompressed',
+	'siquester/setMediaCompressionBusy',
+	'siquester/compressSinglePackageMedia/pending',
+	'siquester/compressSinglePackageMedia/fulfilled',
+	'siquester/compressSinglePackageMedia/rejected',
 	'siquester/compressAllPackageMedia/pending',
 	'siquester/compressAllPackageMedia/fulfilled',
 	'siquester/compressAllPackageMedia/rejected',

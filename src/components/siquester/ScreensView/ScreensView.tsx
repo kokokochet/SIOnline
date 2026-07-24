@@ -170,7 +170,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 	const [screenIndex, setScreenIndex] = React.useState(0);
 	const [isCompressing, setIsCompressing] = React.useState(false);
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
-	const compressionEnabled = mediaCompression.enabled;
+	const compressionEnabled = mediaCompression.compressOnUpload;
 	const compressionOptions = resolveCompressionOptions(mediaCompression.presets);
 	const contentRef = React.useRef(content);
 	const pendingFileTargetRef = React.useRef<{ itemIndex: number; type: MediaContentType } | null>(null);

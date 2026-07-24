@@ -31,7 +31,6 @@ const COMPRESSION_KEYS = [
 	'compressionHistoryNote',
 	'compressionAudioNotSupported',
 	'compressionVideoNotSupported',
-	'compressionDisabledHint',
 	'compressionFailedSummary', // ≠ compressionDoneSummary plural split
 	'compressionPartialWarning',
 ] as const;

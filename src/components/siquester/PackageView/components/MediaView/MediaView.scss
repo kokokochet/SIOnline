@@ -112,6 +112,33 @@
 				overflow: hidden;
 			}
 		}
+
+		&__actions {
+			display: flex;
+			flex-direction: column;
+			align-items: stretch;
+			gap: 4px;
+			padding: 8px 12px;
+			border-top: 1px solid #777;
+			background: rgb(40, 40, 40);
+		}
+
+		&__compress {
+			padding: 4px 8px;
+			font-size: 12px;
+			cursor: pointer;
+
+			&:disabled {
+				opacity: 0.6;
+				cursor: default;
+			}
+		}
+
+		&__error {
+			font-size: 11px;
+			color: #ff8a80;
+			word-break: break-word;
+		}
 	}
 }
 

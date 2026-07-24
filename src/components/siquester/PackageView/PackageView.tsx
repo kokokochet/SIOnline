@@ -57,8 +57,6 @@ const PackageView: React.FC = () => {
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
 
-	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
-
 	React.useEffect(() => {
 		if (isNewPackage) {
 			setIsEditMode(true);
@@ -426,7 +424,7 @@ const PackageView: React.FC = () => {
 
 					<button
 						type='button'
-						className={`standard imageButton ${mediaCompression.enabled ? 'editActive' : ''}`}
+						className='standard imageButton'
 						onClick={() => setIsCompressionPanelOpen(true)}
 						title={localization.compressionSettings}
 						aria-expanded={isCompressionPanelOpen}

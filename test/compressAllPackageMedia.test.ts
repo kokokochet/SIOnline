@@ -30,7 +30,7 @@ function makeState(): SIQuesterState {
         ],
     };
 
-    return { pack, zip, mediaCompression: { ...defaultMediaCompressionState, enabled: true }, zipRevision: 0, history: { past: [], future: [] } };
+    return { pack, zip, mediaCompression: { ...defaultMediaCompressionState, compressOnUpload: true }, zipRevision: 0, history: { past: [], future: [] } };
 }
 
 function createHarness(initial: SIQuesterState) {

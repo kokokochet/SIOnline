@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../state/hooks';
 import {
 	bulkCompressionDialogOpened,
-	setMediaCompressionEnabled,
+	setCompressOnUpload,
 	setMediaCompressionPreset,
 } from '../../../../state/siquesterSlice';
 import localization from '../../../../model/resources/localization';
@@ -48,8 +48,8 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 					<input
 						id='compressMedia'
 						type='checkbox'
-						checked={mediaCompression.enabled}
-						onChange={() => appDispatch(setMediaCompressionEnabled(!mediaCompression.enabled))}
+						checked={mediaCompression.compressOnUpload}
+						onChange={() => appDispatch(setCompressOnUpload(!mediaCompression.compressOnUpload))}
 					/>
 					<label htmlFor='compressMedia'>{localization.compressMedia}</label>
 				</div>
@@ -58,7 +58,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 				const typeUnsupported =
 					(type === 'audio' && !isAudioCompressionSupported()) ||
 					(type === 'video' && !isVideoCompressionSupported());
-				const presetsDisabled = !mediaCompression.enabled || typeUnsupported;
+				const presetsDisabled = typeUnsupported;
 
 				return (
 					<fieldset
@@ -94,8 +94,7 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 				<button
 					type='button'
 					className='compressionPanel__compressAll standard'
-					disabled={bulk?.phase === 'running' || !mediaCompression.enabled}
-					title={!mediaCompression.enabled ? localization.compressionDisabledHint : undefined}
+					disabled={mediaCompression.busy || bulk?.phase === 'running'}
 					onClick={() => {
 						appDispatch(bulkCompressionDialogOpened());
 						onClose();

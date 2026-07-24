@@ -8,7 +8,7 @@ import reducer, {
 	updateRoundProperty,
 	addRound,
 	setContentItemMedia,
-	setMediaCompressionEnabled,
+	setCompressOnUpload,
 	setMediaCompressionPreset,
 	bulkCompressionDialogOpened,
 	bulkCompressionDialogClosed,
@@ -348,21 +348,21 @@ describe('siquesterSlice', () => {
 		});
 	});
 
-	test('setMediaCompressionEnabled toggles the enabled flag', () => {
+	test('setCompressOnUpload toggles the compressOnUpload flag', () => {
 		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
-		const nextState = reducer(state, setMediaCompressionEnabled(false));
-		expect(nextState.mediaCompression?.enabled).toBe(false);
+		const nextState = reducer(state, setCompressOnUpload(false));
+		expect(nextState.mediaCompression?.compressOnUpload).toBe(false);
 		expect(nextState.mediaCompression?.presets).toEqual({ image: 'medium', audio: 'low', video: 'low' });
 
-		const reenabled = reducer(nextState, setMediaCompressionEnabled(true));
-		expect(reenabled.mediaCompression?.enabled).toBe(true);
+		const reenabled = reducer(nextState, setCompressOnUpload(true));
+		expect(reenabled.mediaCompression?.compressOnUpload).toBe(true);
 	});
 
 	test('setMediaCompressionPreset changes the preset for one type only', () => {
 		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
 		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
 		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'low', video: 'low' });
-		expect(nextState.mediaCompression?.enabled).toBe(false);
+		expect(nextState.mediaCompression?.compressOnUpload).toBe(false);
 	});
 
 	function makeBulkState(): SIQuesterState {
