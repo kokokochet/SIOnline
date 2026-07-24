@@ -16,14 +16,6 @@
 	"parserOptions": {
 		"project": "./tsconfig.json"
 	},
-	"overrides": [
-		{
-			"files": ["src/utils/mediaCompression/workers/**/*.ts"],
-			"parserOptions": {
-				"project": "./tsconfig.worker.json"
-			}
-		}
-	],
 	"rules": {
 		"linebreak-style": "off",
 		"no-tabs": "off",
