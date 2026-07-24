@@ -5,7 +5,7 @@ export type CompressionPreset = 'low' | 'medium' | 'high';
 
 export type MediaCompressionPresets = Record<CompressibleMediaType, CompressionPreset>;
 
-/** Image compression options (canvas + toBlob). */
+/** canvas + toBlob. */
 export interface ImageCompressionOptions {
     /** Maximum dimension (width or height) in pixels. */
     maxDimension: number;
@@ -16,7 +16,7 @@ export interface ImageCompressionOptions {
     lossless?: boolean;
 }
 
-/** Audio compression options (OGG/Opus via Mediabunny). */
+/** OGG/Opus via Mediabunny. */
 export interface AudioCompressionOptions {
     /** Target bitrate in bits per second. */
     bitrate: number;
@@ -26,7 +26,7 @@ export interface AudioCompressionOptions {
     channels: 1 | 2;
 }
 
-/** Video compression options (MP4/AVC via Mediabunny). */
+/** MP4/AVC via Mediabunny. */
 export interface VideoCompressionOptions {
     /** Maximum height in pixels. Width scales proportionally (fit: 'contain'). */
     maxHeight: number;
@@ -48,6 +48,6 @@ export interface CompressedMedia {
     fileName: string;
     originalSize: number;
     compressedSize: number;
-    /** Whether compression actually occurred (false = passthrough). */
+    /** false = passthrough. */
     wasCompressed: boolean;
 }

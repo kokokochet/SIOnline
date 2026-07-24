@@ -159,7 +159,6 @@ export function planRenames(staged: StagedMediaFile[], existingNames: Set<string
     const isTaken = (type: CompressibleMediaType, name: string): boolean =>
         taken.has(`${type}:${name}`) || existingNames.has(`${type}:${name}`);
 
-    // Pass 1: identity renames keep their names.
     for (const file of staged) {
         if (file.newValue === file.oldValue) {
             taken.add(`${file.type}:${file.oldValue}`);
@@ -167,7 +166,6 @@ export function planRenames(staged: StagedMediaFile[], existingNames: Set<string
         }
     }
 
-    // Pass 2: renames get collision-free candidates.
     for (const file of staged) {
         if (file.newValue === file.oldValue) {
             continue;
@@ -245,7 +243,6 @@ export function applyStagedFilesToZip(
     const snapshot = { ...zip.files };
 
     try {
-        // Write all new entries first.
         for (const file of files) {
             const folder = getMediaFolderName(file.type);
             zip.file(`${folder}/${file.newValue}`, file.data);

@@ -102,7 +102,6 @@ const Dialog = React.forwardRef((props: DialogProps, ref: ForwardedRef<HTMLEleme
 			}
 			const firstItem = items[0];
 			const lastItem = items[items.length - 1];
-			// If focus is on the container or has escaped outside, jump to an edge.
 			if (active === current || !current.contains(active)) {
 				e.preventDefault();
 				(e.shiftKey ? lastItem : firstItem).focus();

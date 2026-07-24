@@ -31,7 +31,7 @@ function makePngIhdr(colorType: number, bitDepth = 8) {
 }
 
 describe('image corruption', () => {
-    describe('imageCompressionMock harness (smoke)', () => {
+    describe('imageCompressionMock harness', () => {
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
@@ -46,7 +46,7 @@ describe('image corruption', () => {
             uninstallImageCompressionMock();
         });
 
-        test('drives the existing canvas path to a compressed JPEG result', async () => {
+        test('produces a compressed JPEG result', async () => {
             const file = new File([new Uint8Array(100)], 'photo.jpg', { type: 'image/jpeg' });
             const result = await compressImage(file, jpegOptions);
 
@@ -96,7 +96,7 @@ describe('image corruption', () => {
             expect(calculateTargetDimensions(width, height, maxDimension)).toBeNull();
         });
 
-        test('still scales valid landscape inputs (regression)', () => {
+        test('still scales valid landscape inputs', () => {
             expect(calculateTargetDimensions(1600, 1200, 800)).toEqual({ width: 800, height: 600 });
         });
     });
@@ -266,7 +266,7 @@ describe('image corruption', () => {
             expect(mock.toBlobCalls).toHaveLength(0);
         });
 
-        test('static PNG (no acTL) still proceeds to compression (regression)', async () => {
+        test('static PNG (no acTL) still proceeds to compression', async () => {
             const file = new File([makeStaticPng()], 'still.png', { type: 'image/png' });
 
             // Only assert animation detection didn't short-circuit (toBlobBytes 1 < PNG 29 bytes).
@@ -363,7 +363,7 @@ describe('image corruption', () => {
             expect(mock.toBlobCalls).toHaveLength(0);
         });
 
-        test('8-bit PNG still proceeds to compression (regression)', async () => {
+        test('8-bit PNG still proceeds to compression', async () => {
             const file = new File([makePngIhdr(2, 8)], 'normal.png', { type: 'image/png' });
 
             await compressImage(file, jpegOptions);

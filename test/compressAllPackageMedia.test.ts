@@ -279,7 +279,6 @@ test('rejected thunk after Started transitions phase to failed and applies nothi
 });
 
 test('re-entry guard: a second invocation while phase is running is skipped and leaves the run untouched', async () => {
-    // A second Start while phase='running' must be refused by the condition guard.
     mockedCompressMedia.mockImplementation(async (file: File) => ({
         data: new Uint8Array([9, 9]),
         fileName: `${file.name.replace(/\.[^.]+$/, '')}.out`,
@@ -315,7 +314,6 @@ test('re-entry guard: a second invocation while phase is running is skipped and 
 });
 
 test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
-    // Defense in depth: re-dispatch mid-run must not reset phase/cancelRequested.
     let state = makeState();
     state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 3 } });
     state = reducer(state, bulkCompressionCancelRequested());
@@ -452,7 +450,6 @@ test('thunk is a defensive no-op that transitions to phase "failed" when compres
 });
 
 test('all-files-failed transitions to phase "failed" with collected errors', async () => {
-    // Both referenced files reject -> compressedCount 0, errors length 2.
     mockedCompressMedia.mockRejectedValue(new Error('encode failed'));
 
     const harness = createHarness(makeState());

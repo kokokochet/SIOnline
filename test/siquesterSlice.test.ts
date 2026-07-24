@@ -527,9 +527,8 @@ describe('siquesterSlice', () => {
 		expect(items[2].value).toBe('clip.mp4');
 		expect(items[3].value).toBe('my clip.mp4');
 
-		// History: prior entry preserved + ONE composite entry appended; future cleared.
 		expect(nextState.history?.past).toHaveLength(2);
-		expect(nextState.history?.past[0].pack).toBe(state.pack!); // prior entry kept
+		expect(nextState.history?.past[0].pack).toBe(state.pack!);
 		expect(nextState.history?.future).toHaveLength(0);
 	});
 
@@ -588,8 +587,7 @@ describe('siquesterSlice', () => {
 			expect(zip.file('Images/my a.jpg')).toBeNull();
 			expect(zip.file('Images/b.png')).not.toBeNull();
 			expect(zip.file('Images/b.jpg')).toBeNull();
-			// The files map is restored to the exact pre-call key set.
-			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
 		});
 
 		test('bulkMediaCompressed rolls back zip.files when a mid-apply remove throws (all-or-nothing)', () => {
@@ -644,7 +642,6 @@ describe('siquesterSlice', () => {
 
 			expect(() => reducer(state, bulkMediaCompressed({ files }))).toThrow('injected mid-apply');
 
-			// All-or-nothing: both originals restored, neither write survived.
 			expect(zip.file('Images/my a.png')).not.toBeNull();
 			expect(zip.file('Images/my a.jpg')).toBeNull();
 			expect(zip.file('Images/b.png')).not.toBeNull();
@@ -670,16 +667,15 @@ describe('siquesterSlice', () => {
 
 			const nextState = reducer(state, bulkMediaCompressed({ files }));
 
-			// One new composite entry appended; pre-existing past kept; future cleared.
 			expect(nextState.history?.past).toHaveLength(2);
-			expect(nextState.history?.past[0].pack).toBe(preApplyPack); // prior entry preserved
+			expect(nextState.history?.past[0].pack).toBe(preApplyPack);
 			expect(nextState.history?.future).toHaveLength(0);
 
 			// The composite entry captured the PRE-apply pack + zip map.
 			const composite = nextState.history?.past[1];
 			expect(composite?.pack).toBe(preApplyPack);
 			expect(composite?.zipFiles).toBeDefined();
-			expect(composite?.zipFiles!['Images/pic.png']).toBeDefined(); // pre-apply entry
+			expect(composite?.zipFiles!['Images/pic.png']).toBeDefined();
 		});
 
 		test('undo() reverts the whole bulk apply in one step (pack + zip)', () => {
@@ -692,19 +688,16 @@ describe('siquesterSlice', () => {
 				files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
 			}));
 
-			// Sanity: apply happened.
 			expect(applied.zip?.file('Images/pic.jpg')).not.toBeNull();
 			expect(applied.zip?.file('Images/pic.png')).toBeNull();
 			expect(applied.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.jpg');
 
-			// Single undo reverts BOTH pack and zip.
 			const undone = reducer(applied, undo());
 
 			expect(undone.pack).toBe(preApplyPack);
 			expect(undone.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
 			expect(undone.zip?.file('Images/pic.png')).not.toBeNull();
 			expect(undone.zip?.file('Images/pic.jpg')).toBeNull();
-			// Redo branch now holds the applied state.
 			expect(undone.history?.future).toHaveLength(1);
 		});
 	});
@@ -741,7 +734,6 @@ describe('siquesterSlice', () => {
 				type: 'image', fileName: 'user.png', fileData: new Uint8Array([9, 9]),
 			}));
 
-			// No mutation: same pack reference, no new zip entry, original kept.
 			expect(nextState.pack).toBe(packBefore);
 			expect(nextState.zip).toBe(zipBefore);
 			expect(nextState.zip?.file('Images/user.png')).toBeNull();
@@ -752,7 +744,6 @@ describe('siquesterSlice', () => {
 		});
 
 		test('a gated user edit is NOT overwritten by a later bulkMediaCompressed apply', () => {
-			// phase=running → user tries to swap pic.png for user.png (rejected).
 			const state = makeRunningState();
 			jest.spyOn(console, 'warn').mockImplementation(() => {});
 

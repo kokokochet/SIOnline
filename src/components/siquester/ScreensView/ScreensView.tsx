@@ -591,7 +591,7 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 		const maxFileSizeMb = maxFileSizeMbByType[type];
 
 		if (compressionEnabled) {
-			// Compression ON: skip the pre-size-check; enforce limit AFTER compression.
+			// Check the size limit only after compression — a large original may shrink under the limit.
 			setIsCompressing(true);
 			try {
 				const compressed = await compressMedia(file, type, compressionOptions);
@@ -618,7 +618,6 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 				setIsCompressing(false);
 			}
 		} else {
-			// Compression OFF: enforce the pre-upload size limit on the original file.
 			if (file.size > maxFileSizeMb * 1024 * 1024) {
 				dispatch(userErrorChanged(`${localization.fileIsTooBig} (${maxFileSizeMb} MB)`));
 				return;

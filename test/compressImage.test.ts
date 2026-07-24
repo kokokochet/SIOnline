@@ -52,7 +52,7 @@ describe('parseImageDimensions', () => {
     });
 });
 
-describe('calculateTargetDimensions (unchanged)', () => {
+describe('calculateTargetDimensions', () => {
     test('scales down landscape image to maxDimension', () => {
         expect(calculateTargetDimensions(1600, 1200, 800)).toEqual({ width: 800, height: 600 });
     });

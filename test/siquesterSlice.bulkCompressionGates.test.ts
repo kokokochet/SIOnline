@@ -26,7 +26,6 @@ describe('bulkCompressionFinished gate (running → done only)', () => {
         expect(state.bulkCompression?.phase).toBe('done');
         expect(state.bulkCompression?.completed).toBe(10);
         expect(state.bulkCompression?.summary).toEqual(summary);
-        // currentFile cleared on Finished; pinned as a regression guard.
         expect(state.bulkCompression?.currentFile).toBeUndefined();
     });
 

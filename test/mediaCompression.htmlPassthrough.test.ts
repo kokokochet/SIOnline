@@ -26,7 +26,7 @@ describe('HTML passthrough is byte-identical', () => {
 		expect(result.compressedSize).toBe(utf16le.length);
 	});
 
-	test('plain ASCII HTML is unchanged (sanity)', async () => {
+	test('plain ASCII HTML is unchanged', async () => {
 		const ascii = new Uint8Array([0x3C, 0x70, 0x3E, 0x68, 0x69, 0x3C, 0x2F, 0x70, 0x3E]); // <p>hi</p>
 		const file = new File([ascii], 'plain.html', { type: 'text/html' });
 

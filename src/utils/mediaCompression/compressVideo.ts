@@ -47,7 +47,6 @@ export async function compressVideo(
         showWarnings: false,
     });
 
-    // Never silently mute: keep original if source audio couldn't be carried over.
     const audioDropped = conversion.discardedTracks.some((d) => d.track.type === 'audio');
     if (!conversion.isValid || audioDropped) {
         return passthroughFromFile(file);
