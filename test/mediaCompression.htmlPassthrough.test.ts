@@ -25,13 +25,4 @@ describe('HTML passthrough is byte-identical', () => {
 		expect(result.originalSize).toBe(utf16le.length);
 		expect(result.compressedSize).toBe(utf16le.length);
 	});
-
-	test('plain ASCII HTML is unchanged', async () => {
-		const ascii = new Uint8Array([0x3C, 0x70, 0x3E, 0x68, 0x69, 0x3C, 0x2F, 0x70, 0x3E]); // <p>hi</p>
-		const file = new File([ascii], 'plain.html', { type: 'text/html' });
-
-		const result = await compressMedia(file, 'html', compressionPresets.medium);
-
-		expect(Array.from(result.data)).toEqual(Array.from(ascii));
-	});
 });

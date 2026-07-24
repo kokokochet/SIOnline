@@ -11,10 +11,6 @@ export function calculateTargetDimensions(
     height: number,
     maxDimension: number,
 ): { width: number; height: number } | null {
-    if (width <= 0 || height <= 0 || maxDimension <= 0) {
-        return null;
-    }
-
     let targetWidth: number;
     let targetHeight: number;
 
@@ -133,7 +129,6 @@ export async function compressImage(
 
         // imageOrientation:'from-image' honors EXIF orientation (portrait phone photos).
         const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-        let bitmapClosed = false;
 
         try {
             // Post-decode guard: fallback for formats the prober couldn't parse.
@@ -171,7 +166,6 @@ export async function compressImage(
 
             ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
             bitmap.close();
-            bitmapClosed = true;
 
             const blob = await new Promise<Blob | null>((resolve) => {
                 canvas.toBlob(resolve, effectiveMime, options.quality);
@@ -200,14 +194,9 @@ export async function compressImage(
                 wasCompressed: true,
             };
         } finally {
-            if (!bitmapClosed) {
-                bitmap.close();
-            }
+            bitmap.close();
         }
     } catch (err) {
-        if ((err as Error)?.name === 'AbortError') {
-            throw err;
-        }
         console.warn('Image compression failed, using original:', err);
         return passthroughMedia(originalData, file.name);
     }

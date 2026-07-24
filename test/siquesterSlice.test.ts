@@ -660,7 +660,6 @@ describe('bulkCompressionFailed', () => {
 		state = reducer(state, bulkCompressionFailed({
 			type: 'setup',
 			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-			errors: [],
 			reason: 'no package loaded',
 		}));
 
@@ -677,7 +676,6 @@ describe('bulkCompressionFailed', () => {
 		state = reducer(state, bulkCompressionFailed({
 			type: 'setup',
 			summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-			errors: [],
 			reason: 'collectMediaReferences blew up',
 		}));
 

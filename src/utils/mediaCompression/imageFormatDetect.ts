@@ -39,9 +39,6 @@ function readUint32LE(data: Uint8Array, offset: number): number {
 
 /** Detects format from leading magic bytes (allocation-free). */
 export function detectImageFormat(data: Uint8Array): DetectedImageFormat {
-    if (data.length === 0) {
-        return 'unknown';
-    }
     if (bytesStartWith(data, PNG_SIGNATURE)) {
         return 'png';
     }

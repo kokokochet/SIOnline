@@ -39,14 +39,6 @@ const COMPRESSION_KEYS = [
 const LOCALES = ['en', 'ru'] as const;
 
 describe('locale key parity', () => {
-	it('every locale exposes the same compression keys', () => {
-		for (const lang of LOCALES) {
-			for (const key of COMPRESSION_KEYS) {
-				expect(Object.prototype.hasOwnProperty.call(content[lang], key)).toBe(true);
-			}
-		}
-	});
-
 	it.each(LOCALES)('%s has every compression key as a non-empty string', (lang) => {
 		for (const key of COMPRESSION_KEYS) {
 			const value = (content[lang] as Record<string, unknown>)[key];

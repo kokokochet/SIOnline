@@ -48,7 +48,6 @@ export type BulkCompressionFailedPayload = {
 	/** 'setup' | 'compression-disabled' | 'all-files-failed'. */
 	type: string;
 	summary: BulkCompressionSummary;
-	errors: BulkCompressionFileError[];
 	reason?: string;
 };
 
@@ -344,7 +343,6 @@ export const compressAllPackageMedia = createAsyncThunk(
 				thunkAPI.dispatch(bulkCompressionFailed({
 					type: 'compression-disabled',
 					summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-					errors: [],
 					reason: 'compression-disabled',
 				}));
 				return { applied: false };
@@ -446,7 +444,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 
 			// All-files-failed → 'failed'; mixed → 'done' with errors as a warning.
 			if (errors.length > 0 && files.length === 0) {
-				thunkAPI.dispatch(bulkCompressionFailed({ type: 'all-files-failed', summary, errors }));
+				thunkAPI.dispatch(bulkCompressionFailed({ type: 'all-files-failed', summary }));
 				return { applied: false };
 			}
 
@@ -462,7 +460,6 @@ export const compressAllPackageMedia = createAsyncThunk(
 			thunkAPI.dispatch(bulkCompressionFailed({
 				type: 'setup',
 				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-				errors: [],
 				reason: err instanceof Error ? err.message : String(err),
 			}));
 			return { applied: false };
@@ -1405,7 +1402,7 @@ export const siquesterSlice = createSlice({
 		},
 		bulkCompressionFailed: (state, action: PayloadAction<BulkCompressionFailedPayload>) => {
 			// Persists summary so 'all-files-failed' can render per-file errors.
-			const reason = action.payload.reason ?? action.payload.errors[0]?.message ?? 'Unknown error';
+			const reason = action.payload.reason ?? action.payload.summary.errors[0]?.message ?? 'Unknown error';
 			state.bulkCompression = {
 				...(state.bulkCompression ?? { total: 0, completed: 0, cancelRequested: false }),
 				phase: 'failed',

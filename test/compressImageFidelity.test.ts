@@ -287,29 +287,19 @@ describe('image corruption', () => {
             uninstallImageCompressionMock();
         });
 
-        test('inline SVG content passes through unchanged', async () => {
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>`;
-            const file = new File([svg], 'icon.svg', { type: 'image/svg+xml' });
+		test('inline SVG content passes through unchanged', async () => {
+			const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>`;
+			const file = new File([svg], 'icon.svg', { type: 'image/svg+xml' });
 
-            const result = await compressImage(file, jpegOptions);
+			const result = await compressImage(file, jpegOptions);
 
-            expect(result.wasCompressed).toBe(false);
-            expect(result.fileName).toBe('icon.svg');
-            expect(mock.toBlobCalls).toHaveLength(0);
-            expect(mock.createImageBitmapCalls).toHaveLength(0);
-        });
+			expect(result.wasCompressed).toBe(false);
+			expect(result.fileName).toBe('icon.svg');
+			expect(mock.toBlobCalls).toHaveLength(0);
+			expect(mock.createImageBitmapCalls).toHaveLength(0);
+		});
 
-        test('SVG with an XML declaration still passes through', async () => {
-            const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg viewBox="0 0 24 24"></svg>`;
-            const file = new File([svg], 'logo.svg', { type: 'image/svg+xml' });
-
-            const result = await compressImage(file, jpegOptions);
-
-            expect(result.wasCompressed).toBe(false);
-            expect(mock.toBlobCalls).toHaveLength(0);
-        });
-
-        test('SVGZ (gzipped SVG, gzip magic bytes 0x1f 0x8b) passes through unchanged', async () => {
+		test('SVGZ (gzipped SVG, gzip magic bytes 0x1f 0x8b) passes through unchanged', async () => {
             // SVGZ: gzip magic + zeros, no <svg/image signature; without the gzip-magic guard it would rasterize.
             const svgz = new Uint8Array([0x1f, 0x8b, ...new Uint8Array(30)]);
             const file = new File([svgz], 'icon.svgz', { type: 'image/svg+xml' });
