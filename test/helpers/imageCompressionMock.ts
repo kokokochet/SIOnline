@@ -18,13 +18,11 @@ export interface ImageCompressionMockConfig {
 }
 
 export interface CreateImageBitmapCall {
-    file: File;
     options?: ImageBitmapOptions;
 }
 
 export interface ToBlobCall {
     mimeType: string;
-    quality?: number;
 }
 
 export interface ImageCompressionMockHandle {
@@ -79,8 +77,8 @@ export function installImageCompressionMock(
         width: 0,
         height: 0,
         getContext: jest.fn(() => fakeCtx),
-        toBlob: jest.fn((resolve: (b: Blob | null) => void, mimeType: string, quality?: number) => {
-            toBlobCalls.push({ mimeType, quality });
+        toBlob: jest.fn((resolve: (b: Blob | null) => void, mimeType: string) => {
+            toBlobCalls.push({ mimeType });
             resolve(toBlobBytes === null ? null : new Blob([toBlobBytes.buffer as ArrayBuffer]));
         }),
     };
@@ -90,8 +88,8 @@ export function installImageCompressionMock(
         document: globalThis.document,
     };
 
-    globalThis.createImageBitmap = jest.fn(async (file: File, options?: ImageBitmapOptions) => {
-        createImageBitmapCalls.push({ file, options });
+    globalThis.createImageBitmap = jest.fn(async (_file: File, options?: ImageBitmapOptions) => {
+        createImageBitmapCalls.push({ options });
         return bitmap;
     }) as unknown as typeof createImageBitmap;
 

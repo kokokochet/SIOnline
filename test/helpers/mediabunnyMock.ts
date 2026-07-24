@@ -63,8 +63,6 @@ export class ConversionCanceledError extends Error {
 export class MockConversion {
     readonly isValid: boolean;
     readonly discardedTracks: { track: { type: string } }[];
-    onProgress: ((progress: number, processedTime: number) => unknown) | undefined;
-    conversionState: 'idle' | 'executing' | 'canceled' | 'done' = 'idle';
     executeCalled = false;
     cancelCalled = false;
 
@@ -81,7 +79,6 @@ export class MockConversion {
 
     async execute(): Promise<void> {
         this.executeCalled = true;
-        this.conversionState = 'executing';
         if (this.executeError !== undefined) {
             throw this.executeError;
         }
@@ -92,12 +89,10 @@ export class MockConversion {
             });
             return;
         }
-        this.conversionState = 'done';
     }
 
     async cancel(): Promise<void> {
         this.cancelCalled = true;
-        this.conversionState = 'canceled';
         this.rejectExecute?.(new ConversionCanceledError('canceled'));
     }
 }

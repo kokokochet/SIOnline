@@ -20,7 +20,6 @@ export interface AudioCompressionOptions {
     bitrate: number;
     /** Codec name (e.g. 'opus'); see Mediabunny's `AudioCodec`. */
     codec: string;
-    /** OGG Opus mapping family 0. */
     channels: 1 | 2;
 }
 

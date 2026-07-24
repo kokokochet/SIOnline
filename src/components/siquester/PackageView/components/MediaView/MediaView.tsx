@@ -35,7 +35,6 @@ const MediaView: React.FC<MediaViewProps> = ({ zip }) => {
 		html: []
 	});
 	const [loading, setLoading] = React.useState(true);
-
 	const zipRevision = useAppSelector(state => state.siquester.zipRevision);
 
 	const loadMediaFiles = async () => {

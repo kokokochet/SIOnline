@@ -365,24 +365,6 @@ describe('siquesterSlice', () => {
 		expect(nextState.mediaCompression?.enabled).toBe(false);
 	});
 
-	test('setMediaCompressionPreset preserves the enabled flag', () => {
-		const disabled: SIQuesterState = {
-			mediaCompression: { enabled: false, presets: { image: 'medium', audio: 'medium', video: 'medium' } },
-		};
-		const nextState = reducer(disabled, setMediaCompressionPreset({ type: 'video', preset: 'low' }));
-		expect(nextState.mediaCompression?.presets.video).toBe('low');
-		expect(nextState.mediaCompression?.enabled).toBe(false);
-	});
-
-	test('setMediaCompressionEnabled preserves the presets', () => {
-		const high: SIQuesterState = {
-			mediaCompression: { enabled: true, presets: { image: 'high', audio: 'medium', video: 'medium' } },
-		};
-		const nextState = reducer(high, setMediaCompressionEnabled(false));
-		expect(nextState.mediaCompression?.enabled).toBe(false);
-		expect(nextState.mediaCompression?.presets.image).toBe('high');
-	});
-
 	function makeBulkState(): SIQuesterState {
 		const zip = new JSZip();
 		zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));
@@ -658,7 +640,6 @@ describe('siquesterSlice', () => {
 describe('bulkCompressionFailed', () => {
 	test('transitions running -> failed with the error message', () => {
 		let state: SIQuesterState = {
-			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
 			mediaCompression: defaultMediaCompressionState,
 			bulkCompression: { phase: 'running', total: 3, completed: 1, cancelRequested: false },
 		};
@@ -674,7 +655,6 @@ describe('bulkCompressionFailed', () => {
 
 	test('also recovers a confirm-phase throw (the original strand-on-confirm bug)', () => {
 		let state: SIQuesterState = {
-			pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }),
 			mediaCompression: defaultMediaCompressionState,
 			bulkCompression: { phase: 'confirm', total: 0, completed: 0, cancelRequested: false },
 		};

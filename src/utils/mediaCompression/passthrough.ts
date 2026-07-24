@@ -10,7 +10,6 @@ export function passthroughMedia(data: Uint8Array, fileName: string): Compressed
     };
 }
 
-/** Reads the file lazily — only into memory when we actually fall through to passthrough. */
 export async function passthroughFromFile(file: File): Promise<CompressedMedia> {
     const data = new Uint8Array(await file.arrayBuffer());
     return passthroughMedia(data, file.name);

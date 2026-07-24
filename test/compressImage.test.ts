@@ -90,16 +90,9 @@ describe('compressImage decompression-bomb guard', () => {
         const createBitmapMock = jest.fn();
         (globalThis as { createImageBitmap?: unknown }).createImageBitmap = createBitmapMock;
 
-        // 40000x40000 PNG ~ 1.6e9 pixels, far above MAX_IMAGE_PIXELS (33_177_600).
-        const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-        const length = [0x00, 0x00, 0x00, 0x0d];
-        const type = [0x49, 0x48, 0x44, 0x52];
-        const w = [0x00, 0x00, 0x9c, 0x40]; // 40000
-        const h = [0x00, 0x00, 0x9c, 0x40]; // 40000
-        const rest = [0x08, 0x02, 0x00, 0x00, 0x00];
-        const crc = [0x00, 0x00, 0x00, 0x00];
-        const bytes = new Uint8Array([...sig, ...length, ...type, ...w, ...h, ...rest, ...crc]);
-        const file = new File([bytes], 'bomb.png', { type: 'image/png' });
+		// 40000x40000 PNG ~ 1.6e9 pixels, far above MAX_IMAGE_PIXELS (33_177_600).
+		const bytes = makePng(40000, 40000);
+		const file = new File([new Uint8Array(bytes)], 'bomb.png', { type: 'image/png' });
 
         const result = await compressImage(file, compressionPresets.medium.image);
 

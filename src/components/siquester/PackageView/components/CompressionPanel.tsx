@@ -20,12 +20,10 @@ interface CompressionPanelProps {
 	onClose: () => void;
 }
 
-// Outside-press closing uses mousedown (not click) so the panel closes before the subsequent click hits what's behind it.
 const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) => {
 	const appDispatch = useAppDispatch();
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
 	const bulk = useAppSelector(state => state.siquester.bulkCompression);
-	const layout = React.useRef<HTMLDivElement>(null);
 
 	const presets: ReadonlyArray<{ value: CompressionPreset; label: string }> = [
 		{ value: 'low', label: localization.compressionLow },
@@ -39,32 +37,12 @@ const CompressionPanel: React.FC<CompressionPanelProps> = ({ open, onClose }) =>
 		{ type: 'video', legend: localization.compressionPresetVideo },
 	];
 
-	const hide = React.useCallback((e: Event): void => {
-		if (!layout.current || (e.target instanceof Node && layout.current.contains(e.target))) {
-			return;
-		}
-
-		onClose();
-	}, [onClose]);
-
-	React.useEffect(() => {
-		if (!open) {
-			return;
-		}
-
-		window.addEventListener('mousedown', hide);
-
-		return () => {
-			window.removeEventListener('mousedown', hide);
-		};
-	}, [open, hide]);
-
 	if (!open) {
 		return null;
 	}
 
 	return (
-		<Dialog id='compressionPanel' ref={layout} title={localization.compressionSettings} onClose={onClose}>
+		<Dialog id='compressionPanel' title={localization.compressionSettings} onClose={onClose}>
 			<div className='compressionPanelBody'>
 				<div className='compressionPanel__toggle'>
 					<input

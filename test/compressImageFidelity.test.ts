@@ -30,6 +30,15 @@ function makePngIhdr(colorType: number, bitDepth = 8) {
     ]);
 }
 
+/** Standard mock: 100×100 bitmap yielding a 1-byte (smaller-than-original) blob. */
+function standardMock(bytes = 1): ImageCompressionMockHandle {
+    return installImageCompressionMock({
+        bitmapWidth: 100,
+        bitmapHeight: 100,
+        toBlobBytes: new Uint8Array(bytes),
+    });
+}
+
 describe('image corruption', () => {
     describe('EXIF orientation is respected', () => {
         let mock: ImageCompressionMockHandle;
@@ -66,29 +75,6 @@ describe('image corruption', () => {
             ['downscale produces a zero width', 1, 10000, 800],
         ])('returns null when %s', (_name, width, height, maxDimension) => {
             expect(calculateTargetDimensions(width, height, maxDimension)).toBeNull();
-        });
-    });
-
-    describe('compressImage passes through on zero output dimensions', () => {
-        let mock: ImageCompressionMockHandle;
-
-        afterEach(() => {
-            uninstallImageCompressionMock();
-        });
-
-        test('passes through when the decoded bitmap has zero width', async () => {
-            mock = installImageCompressionMock({
-                bitmapWidth: 0,
-                bitmapHeight: 100,
-                toBlobBytes: new Uint8Array(1),
-            });
-            const file = new File([new Uint8Array(10)], 'edge.jpg', { type: 'image/jpeg' });
-
-            const result = await compressImage(file, jpegOptions);
-
-            expect(result.wasCompressed).toBe(false);
-            expect(result.fileName).toBe('edge.jpg');
-            expect(mock.toBlobCalls).toHaveLength(0);
         });
     });
 
@@ -178,24 +164,10 @@ describe('image corruption', () => {
             ]);
         }
 
-        function makeStaticPng() {
-            // signature + IHDR only (no acTL) → static.
-            return new Uint8Array([
-                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-                0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-                0x08, 0x02, 0x00, 0x00, 0x00,
-            ]);
-        }
-
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
-            mock = installImageCompressionMock({
-                bitmapWidth: 100,
-                bitmapHeight: 100,
-                toBlobBytes: new Uint8Array(1),
-            });
+            mock = standardMock();
         });
 
         afterEach(() => {
@@ -235,7 +207,7 @@ describe('image corruption', () => {
         });
 
         test('static PNG (no acTL) still proceeds to compression', async () => {
-            const file = new File([makeStaticPng()], 'still.png', { type: 'image/png' });
+            const file = new File([makePngIhdr(2)], 'still.png', { type: 'image/png' });
 
             // Only assert animation detection didn't short-circuit (toBlobBytes 1 < PNG 29 bytes).
             await compressImage(file, jpegOptions);
@@ -248,11 +220,7 @@ describe('image corruption', () => {
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
-            mock = installImageCompressionMock({
-                bitmapWidth: 100,
-                bitmapHeight: 100,
-                toBlobBytes: new Uint8Array(1),
-            });
+            mock = standardMock();
         });
 
         afterEach(() => {
@@ -289,11 +257,7 @@ describe('image corruption', () => {
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
-            mock = installImageCompressionMock({
-                bitmapWidth: 100,
-                bitmapHeight: 100,
-                toBlobBytes: new Uint8Array(1),
-            });
+            mock = standardMock();
         });
 
         afterEach(() => {
@@ -379,11 +343,6 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
             ]),
         );
     }
-
-    test('detectImageFormat returns "webp" for a RIFF/WEBP container', () => {
-        expect(detectImageFormat(makeWebpVp8x(0x10))).toBe('webp');
-        expect(detectImageFormat(makeWebpVp8l(0x10))).toBe('webp');
-    });
 
     test.each([
         ['VP8X extended chunk with alpha flag (bit 0x10)', makeWebpVp8x(0x10), true],

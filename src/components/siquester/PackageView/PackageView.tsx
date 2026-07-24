@@ -56,8 +56,6 @@ const PackageView: React.FC = () => {
 	const roundsContainerRef = React.useRef<HTMLDivElement>(null);
 	const [isScrollable, setIsScrollable] = React.useState(false);
 	const [isCompressionPanelOpen, setIsCompressionPanelOpen] = React.useState(false);
-	// Stabilized so CompressionPanel's mousedown listener isn't re-attached on each parent re-render.
-	const closeCompressionPanel = React.useCallback(() => setIsCompressionPanelOpen(false), []);
 
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression);
 
@@ -441,7 +439,7 @@ const PackageView: React.FC = () => {
 					</button>
 					<CompressionPanel
 						open={isCompressionPanelOpen}
-						onClose={closeCompressionPanel}
+						onClose={() => setIsCompressionPanelOpen(false)}
 					/>
 					<CompressAllDialog />
 

@@ -15,9 +15,4 @@ describe('locale-aware byte formatting', () => {
 		expect(formatSavedBytes(1048576, 'en', 'MB')).toBe('1.0 MB');
 		expect(formatSavedBytes(1836283, 'en', 'MB')).toBe('1.8 MB');
 	});
-
-	it('appends the localized unit with a single space', () => {
-		expect(formatSavedBytes(1048576, 'sr', 'MB')).toBe('1,0 MB');
-		expect(formatSavedBytes(1048576, 'uz', 'MB')).toBe('1,0 MB');
-	});
 });

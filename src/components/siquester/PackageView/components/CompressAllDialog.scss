@@ -40,9 +40,7 @@
 
 	& .progress {
 		position: static;
-		display: block;
-		width: 100%;
-		margin: 0 0 6px 0;
+		margin-bottom: 6px;
 	}
 
 	&__currentFile {
@@ -52,7 +50,6 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		max-width: 380px;
 	}
 
 	&__cancelling {
