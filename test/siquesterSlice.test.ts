@@ -8,7 +8,6 @@ import reducer, {
 	updateRoundProperty,
 	addRound,
 	setContentItemMedia,
-	setContentItemType,
 	setMediaCompressionEnabled,
 	setMediaCompressionPreset,
 	bulkCompressionDialogOpened,
@@ -702,85 +701,6 @@ describe('siquesterSlice', () => {
 		});
 	});
 
-	describe('concurrent apply gate', () => {
-		function makeRunningState(): SIQuesterState {
-			const zip = new JSZip();
-			zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));
-
-			const pack = createDefaultPackage({
-				packageName: '', authorName: '', roundCount: 1, themeCount: 1,
-				questionCount: 1, includeFinalRound: false, finalThemeCount: 0,
-			});
-			pack.rounds[0].themes[0].questions[0].params.question = {
-				items: [{ type: 'image', value: 'pic.png', isRef: true, placement: 'screen' }],
-			};
-
-			return {
-				zip,
-				pack,
-				bulkCompression: { phase: 'running', total: 2, completed: 0, cancelRequested: false },
-			};
-		}
-
-		test('setContentItemMedia is a no-op + warns while bulk compression is running', () => {
-			const state = makeRunningState();
-			const zipBefore = state.zip!;
-			const packBefore = state.pack!;
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
-			const nextState = reducer(state, setContentItemMedia({
-				roundIndex: 0, themeIndex: 0, questionIndex: 0,
-				paramName: 'question', itemIndex: 0,
-				type: 'image', fileName: 'user.png', fileData: new Uint8Array([9, 9]),
-			}));
-
-			expect(nextState.pack).toBe(packBefore);
-			expect(nextState.zip).toBe(zipBefore);
-			expect(nextState.zip?.file('Images/user.png')).toBeNull();
-			expect(nextState.zip?.file('Images/pic.png')).not.toBeNull();
-			expect(nextState.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
-			expect(warnSpy).toHaveBeenCalled();
-			warnSpy.mockRestore();
-		});
-
-		test('a gated user edit is NOT overwritten by a later bulkMediaCompressed apply', () => {
-			const state = makeRunningState();
-			jest.spyOn(console, 'warn').mockImplementation(() => {});
-
-			const afterUserEdit = reducer(state, setContentItemMedia({
-				roundIndex: 0, themeIndex: 0, questionIndex: 0,
-				paramName: 'question', itemIndex: 0,
-				type: 'image', fileName: 'user.png', fileData: new Uint8Array([9, 9]),
-			}));
-
-			// Bulk apply then runs with staged bytes for pic.png → pic.jpg.
-			// Because the user edit was rejected, the apply is consistent (it
-			// applies over pic.png, not user.png).
-			const applied = reducer(afterUserEdit, bulkMediaCompressed({
-				files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
-			}));
-
-			expect(applied.zip?.file('Images/pic.jpg')).not.toBeNull();
-			// The rejected user edit never landed, so it cannot be "overwritten".
-			expect(applied.zip?.file('Images/user.png')).toBeNull();
-			expect(applied.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.jpg');
-		});
-
-		test('setContentItemType is a no-op while bulk compression is running', () => {
-			const state = makeRunningState();
-			const packBefore = state.pack!;
-			const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
-			const nextState = reducer(state, setContentItemType({
-				roundIndex: 0, themeIndex: 0, questionIndex: 0,
-				paramName: 'question', itemIndex: 0, type: 'text',
-			}));
-
-			expect(nextState.pack).toBe(packBefore);
-			expect(warnSpy).toHaveBeenCalled();
-			warnSpy.mockRestore();
-		});
-	});
 });
 
 describe('bulkCompressionFailed', () => {

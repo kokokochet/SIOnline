@@ -193,11 +193,6 @@ function packageContainsMediaReference(
 	return pack.rounds.some(round => round.themes.some(theme => theme.questions.some(questionContainsReference)));
 }
 
-/** Gates media-editing reducers so live zip mutations aren't overwritten by the eventual bulkMediaCompressed apply. */
-function isBulkCompressionRunning(state: SIQuesterState): boolean {
-	return state.bulkCompression?.phase === 'running';
-}
-
 function removeOrphanedMediaFile(state: SIQuesterState, item: ContentItem, excludedItem?: ContentItem): boolean {
 	if (!state.zip || !isMediaReferenceItem(item)) {
 		return false;
@@ -221,7 +216,6 @@ function removeOrphanedMediaFile(state: SIQuesterState, item: ContentItem, exclu
 export const openFile = createAsyncThunk(
 	'siquester/openFile',
 	async (arg: File, thunkAPI) => {
-		abortActiveBulkCompression();
 		const dataContext = thunkAPI.extra as DataContext;
 		dataContext.file = arg;
 		const zip = new JSZip();
@@ -251,7 +245,6 @@ export const openFile = createAsyncThunk(
 export const createNewPackage = createAsyncThunk(
 	'siquester/createNewPackage',
 	async (options: NewPackageOptions, thunkAPI) => {
-		abortActiveBulkCompression();
 		const pack = createDefaultPackage(options);
 		const zip = await createDefaultZip();
 
@@ -442,12 +435,6 @@ export const compressAllPackageMedia = createAsyncThunk(
 				return { applied: false };
 			}
 
-			// The dialog isn't modal; never apply staged results into a different zip.
-			if (getSiqState().zip !== zip) {
-				thunkAPI.dispatch(bulkCompressionCancelled());
-				return { applied: false };
-			}
-
 			const renames = planRenames(staged, collectExistingMediaNames(zip));
 			const files = staged.map(file => ({
 				...file,
@@ -486,14 +473,6 @@ export const compressAllPackageMedia = createAsyncThunk(
 		} finally {
 			setActiveBulkController(null);
 		}
-	},
-	{
-		// Re-entry guard: refuse a second concurrent run (a rejected action
-		// with meta.condition === true follows; the rejected reducer ignores it).
-		condition: (_, thunkAPI) => {
-			const phase = (thunkAPI.getState() as { siquester: SIQuesterState }).siquester.bulkCompression?.phase;
-			return phase !== 'running';
-		},
 	},
 );
 
@@ -1002,10 +981,6 @@ export const siquesterSlice = createSlice({
 				type: ContentType;
 			}
 		}) => {
-			if (isBulkCompressionRunning(state)) {
-				console.warn('setContentItemType ignored: bulk media compression is running');
-				return;
-			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
@@ -1016,8 +991,6 @@ export const siquesterSlice = createSlice({
 				if (!item) {
 					return;
 				}
-
-				removeOrphanedMediaFile(state, item, item);
 
 				item.type = action.payload.type;
 
@@ -1039,10 +1012,6 @@ export const siquesterSlice = createSlice({
 				fileData: Uint8Array;
 			}
 		}) => {
-			if (isBulkCompressionRunning(state)) {
-				console.warn('setContentItemMedia ignored: bulk media compression is running');
-				return;
-			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
@@ -1250,10 +1219,6 @@ export const siquesterSlice = createSlice({
 				itemIndex: number;
 			}
 		}) => {
-			if (isBulkCompressionRunning(state)) {
-				console.warn('removeScreenContentItem ignored: bulk media compression is running');
-				return;
-			}
 			const question = state.pack?.rounds[action.payload.roundIndex]
 				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
@@ -1517,17 +1482,11 @@ export const siquesterSlice = createSlice({
 			state.isNewPackage = false;
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
-			state.showPackageStats = false;
-			// Signal cancel, never wipe — wiping hides the cancel from the encode loop.
-			if (state.bulkCompression?.phase === 'running') {
-				state.bulkCompression.cancelRequested = true;
-				state.bulkCompression.phase = 'cancelled';
-			} else {
-				state.bulkCompression = undefined;
-			}
-			state.zipRevision = 0;
-		});
-		builder.addCase(createNewPackage.fulfilled, (state, action) => {
+		state.showPackageStats = false;
+		state.bulkCompression = undefined;
+		state.zipRevision = 0;
+	});
+	builder.addCase(createNewPackage.fulfilled, (state, action) => {
 			state.zip = action.payload.zip;
 			state.pack = action.payload.pack;
 			state.roundIndex = undefined;
@@ -1537,17 +1496,11 @@ export const siquesterSlice = createSlice({
 			state.isNewPackage = true;
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
-			state.showPackageStats = false;
-			// Same as openFile.fulfilled: signal cancel, don't wipe (orphaned run would corrupt the new package).
-			if (state.bulkCompression?.phase === 'running') {
-				state.bulkCompression.cancelRequested = true;
-				state.bulkCompression.phase = 'cancelled';
-			} else {
-				state.bulkCompression = undefined;
-			}
-			state.zipRevision = 0;
-		});
-		builder.addCase(loadPackageStatistics.pending, (state) => {
+		state.showPackageStats = false;
+		state.bulkCompression = undefined;
+		state.zipRevision = 0;
+	});
+	builder.addCase(loadPackageStatistics.pending, (state) => {
 			state.packageStatsLoading = true;
 		});
 		builder.addCase(loadPackageStatistics.fulfilled, (state, action) => {
@@ -1559,13 +1512,9 @@ export const siquesterSlice = createSlice({
 		builder.addCase(loadPackageStatistics.rejected, (state) => {
 			state.packageStatsLoading = false;
 		});
-		builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
-			// A condition-refused re-entry must not touch the in-flight run.
-			if (action.meta.condition) {
-				return;
-			}
-			// Uncovered rejection: 'failed' is honest, not a user cancel.
-			if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
+	builder.addCase(compressAllPackageMedia.rejected, (state, action) => {
+		// Uncovered rejection: 'failed' is honest, not a user cancel.
+		if (state.bulkCompression?.phase === 'running' || state.bulkCompression?.phase === 'confirm') {
 				state.bulkCompression.phase = 'failed';
 				state.bulkCompression.failedReason = action.error.message ?? 'Unexpected compression error';
 			}

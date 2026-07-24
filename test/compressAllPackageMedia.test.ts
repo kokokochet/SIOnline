@@ -167,35 +167,6 @@ test.each(['beforeFirstFile', 'afterLastFile'] as const)('cancel (%s) discards s
     expect(state.bulkCompression?.phase).toBe('cancelled');
 });
 
-test('does not apply staged results when the package is swapped mid-run', async () => {
-    mockedCompressMedia.mockImplementation(async (file: File) => ({
-        data: new Uint8Array([9, 9]),
-        fileName: `${file.name.replace(/\.[^.]+$/, '')}.out`,
-        originalSize: 100,
-        compressedSize: 2,
-        wasCompressed: true,
-    }));
-
-    let state = makeState();
-    const dispatch = jest.fn((action: any) => {
-        state = reducer(state, action);
-
-        // Dialog is not modal: another package can open mid-run.
-        if (action.type === 'siquester/bulkCompressionProgress') {
-            state = { ...state, zip: new JSZip() };
-        }
-
-        return action;
-    });
-    const getState = () => ({ siquester: state });
-
-    await compressAllPackageMedia()(dispatch, getState, undefined);
-
-    const types = actionTypes(dispatch);
-    expect(types).toContain('siquester/bulkCompressionCancelled');
-    expect(types).not.toContain('siquester/bulkMediaCompressed');
-});
-
 test('skips referenced files missing from the zip', async () => {
     const initial = makeState();
     initial.zip!.remove('Audio/song.mp3');
@@ -278,41 +249,6 @@ test('rejected thunk after Started transitions phase to failed and applies nothi
     expect(state.zipRevision).toBe(0);
 });
 
-test('re-entry guard: a second invocation while phase is running is skipped and leaves the run untouched', async () => {
-    mockedCompressMedia.mockImplementation(async (file: File) => ({
-        data: new Uint8Array([9, 9]),
-        fileName: `${file.name.replace(/\.[^.]+$/, '')}.out`,
-        originalSize: 100,
-        compressedSize: 2,
-        wasCompressed: true,
-    }));
-
-    let state = makeState();
-    state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 2 } });
-    expect(state.bulkCompression?.phase).toBe('running');
-
-    const dispatch = jest.fn((action: any) => {
-        state = reducer(state, action);
-        return action;
-    });
-    const getState = () => ({ siquester: state });
-
-    await compressAllPackageMedia()(dispatch, getState, undefined);
-
-    expect(mockedCompressMedia).not.toHaveBeenCalled();
-    const types = actionTypes(dispatch);
-    expect(types).not.toContain('siquester/bulkCompressionStarted');
-    expect(types).not.toContain('siquester/bulkCompressionProgress');
-    expect(types).not.toContain('siquester/bulkMediaCompressed');
-    expect(types).not.toContain('siquester/bulkCompressionFinished');
-
-    // condition-rejection must not clobber the in-flight phase.
-    expect(state.bulkCompression?.phase).toBe('running');
-    expect(state.zip?.file('Images/pic.png')).not.toBeNull();
-    expect(state.zip?.file('Audio/song.mp3')).not.toBeNull();
-    expect(state.zipRevision).toBe(0);
-});
-
 test('bulkCompressionDialogOpened is a no-op while a run is in flight', () => {
     let state = makeState();
     state = reducer(state, { type: 'siquester/bulkCompressionStarted', payload: { total: 3 } });
@@ -368,51 +304,6 @@ test('aborting mid-file cancels within a tick instead of encoding to completion'
     expect(elapsed).toBeLessThan(1000);
     expect(harness.getFinalState().bulkCompression?.phase).toBe('cancelled');
     expect(harness.getFinalState().zip?.file('Images/pic.png')).not.toBeNull();
-});
-
-test('opening another package mid-run cancels instead of wiping bulkCompression to undefined', async () => {
-    // Slow mock so the run is in-flight when openFile.fulfilled fires.
-    let resolveFirst: () => void;
-    mockedCompressMedia.mockImplementation(async (_file: File, _type: any, _opts: any, signal?: AbortSignal) => {
-        // Abort fires in the progress callback before compressMedia (thunk awaits entry.async); a listener-only mock would miss it.
-        if (signal?.aborted) {
-            throw new DOMException('Aborted', 'AbortError');
-        }
-        await new Promise<void>((resolve, reject) => {
-            resolveFirst = resolve;
-            const t = setTimeout(resolve, 30_000);
-            signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
-        });
-        return { data: new Uint8Array([1]), fileName: 'x.out', originalSize: 10, compressedSize: 1, wasCompressed: true };
-    });
-
-    let state = makeState();
-    const dispatch = jest.fn((action: any) => {
-        state = reducer(state, action);
-        // Simulate openFile.fulfilled landing while the first file encodes.
-        if (action.type === 'siquester/bulkCompressionProgress') {
-            state = reducer(state, {
-                type: 'siquester/openFile/fulfilled',
-                payload: { zip: new JSZip(), pack: createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 }) },
-            });
-            // Simulating only the fulfilled reducer skips the real openFile thunk, so call abortActiveBulkCompression() to unblock the 30s mock timer.
-            abortActiveBulkCompression();
-        }
-        return action;
-    });
-    const getState = () => ({ siquester: state });
-
-    await compressAllPackageMedia()(dispatch, getState, undefined);
-
-    // New behaviour: cancelRequested true, phase cancelled (was: undefined).
-    expect(state.bulkCompression?.phase).toBe('cancelled');
-    expect(state.bulkCompression?.cancelRequested).toBe(true);
-    const types = actionTypes(dispatch);
-    expect(types).toContain('siquester/bulkCompressionCancelled');
-    expect(types).not.toContain('siquester/bulkMediaCompressed');
-
-    // Let the mock settle to avoid stray-tick warnings.
-    if (resolveFirst!) resolveFirst!();
 });
 
 test('a pre-loop throw dispatches bulkCompressionFailed instead of stranding on confirm', async () => {
