@@ -173,7 +173,6 @@ function apngIsAnimated(data: Uint8Array): boolean {
     return animated;
 }
 
-/** Animated WebP detection: presence of an `ANIM` chunk. */
 function webpIsAnimated(data: Uint8Array): boolean {
     let offset = 12; // skip "RIFF"(4) + size(4) + "WEBP"(4)
     while (offset + 8 <= data.length) {
@@ -219,7 +218,6 @@ const SVG_SNIFF_WINDOW = 1024;
  * browsers that transparently gunzip. Uses TextDecoder (DOM + Node 18+).
  */
 export function isSvg(data: Uint8Array): boolean {
-    // SVGZ: gzip magic bytes 0x1f 0x8b → treat as SVG (never rasterize).
     if (data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b) {
         return true;
     }

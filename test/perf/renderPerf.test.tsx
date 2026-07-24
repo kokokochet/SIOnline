@@ -16,24 +16,16 @@ test('MediaView does not flash an empty list when mediaFiles are recomputed', as
 	zip.file('Images/a.png', new Uint8Array([1]));
 	zip.file('Images/b.png', new Uint8Array([2]));
 
-	const onRender: React.ProfilerOnRenderCallback = () => {
-	};
-
 	// MediaView reads state.siquester.zipRevision, present on the real slice.
 	const { container, rerender, store } = renderWithSiquester(
-		<React.Profiler id="MediaView" onRender={onRender}>
-			<MediaView zip={zip} />
-		</React.Profiler>,
+		<MediaView zip={zip} />,
 	);
 
 	await Promise.resolve();
 
-	// Re-render with the same zip: must not flash empty between renders.
 	rerender(
 		<Provider store={store}>
-			<React.Profiler id="MediaView" onRender={onRender}>
-				<MediaView zip={zip} />
-			</React.Profiler>
+			<MediaView zip={zip} />
 		</Provider>,
 	);
 	await Promise.resolve();

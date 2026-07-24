@@ -6,7 +6,6 @@ import reducer, {
     BulkCompressionSummary,
 } from '../src/state/siquesterSlice';
 
-// errors field is required by the type.
 const summary: BulkCompressionSummary = { compressedCount: 5, skippedCount: 1, savedBytes: 12345, errors: [] };
 
 function runningState(): SIQuesterState {

@@ -1,7 +1,7 @@
 import { compressMedia } from '../src/utils/mediaCompression';
 import { compressionPresets } from '../src/utils/mediaCompression/compressionPresets';
 
-describe('HTML "passthrough" not byte-preserving', () => {
+describe('HTML passthrough is byte-identical', () => {
 	test('windows-1251 bytes round-trip byte-identical through compressMedia(file, "html")', async () => {
 		// "Привет" in windows-1251.
 		const cp1251 = new Uint8Array([0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2]);

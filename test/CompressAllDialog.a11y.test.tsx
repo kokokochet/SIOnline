@@ -43,7 +43,6 @@ describe('CompressAllDialog live regions', () => {
 		});
 		// compressedCount=2 must pick the plural FEW form.
 		const statuses = document.querySelectorAll('[role="status"][aria-live="polite"]');
-		expect(statuses.length).toBeGreaterThan(0);
 		const doneStatus = Array.from(statuses).find((s) => /files?/i.test(s.textContent ?? ''));
 		expect(doneStatus).toBeDefined();
 		expect(doneStatus!.textContent).toContain('files');

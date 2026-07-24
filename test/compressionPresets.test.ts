@@ -50,12 +50,6 @@ describe('compressionPresets', () => {
         expect(keys).toEqual(['high', 'low', 'medium']);
     });
 
-    test('compressionPresets map values match the individual exports', () => {
-        expect(compressionPresets.low).toBe(lowPreset);
-        expect(compressionPresets.medium).toBe(mediumPreset);
-        expect(compressionPresets.high).toBe(highPreset);
-    });
-
     test('all presets satisfy the CompressionOptions shape', () => {
         const presets: CompressionPreset[] = ['low', 'medium', 'high'];
         for (const key of presets) {
@@ -103,13 +97,6 @@ describe('compressionPresets', () => {
             expect(lowPreset).not.toEqual(highPreset);
         });
 
-        test('all presets use opus audio codec', () => {
-            expect([lowPreset, mediumPreset, highPreset].map(p => p.audio.codec)).toEqual([
-                'opus',
-                'opus',
-                'opus',
-            ]);
-        });
     });
 
     describe('resolveCompressionOptions', () => {

@@ -11,7 +11,6 @@ export interface MediaReference {
 /** Compressed file staged for the all-or-nothing bulk apply. */
 export interface StagedMediaFile {
     type: CompressibleMediaType;
-    /** Referenced file name before compression. */
     oldValue: string;
     /** Final file name after collision resolution (=== oldValue when unchanged). */
     newValue: string;
@@ -249,10 +248,7 @@ export function applyStagedFilesToZip(
         // Write all new entries first.
         for (const file of files) {
             const folder = getMediaFolderName(file.type);
-
-            if (folder) {
-                zip.file(`${folder}/${file.newValue}`, file.data);
-            }
+            zip.file(`${folder}/${file.newValue}`, file.data);
         }
 
         // Then remove the superseded originals (raw + URI-encoded variant),
@@ -262,10 +258,6 @@ export function applyStagedFilesToZip(
 
         for (const file of files) {
             const folder = getMediaFolderName(file.type);
-
-            if (!folder) {
-                continue;
-            }
 
             const writeTarget = `${folder}/${file.newValue}`;
 

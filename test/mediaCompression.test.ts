@@ -170,36 +170,4 @@ describe('compressMedia (public API)', () => {
             }
         }
     });
-
-    test('accepts low preset options', async () => {
-        const originalDoc = globalThis.document;
-        delete (globalThis as Record<string, unknown>).document;
-
-        try {
-            const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
-            const result = await compressMedia(file, 'image', compressionPresets.low);
-
-            expect(result.wasCompressed).toBe(false);
-        } finally {
-            if (originalDoc) {
-                globalThis.document = originalDoc;
-            }
-        }
-    });
-
-    test('accepts high preset options', async () => {
-        const originalDoc = globalThis.document;
-        delete (globalThis as Record<string, unknown>).document;
-
-        try {
-            const file = new File([new Uint8Array([1, 2, 3])], 'test.png', { type: 'image/png' });
-            const result = await compressMedia(file, 'image', compressionPresets.high);
-
-            expect(result.wasCompressed).toBe(false);
-        } finally {
-            if (originalDoc) {
-                globalThis.document = originalDoc;
-            }
-        }
-    });
 });

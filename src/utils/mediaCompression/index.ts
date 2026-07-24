@@ -12,16 +12,6 @@ export {
     isAudioCompressionSupported,
 } from './featureDetection';
 export { MAX_MEDIA_BYTES } from './limits';
-export type {
-    CompressibleMediaType,
-    CompressedMedia,
-    CompressionOptions,
-    CompressionPreset,
-    MediaCompressionPresets,
-    ImageCompressionOptions,
-    AudioCompressionOptions,
-    VideoCompressionOptions,
-} from './compressionTypes';
 
 /**
  * Compresses image/audio/video; HTML and unknown types pass through.

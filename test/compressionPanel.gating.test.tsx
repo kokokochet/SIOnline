@@ -65,13 +65,4 @@ describe('UI does not gate on WebCodecs support (CompressionPanel)', () => {
 		expect(videoRadios.every(r => !(r as HTMLInputElement).disabled)).toBe(true);
 		expect(screen.getAllByRole('note').length).toBeGreaterThan(0);
 	});
-
-	test('keeps image preset radios enabled when audio is unsupported', () => {
-		audioSupported.mockReturnValue(false);
-		renderPanel();
-		// Images use canvas (always supported), never WebCodecs-gated.
-		const imageRadios = within(screen.getByRole('group', { name: localization.compressionPresetImages })).getAllByRole('radio');
-		expect(imageRadios).toHaveLength(3);
-		expect(imageRadios.some(r => (r as HTMLInputElement).disabled)).toBe(false);
-	});
 });

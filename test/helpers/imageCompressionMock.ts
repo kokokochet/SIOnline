@@ -33,9 +33,6 @@ export interface ImageCompressionMockHandle {
     /** Every call to `canvas.toBlob`, capturing `(mimeType, quality)`. */
     readonly toBlobCalls: ToBlobCall[];
     readonly fillRectCalls: Array<{ x: number; y: number; w: number; h: number }>;
-    readonly drawImageCalls: Array<unknown[]>;
-    /** Replace the bytes the next `toBlob` call yields (or null to fail). */
-    setToBlobBytes(bytes: Uint8Array | null): void;
 }
 
 interface FakeCanvas {
@@ -70,16 +67,13 @@ export function installImageCompressionMock(
     const createImageBitmapCalls: CreateImageBitmapCall[] = [];
     const toBlobCalls: ToBlobCall[] = [];
     const fillRectCalls: ImageCompressionMockHandle['fillRectCalls'] = [];
-    const drawImageCalls: ImageCompressionMockHandle['drawImageCalls'] = [];
 
     const fakeCtx = {
         fillStyle: 'rgba(0,0,0,1)',
         fillRect: jest.fn((x: number, y: number, w: number, h: number) => {
             fillRectCalls.push({ x, y, w, h });
         }),
-        drawImage: jest.fn((...args: unknown[]) => {
-            drawImageCalls.push(args);
-        }),
+        drawImage: jest.fn(),
     };
 
     const fakeCanvas: FakeCanvas = {
@@ -111,10 +105,6 @@ export function installImageCompressionMock(
         createImageBitmapCalls,
         toBlobCalls,
         fillRectCalls,
-        drawImageCalls,
-        setToBlobBytes: (bytes: Uint8Array | null) => {
-            toBlobBytes = bytes;
-        },
     };
     return activeHandle;
 }

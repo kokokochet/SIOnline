@@ -656,11 +656,9 @@ describe('siquesterSlice', () => {
 	describe('composite undo', () => {
 		test('bulkMediaCompressed pushes one composite undo entry (not a wipe)', () => {
 			const state = makeBulkState();
-			const preApplyPack = state.pack!;
-			const preApplyItemValue = state.pack!.rounds[0].themes[0].questions[0]
-				.params.question!.items[0].value; // 'pic.png'
+		const preApplyPack = state.pack!;
 
-			// Pre-existing edit history must be PRESERVED (appended to), not wiped.
+		// Pre-existing edit history must be PRESERVED (appended to), not wiped.
 			state.history = {
 				past: [{ pack: preApplyPack, roundIndex: 0, themeIndex: 0, questionIndex: 0 }],
 				future: [{ pack: preApplyPack }],

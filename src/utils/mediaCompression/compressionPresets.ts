@@ -61,7 +61,6 @@ export const compressionPresets: Record<CompressionPreset, CompressionOptions> =
     high: highPreset,
 };
 
-/** Picks each media type's section from its own selected preset. */
 export function resolveCompressionOptions(presets: MediaCompressionPresets): CompressionOptions {
     return {
         image: compressionPresets[presets.image].image,
