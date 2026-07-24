@@ -4,7 +4,7 @@ import { compressVideo } from './compressVideo';
 import { compressAudio } from './compressAudio';
 import { passthroughFromFile } from './passthrough';
 
-export { compressionPresets, resolveCompressionOptions } from './compressionPresets';
+export { resolveCompressionOptions } from './compressionPresets';
 export {
     isVideoCompressionSupported,
     isAudioCompressionSupported,
@@ -36,8 +36,5 @@ export async function compressMedia(
 
         case 'video':
             return compressVideo(file, options.video, signal);
-
-        default:
-            return passthroughFromFile(file);
     }
 }

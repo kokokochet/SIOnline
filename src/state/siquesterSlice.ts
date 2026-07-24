@@ -331,18 +331,7 @@ export const compressAllPackageMedia = createAsyncThunk(
 				throw new Error('No package loaded');
 			}
 
-			const mediaCompression = getSiqState().mediaCompression;
-
-			// Fail honestly rather than silently re-encode (UI normally disables this).
-			if (!mediaCompression.enabled) {
-			thunkAPI.dispatch(bulkCompressionFailed({
-				summary: { compressedCount: 0, skippedCount: 0, savedBytes: 0, errors: [] },
-				reason: 'compression-disabled',
-			}));
-				return { applied: false };
-			}
-
-			const presets = mediaCompression.presets;
+			const presets = getSiqState().mediaCompression.presets;
 			const options = resolveCompressionOptions(presets);
 			const refs = collectMediaReferences(pack);
 

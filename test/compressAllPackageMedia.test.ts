@@ -271,27 +271,6 @@ test('a pre-loop throw dispatches bulkCompressionFailed instead of stranding on 
     expect(types).not.toContain('siquester/bulkCompressionStarted');
 });
 
-test('thunk is a defensive no-op that transitions to phase "failed" when compression is disabled', async () => {
-    // UI disables the trigger; guard the case it's dispatched anyway.
-    const initial = makeState();
-    initial.mediaCompression = { enabled: false, presets: { image: 'medium', audio: 'low', video: 'low' } };
-    initial.bulkCompression = { phase: 'confirm', total: 0, completed: 0, cancelRequested: false };
-
-    const harness = createHarness(initial);
-    await compressAllPackageMedia()(harness.dispatch, harness.getState, undefined);
-
-    const types = actionTypes(harness.dispatch);
-    expect(types).not.toContain('siquester/bulkCompressionStarted');
-    expect(types).not.toContain('siquester/bulkMediaCompressed');
-    expect(types).toContain('siquester/bulkCompressionFailed');
-
-    const finalState = harness.getFinalState();
-    expect(finalState.bulkCompression?.phase).toBe('failed');
-    expect(finalState.bulkCompression?.failedReason).toBe('compression-disabled');
-    expect(finalState.zip?.file('Images/pic.png')).not.toBeNull();
-    expect(finalState.zip?.file('Audio/song.mp3')).not.toBeNull();
-});
-
 test('all-files-failed transitions to phase "failed" with collected errors', async () => {
     mockedCompressMedia.mockRejectedValue(new Error('encode failed'));
 

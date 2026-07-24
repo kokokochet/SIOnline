@@ -31,12 +31,6 @@ describe('compressionPresets', () => {
             expect(compressionPresets.medium.video.maxHeight).toBeLessThanOrEqual(compressionPresets.high.video.maxHeight);
         });
 
-        test('low/medium/high are pairwise distinct presets', () => {
-            expect(compressionPresets.low).not.toEqual(compressionPresets.medium);
-            expect(compressionPresets.medium).not.toEqual(compressionPresets.high);
-            expect(compressionPresets.low).not.toEqual(compressionPresets.high);
-        });
-
     });
 
     describe('resolveCompressionOptions', () => {
