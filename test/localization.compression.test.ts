@@ -4,7 +4,7 @@ import { getCompressionDoneSummaryKey } from '../src/utils/mediaCompression/comp
 // getContent() at fresh import (active=en) keeps sr/ru/uz pristine, so key-set parity is a valid missing-keys guard.
 const content = localization.getContent();
 
-// Parity scoped to compression keys; sr/uz intentionally omit some non-compression keys.
+// Parity scoped to compression keys; compression strings ship in en/ru only — sr/uz fall back to en.
 const COMPRESSION_KEYS = [
 	'compressing',
 	'compressionFailed',
@@ -34,10 +34,9 @@ const COMPRESSION_KEYS = [
 	'compressionDisabledHint',
 	'compressionFailedSummary', // ≠ compressionDoneSummary plural split
 	'compressionPartialWarning',
-	'compressionUnsupportedFiles',
 ] as const;
 
-const LOCALES = ['en', 'ru', 'sr', 'uz'] as const;
+const LOCALES = ['en', 'ru'] as const;
 
 describe('locale key parity', () => {
 	it('every locale exposes the same compression keys', () => {

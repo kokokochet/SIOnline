@@ -341,6 +341,17 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 
 		const mediaKey = `${contentItem.type}:${contentItem.value}:${contentItem.isRef ? 'ref' : 'url'}`;
 
+		// Internal refs now store the original file name in the package model.
+		// MediaItem resolves both raw and legacy encoded ZIP entries.
+		const getMediaSrc = (value: string, isRef: boolean): string => {
+			if (isRef) {
+				return value;
+			}
+
+			// External URL - use as-is
+			return value;
+		};
+
 		switch (contentItem.type) {
 			case 'text':
 				return isEditMode ? (
@@ -357,28 +368,28 @@ const ScreensView: React.FC<ScreensViewProps> = ({
 			case 'image':
 				return <MediaItem
 					key={mediaKey}
-					src={contentItem.value}
+					src={getMediaSrc(contentItem.value, contentItem.isRef)}
 					type='image'
 					isRef={contentItem.isRef}
 				/>;
 			case 'audio':
 				return <MediaItem
 					key={mediaKey}
-					src={contentItem.value}
+					src={getMediaSrc(contentItem.value, contentItem.isRef)}
 					type='audio'
 					isRef={contentItem.isRef}
 				/>;
 			case 'video':
 				return <MediaItem
 					key={mediaKey}
-					src={contentItem.value}
+					src={getMediaSrc(contentItem.value, contentItem.isRef)}
 					type='video'
 					isRef={contentItem.isRef}
 				/>;
 			case 'html':
 				return <MediaItem
 					key={mediaKey}
-					src={contentItem.value}
+					src={getMediaSrc(contentItem.value, contentItem.isRef)}
 					type='html'
 					isRef={contentItem.isRef}
 				/>;

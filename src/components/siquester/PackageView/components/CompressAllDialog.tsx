@@ -6,18 +6,16 @@ import {
 	compressAllPackageMedia,
 	defaultMediaCompressionState,
 } from '../../../../state/siquesterSlice';
-import { selectReferencedMediaCounts, collectMediaReferences } from '../../../../utils/mediaCompression/compressPackageMedia';
+import { selectReferencedMediaCounts } from '../../../../utils/mediaCompression/compressPackageMedia';
 import {
 	isAudioCompressionSupported,
 	isVideoCompressionSupported,
-	probeMedia,
 } from '../../../../utils/mediaCompression';
-import { resolveCompressionOptions } from '../../../../utils/mediaCompression/compressionPresets';
 import { CompressibleMediaType, CompressionPreset } from '../../../../utils/mediaCompression/compressionTypes';
-import type { MediaProbeResult } from '../../../../utils/mediaCompression';
 import localization from '../../../../model/resources/localization';
 import { getCompressionDoneSummaryKey, formatSavedBytes } from '../../../../utils/mediaCompression/compressionI18n';
 import Dialog from '../../../common/Dialog/Dialog';
+import ProgressBar from '../../../common/ProgressBar/ProgressBar';
 
 import './CompressAllDialog.scss';
 
@@ -57,34 +55,6 @@ const CompressAllDialog: React.FC = () => {
 	const mediaCompression = useAppSelector(state => state.siquester.mediaCompression ?? defaultMediaCompressionState);
 
 	const counts = React.useMemo(() => selectReferencedMediaCounts(pack), [pack]);
-
-	const [unsupported, setUnsupported] = React.useState<MediaProbeResult[]>([]);
-
-	React.useEffect(() => {
-		if (!bulk || bulk.phase !== 'confirm' || !pack) {
-			setUnsupported([]);
-			return;
-		}
-		const options = resolveCompressionOptions(mediaCompression.presets);
-		const refs = collectMediaReferences(pack);
-		let cancelled = false;
-		// Dedupe by type to avoid redundant probe calls (output codec is fixed by preset).
-		const types = new Set<CompressibleMediaType>();
-		for (const ref of refs) {
-			types.add(ref.type);
-		}
-		const all: Promise<MediaProbeResult>[] = [];
-		for (const type of types) {
-			all.push(probeMedia(type, options));
-		}
-		Promise.all(all).then(results => {
-			if (cancelled) return;
-			setUnsupported(results.filter(r => !r.supported));
-		}).catch(() => {
-			if (!cancelled) setUnsupported([]);
-		});
-		return () => { cancelled = true; };
-	}, [bulk?.phase, pack, mediaCompression.presets]);
 
 	const phaseRef = React.useRef(bulk?.phase);
 	phaseRef.current = bulk?.phase;
@@ -144,21 +114,7 @@ const CompressAllDialog: React.FC = () => {
 						) : null}
 						<div className='compressAllDialog__warning'>{localization.compressionIrreversible}</div>
 						<div className='compressAllDialog__warning'>{localization.compressionHistoryNote}</div>
-						{unsupported.length > 0 ? (
-							<div className='compressAllDialog__unsupported'>
-								<div className='compressAllDialog__unsupportedTitle'>
-									{localization.compressionUnsupportedFiles}
-								</div>
-								<ul className='compressAllDialog__unsupportedList'>
-									{unsupported.map(u => (
-										<li key={`${u.type}:${u.codec}`}>
-											{`${getMediaTypeLabel(u.type)} (${u.codec})`}
-										</li>
-									))}
-								</ul>
-							</div>
-						) : null}
-						</>
+					</>
 					)}
 					<div className='compressAllDialog__buttons'>
 						{total > 0 ? (
@@ -180,20 +136,11 @@ const CompressAllDialog: React.FC = () => {
 					<div className='compressAllDialog__progressLabel'>
 						{`${localization.compressing} ${localization.formatString(localization.compressionProgress, bulk.completed, bulk.total)}`}
 					</div>
-					<div
-						className='compressAllDialog__progressBar'
-						role='progressbar'
-						aria-label={localization.compressing}
-						aria-valuenow={bulk.total > 0 ? Math.round((bulk.completed / bulk.total) * 100) : 0}
-						aria-valuemin={0}
-						aria-valuemax={100}
-					>
-						<div
-							className='compressAllDialog__progressFill'
-							style={{ width: `${bulk.total > 0 ? (bulk.completed / bulk.total) * 100 : 0}%` }}
-						/>
-					</div>
-					<div className='compressAllDialog__currentFile' title={bulk.currentFile}>{bulk.currentFile}</div>
+				<ProgressBar
+					value={bulk.total > 0 ? bulk.completed / bulk.total : 0}
+					title={localization.compressing}
+				/>
+				<div className='compressAllDialog__currentFile' title={bulk.currentFile}>{bulk.currentFile}</div>
 					{isCancelling ? (
 						<div className='compressAllDialog__cancelling' role='status' aria-live='polite'>
 							{localization.compressionCancelling}

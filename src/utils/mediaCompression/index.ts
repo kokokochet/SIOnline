@@ -4,8 +4,6 @@ import { compressVideo } from './compressVideo';
 import { compressAudio } from './compressAudio';
 import { passthroughFromFile } from './passthrough';
 
-export { probeMedia } from './probeMedia';
-export type { MediaProbeResult } from './probeMedia';
 export { compressionPresets, resolveCompressionOptions } from './compressionPresets';
 export {
     isVideoCompressionSupported,

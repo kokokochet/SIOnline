@@ -15,15 +15,11 @@ jest.mock('../src/utils/mediaCompression', () => {
 		__esModule: true,
 		isAudioCompressionSupported: jest.fn(() => true),
 		isVideoCompressionSupported: jest.fn(() => true),
-		probeMedia: jest.fn(),
 	};
 });
 
 import { isAudioCompressionSupported } from '../src/utils/mediaCompression';
 const audioSupported = isAudioCompressionSupported as jest.Mock;
-
-import { probeMedia as probeMediaMock } from '../src/utils/mediaCompression';
-const probeMedia = probeMediaMock as jest.Mock;
 
 function makePackWithAudio() {
 	const pack = createDefaultPackage({
@@ -57,14 +53,5 @@ describe('CompressAllDialog does not warn on unsupported codec', () => {
 		audioSupported.mockReturnValue(true);
 		renderDialog(makePackWithAudio());
 		expect(screen.queryByText(/is not supported in this browser/i)).toBeNull();
-	});
-
-	test('confirm screen lists unsupported types from the pre-flight probe', async () => {
-		probeMedia.mockResolvedValue({ type: 'audio', supported: false, codec: 'opus', reason: 'AudioEncoder unavailable' });
-		renderDialog(makePackWithAudio());
-		// Pre-flight runs in an effect; UI dedupes by type, not per-file.
-		const item = await screen.findByText(/Audio \(opus\)/i, undefined, { timeout: 2000 });
-		expect(item).toBeInTheDocument();
-		expect(screen.getByText(/cannot be compressed with the selected codec/i)).toBeInTheDocument();
 	});
 });
