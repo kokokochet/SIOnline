@@ -12,6 +12,7 @@ import reducer, {
 	defaultMediaCompressionState,
 } from '../src/state/siquesterSlice';
 import { Package } from '../src/model/siquester/package';
+import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
 import CompressAllDialog from '../src/components/siquester/PackageView/components/CompressAllDialog';
 
 function makeStore(overrides: Partial<SIQuesterState> = {}): ReturnType<typeof configureStore> {
@@ -28,42 +29,11 @@ function makeStore(overrides: Partial<SIQuesterState> = {}): ReturnType<typeof c
 
 /** One image ref so the confirm-screen warning block renders. */
 function makePackWithImageRef(): Package {
-	return {
-		name: 'Test',
-		version: '1',
-		id: 'test',
-		restriction: '',
-		date: '',
-		publisher: '',
-		difficulty: 0,
-		language: 'ru',
-		tags: [],
-		isQualityMarked: false,
-		rounds: [
-			{
-				name: 'Round',
-				type: 'standart',
-				themes: [
-					{
-						name: 'Theme',
-						questions: [
-							{
-								price: 1,
-								params: {
-									question: {
-										items: [
-											{ type: 'image', value: 'foo.png', isRef: true, placement: 'screen' },
-										],
-									},
-								},
-								right: { answer: [] },
-							},
-						],
-					},
-				],
-			},
-		],
+	const pack = createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 });
+	pack.rounds[0].themes[0].questions[0].params.question = {
+		items: [{ type: 'image', value: 'foo.png', isRef: true, placement: 'screen' }],
 	};
+	return pack;
 }
 
 describe('CompressAllDialog', () => {

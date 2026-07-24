@@ -23,15 +23,7 @@ function makeState(): SIQuesterState {
     zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));
     zip.file('Audio/song.mp3', new Uint8Array([4, 5, 6]));
 
-    const pack = createDefaultPackage({
-        packageName: '',
-        authorName: '',
-        roundCount: 1,
-        themeCount: 1,
-        questionCount: 1,
-        includeFinalRound: false,
-        finalThemeCount: 0,
-    });
+    const pack = createDefaultPackage({ packageName: '', authorName: '', roundCount: 1, themeCount: 1, questionCount: 1, includeFinalRound: false, finalThemeCount: 0 });
 
     pack.rounds[0].themes[0].questions[0].params.question = {
         items: [

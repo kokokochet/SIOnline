@@ -16,6 +16,20 @@ const jpegOptions: ImageCompressionOptions = {
     mimeType: 'image/jpeg',
 };
 
+/** Minimal PNG header: signature + IHDR with the given color type / bit depth. */
+function makePngIhdr(colorType: number, bitDepth = 8) {
+    return new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
+        0x00, 0x00, 0x00, 0x0d, // IHDR length = 13
+        0x49, 0x48, 0x44, 0x52, // "IHDR"
+        0x00, 0x00, 0x00, 0x01, // width = 1
+        0x00, 0x00, 0x00, 0x01, // height = 1
+        bitDepth, // offset 24
+        colorType, // offset 25
+        0x00, 0x00, 0x00, // compression, filter, interlace
+    ]);
+}
+
 describe('image corruption', () => {
     describe('imageCompressionMock harness (smoke)', () => {
         let mock: ImageCompressionMockHandle;
@@ -71,25 +85,15 @@ describe('image corruption', () => {
     });
 
     describe('calculateTargetDimensions guards zero dimensions', () => {
-        test('returns null when input width is 0', () => {
-            expect(calculateTargetDimensions(0, 100, 800)).toBeNull();
-        });
-
-        test('returns null when input height is 0', () => {
-            expect(calculateTargetDimensions(100, 0, 800)).toBeNull();
-        });
-
-        test('returns null when maxDimension is 0', () => {
-            expect(calculateTargetDimensions(100, 100, 0)).toBeNull();
-        });
-
-        test('returns null when downscale produces a zero height', () => {
-            // height/width*max = 1/10000*800 = 0.08 → Math.round(0) = 0
-            expect(calculateTargetDimensions(10000, 1, 800)).toBeNull();
-        });
-
-        test('returns null when downscale produces a zero width', () => {
-            expect(calculateTargetDimensions(1, 10000, 800)).toBeNull();
+        test.each<[string, number, number, number]>([
+            ['input width is 0', 0, 100, 800],
+            ['input height is 0', 100, 0, 800],
+            ['maxDimension is 0', 100, 100, 0],
+            // 1/10000*800 = 0.08 → Math.round(0) collapses to a zero edge.
+            ['downscale produces a zero height', 10000, 1, 800],
+            ['downscale produces a zero width', 1, 10000, 800],
+        ])('returns null when %s', (_name, width, height, maxDimension) => {
+            expect(calculateTargetDimensions(width, height, maxDimension)).toBeNull();
         });
 
         test('still scales valid landscape inputs (regression)', () => {
@@ -121,19 +125,6 @@ describe('image corruption', () => {
     });
 
     describe('transparency is preserved (alpha-aware format)', () => {
-        function makePngIhdr(colorType: number, bitDepth = 8) {
-            return new Uint8Array([
-                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
-                0x00, 0x00, 0x00, 0x0d, // IHDR length = 13
-                0x49, 0x48, 0x44, 0x52, // "IHDR"
-                0x00, 0x00, 0x00, 0x01, // width = 1
-                0x00, 0x00, 0x00, 0x01, // height = 1
-                bitDepth, // offset 24
-                colorType, // offset 25
-                0x00, 0x00, 0x00, // compression, filter, interlace
-            ]);
-        }
-
         let mock: ImageCompressionMockHandle;
 
         afterEach(() => {
@@ -337,15 +328,6 @@ describe('image corruption', () => {
     });
 
     describe('color fidelity (lossless escape hatch + 16-bit guard)', () => {
-        function makePngIhdr(colorType: number, bitDepth = 8) {
-            return new Uint8Array([
-                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-                0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-                bitDepth, colorType, 0x00, 0x00, 0x00,
-            ]);
-        }
-
         let mock: ImageCompressionMockHandle;
 
         beforeEach(() => {
@@ -464,20 +446,13 @@ describe('WebP alpha detection (imageFormatDetect)', () => {
         expect(detectImageFormat(makeWebpVp8l(0x10))).toBe('webp');
     });
 
-    test('VP8X extended chunk with alpha flag (bit 0x10) reports alpha', () => {
-        expect(hasAlphaChannel(makeWebpVp8x(0x10))).toBe(true);
-    });
-
-    test('VP8X extended chunk without the alpha flag is opaque', () => {
-        expect(hasAlphaChannel(makeWebpVp8x(0x00))).toBe(false);
-    });
-
-    test('VP8L lossless chunk with alpha hint (bit 0x10) reports alpha', () => {
-        expect(hasAlphaChannel(makeWebpVp8l(0x10))).toBe(true);
-    });
-
-    test('VP8L lossless chunk without the alpha hint is opaque', () => {
-        expect(hasAlphaChannel(makeWebpVp8l(0x00))).toBe(false);
+    test.each([
+        ['VP8X extended chunk with alpha flag (bit 0x10)', makeWebpVp8x(0x10), true],
+        ['VP8X extended chunk without the alpha flag', makeWebpVp8x(0x00), false],
+        ['VP8L lossless chunk with alpha hint (bit 0x10)', makeWebpVp8l(0x10), true],
+        ['VP8L lossless chunk without the alpha hint', makeWebpVp8l(0x00), false],
+    ])('hasAlphaChannel: %s', (_name, bytes: Uint8Array, expected: boolean) => {
+        expect(hasAlphaChannel(bytes)).toBe(expected);
     });
 
     test('lossy VP8 chunk carries no alpha channel', () => {
