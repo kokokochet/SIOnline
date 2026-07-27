@@ -13,7 +13,7 @@ import { createDefaultPackage, createDefaultZip, NewPackageOptions } from '../mo
 export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
-import { CompressibleMediaType, CompressionPreset, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
+import { CompressibleMediaType, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
 import { compressMedia, MAX_MEDIA_BYTES, resolveCompressionOptions } from '../utils/mediaCompression';
 import {
 	collectExistingMediaNames,
@@ -856,15 +856,15 @@ export const siquesterSlice = createSlice({
 				const param = question.params[action.payload.paramName] as ContentParam;
 				const item = param.items[action.payload.itemIndex];
 
-			if (!item) {
-				return;
-			}
+				if (!item) {
+					return;
+				}
 
-			removeOrphanedMediaFile(state, item, item);
+				removeOrphanedMediaFile(state, item, item);
 
-			item.type = action.payload.type;
+				item.type = action.payload.type;
 
-			if (action.payload.type === 'text') {
+				if (action.payload.type === 'text') {
 					item.value = '';
 					item.isRef = false;
 				}
@@ -877,39 +877,39 @@ export const siquesterSlice = createSlice({
 				questionIndex: number;
 				paramName: string;
 				itemIndex: number;
-			type: Exclude<ContentType, 'text'>;
-			fileName: string;
-			fileData: string;
-		}
-	}) => {
-		const question = state.pack?.rounds[action.payload.roundIndex]
-			?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
-
-		if (question?.params[action.payload.paramName] && 'items' in question.params[action.payload.paramName]) {
-			const param = question.params[action.payload.paramName] as ContentParam;
-			const item = param.items[action.payload.itemIndex];
-
-			if (!item) {
-				return;
+				type: Exclude<ContentType, 'text'>;
+				fileName: string;
+				fileData: string;
 			}
+		}) => {
+			const question = state.pack?.rounds[action.payload.roundIndex]
+				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
-			removeOrphanedMediaFile(state, item, item);
-			const targetFolder = getMediaFolderName(action.payload.type);
+			if (question?.params[action.payload.paramName] && 'items' in question.params[action.payload.paramName]) {
+				const param = question.params[action.payload.paramName] as ContentParam;
+				const item = param.items[action.payload.itemIndex];
 
-			if (!targetFolder) {
-				return;
-			}
-
-			const { fileName } = action.payload;
-
-			if (state.zip) {
-				if (action.payload.type === 'html') {
-					state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
-				} else {
-					// Decode base64 string before adding to zip
-					state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData, { base64: true });
+				if (!item) {
+					return;
 				}
-			}
+
+				removeOrphanedMediaFile(state, item, item);
+				const targetFolder = getMediaFolderName(action.payload.type);
+
+				if (!targetFolder) {
+					return;
+				}
+
+				const { fileName } = action.payload;
+
+				if (state.zip) {
+					if (action.payload.type === 'html') {
+						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
+					} else {
+						// Decode base64 string before adding to zip
+						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData, { base64: true });
+					}
+				}
 
 				item.type = action.payload.type;
 				item.value = action.payload.fileName;
@@ -1222,12 +1222,9 @@ export const siquesterSlice = createSlice({
 		togglePackageStats: (state) => {
 			state.showPackageStats = !state.showPackageStats;
 		},
-	setMediaCompressionBusy: (state, action: PayloadAction<boolean>) => {
-		state.mediaCompression.busy = action.payload;
-	},
-	setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
-		state.mediaCompression.presets[action.payload.type] = action.payload.preset;
-	},
+		setMediaCompressionBusy: (state, action: PayloadAction<boolean>) => {
+			state.mediaCompression.busy = action.payload;
+		},
 		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
 			if (!state.zip || !state.pack) {
 				return;
@@ -1354,7 +1351,6 @@ export const {
 	addComplexAnswer,
 	resetQuestion,
 	setMediaCompressionBusy,
-	setMediaCompressionPreset,
 	bulkMediaCompressed,
 } = siquesterSlice.actions;
 

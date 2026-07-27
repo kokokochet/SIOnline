@@ -9,7 +9,6 @@ import reducer, {
 	addRound,
 	setContentItemMedia,
 	bulkMediaCompressed,
-	setMediaCompressionPreset,
 	defaultMediaCompressionState,
 } from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
@@ -337,12 +336,6 @@ describe('siquesterSlice', () => {
 			expect(mockZip.file('Audio/sound.mp3')).toBeNull();
 			expect(mockZip.file('Images/test.png')).not.toBeNull();
 		});
-	});
-
-	test('setMediaCompressionPreset changes the preset for one type only', () => {
-		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
-		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
-		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'low', video: 'low' });
 	});
 
 	function makeBulkState(): SIQuesterState {
