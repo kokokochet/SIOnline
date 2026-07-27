@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice, createAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, createAction, PayloadAction, original } from '@reduxjs/toolkit';
 import JSZip from 'jszip';
 import SIStatisticsClient from 'sistatistics-client';
 import QuestionStats from 'sistatistics-client/dist/models/QuestionStats';
@@ -13,6 +13,17 @@ import { createDefaultPackage, createDefaultZip, NewPackageOptions } from '../mo
 export type { NewPackageOptions };
 import { downloadPackageAsSIQ } from '../model/siquester/packageExporter';
 import { parseXMLtoPackage } from '../model/siquester/packageLoader';
+import { CompressibleMediaType, CompressionPreset, MediaCompressionPresets } from '../utils/mediaCompression/compressionTypes';
+import { compressMedia, MAX_MEDIA_BYTES, resolveCompressionOptions } from '../utils/mediaCompression';
+import {
+	collectExistingMediaNames,
+	getMediaFolderName as getCompressibleMediaFolderName,
+	planRenames,
+	renameMediaReferences,
+	resolveZipEntry,
+	applyStagedFilesToZip,
+	StagedMediaFile,
+} from '../utils/mediaCompression/compressPackageMedia';
 
 export interface SIQuesterState {
 	zip?: JSZip;
@@ -44,9 +55,24 @@ export interface SIQuesterState {
 			isPackageSelected?: boolean;
 		}[];
 	};
+	/** Not persisted across sessions. */
+	mediaCompression: {
+		presets: MediaCompressionPresets;
+		/** True while a compression job is mutating the zip; serializes concurrent compress attempts. */
+		busy: boolean;
+	};
+	/** Bumped on bulk replace so MediaView re-scans (zip instance identity never changes). */
+	zipRevision?: number;
 }
 
-const initialState: SIQuesterState = {};
+export const defaultMediaCompressionState: { presets: MediaCompressionPresets; busy: boolean } = {
+	presets: { image: 'medium', audio: 'low', video: 'low' },
+	busy: false,
+};
+
+const initialState: SIQuesterState = {
+	mediaCompression: { ...defaultMediaCompressionState },
+};
 
 function createDefaultQuestion(price = 0): Question {
 	return {
@@ -229,6 +255,91 @@ export const loadPackageStatistics = createAsyncThunk(
 				topLevelStats: { startedGameCount: 0, completedGameCount: 0 },
 				questionStats: {}
 			};
+		}
+	},
+);
+
+/** Outcome of compressing a single referenced media file in place. */
+export type SingleCompressionResult =
+	| { kind: 'applied' }
+	| { kind: 'skipped' }
+	| { kind: 'missing' }
+	| { kind: 'busy' }
+	| { kind: 'error'; message: string };
+
+/**
+ * Compresses one referenced media file in place. Reuses the existing bulkMediaCompressed
+ * reducer (atomic apply, reference renames, logo sync, composite undo, zipRevision bump).
+ * Serializes concurrent attempts via the shared mediaCompression.busy flag.
+ */
+export const compressSinglePackageMedia = createAsyncThunk<SingleCompressionResult, { type: CompressibleMediaType; value: string }>(
+	'siquester/compressSinglePackageMedia',
+	async (payload, thunkAPI) => {
+		const getSiqState = () => (thunkAPI.getState() as { siquester: SIQuesterState }).siquester;
+		const { zip, pack } = getSiqState();
+
+		if (!zip || !pack) {
+			return { kind: 'error', message: 'No package loaded' };
+		}
+
+		const siq = getSiqState();
+
+		if (siq.mediaCompression.busy) {
+			return { kind: 'busy' };
+		}
+
+		// Set busy synchronously before any await so concurrent dispatches serialize.
+		thunkAPI.dispatch(setMediaCompressionBusy(true));
+
+		try {
+			const folder = getCompressibleMediaFolderName(payload.type);
+			const entry = resolveZipEntry(zip, folder, payload.value);
+
+			// Missing entry: bail before staging — zip.file(path, undefined) would create a 0-byte file.
+			if (!entry) {
+				return { kind: 'missing' };
+			}
+
+			// eslint-disable-next-line no-await-in-loop
+			const data = await entry.async('uint8array');
+
+			if (data.byteLength > MAX_MEDIA_BYTES) {
+				return { kind: 'skipped' };
+			}
+
+			const options = resolveCompressionOptions(getSiqState().mediaCompression.presets);
+			const compressed = await compressMedia(
+				new File([new Uint8Array(data)], payload.value),
+				payload.type,
+				options,
+			);
+
+			// No savings: do not dispatch — bulkMediaCompressed would push a phantom undo entry.
+			if (!compressed.wasCompressed) {
+				return { kind: 'skipped' };
+			}
+
+			const staged: StagedMediaFile[] = [{
+				type: payload.type,
+				oldValue: payload.value,
+				newValue: compressed.fileName,
+				data: compressed.data,
+			}];
+
+			const renames = planRenames(staged, collectExistingMediaNames(zip));
+			const files = staged.map(file => ({
+				...file,
+				newValue: renames.get(`${file.type}:${file.oldValue}`) ?? file.newValue,
+			}));
+
+			thunkAPI.dispatch(bulkMediaCompressed({ files }));
+
+			return { kind: 'applied' };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { kind: 'error', message };
+		} finally {
+			thunkAPI.dispatch(setMediaCompressionBusy(false));
 		}
 	},
 );
@@ -745,15 +856,15 @@ export const siquesterSlice = createSlice({
 				const param = question.params[action.payload.paramName] as ContentParam;
 				const item = param.items[action.payload.itemIndex];
 
-				if (!item) {
-					return;
-				}
+			if (!item) {
+				return;
+			}
 
-				removeOrphanedMediaFile(state, item, item);
+			removeOrphanedMediaFile(state, item, item);
 
-				item.type = action.payload.type;
+			item.type = action.payload.type;
 
-				if (action.payload.type === 'text') {
+			if (action.payload.type === 'text') {
 					item.value = '';
 					item.isRef = false;
 				}
@@ -766,39 +877,39 @@ export const siquesterSlice = createSlice({
 				questionIndex: number;
 				paramName: string;
 				itemIndex: number;
-				type: Exclude<ContentType, 'text'>;
-				fileName: string;
-				fileData: string;
+			type: Exclude<ContentType, 'text'>;
+			fileName: string;
+			fileData: string;
+		}
+	}) => {
+		const question = state.pack?.rounds[action.payload.roundIndex]
+			?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
+
+		if (question?.params[action.payload.paramName] && 'items' in question.params[action.payload.paramName]) {
+			const param = question.params[action.payload.paramName] as ContentParam;
+			const item = param.items[action.payload.itemIndex];
+
+			if (!item) {
+				return;
 			}
-		}) => {
-			const question = state.pack?.rounds[action.payload.roundIndex]
-				?.themes[action.payload.themeIndex]?.questions[action.payload.questionIndex];
 
-			if (question?.params[action.payload.paramName] && 'items' in question.params[action.payload.paramName]) {
-				const param = question.params[action.payload.paramName] as ContentParam;
-				const item = param.items[action.payload.itemIndex];
+			removeOrphanedMediaFile(state, item, item);
+			const targetFolder = getMediaFolderName(action.payload.type);
 
-				if (!item) {
-					return;
+			if (!targetFolder) {
+				return;
+			}
+
+			const { fileName } = action.payload;
+
+			if (state.zip) {
+				if (action.payload.type === 'html') {
+					state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
+				} else {
+					// Decode base64 string before adding to zip
+					state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData, { base64: true });
 				}
-
-				removeOrphanedMediaFile(state, item, item);
-				const targetFolder = getMediaFolderName(action.payload.type);
-
-				if (!targetFolder) {
-					return;
-				}
-
-				const { fileName } = action.payload;
-
-				if (state.zip) {
-					if (action.payload.type === 'html') {
-						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData);
-					} else {
-						// Decode base64 string before adding to zip
-						state.zip.file(`${targetFolder}/${fileName}`, action.payload.fileData, { base64: true });
-					}
-				}
+			}
 
 				item.type = action.payload.type;
 				item.value = action.payload.fileName;
@@ -1111,6 +1222,56 @@ export const siquesterSlice = createSlice({
 		togglePackageStats: (state) => {
 			state.showPackageStats = !state.showPackageStats;
 		},
+	setMediaCompressionBusy: (state, action: PayloadAction<boolean>) => {
+		state.mediaCompression.busy = action.payload;
+	},
+	setMediaCompressionPreset: (state, action: PayloadAction<{ type: CompressibleMediaType; preset: CompressionPreset }>) => {
+		state.mediaCompression.presets[action.payload.type] = action.payload.preset;
+	},
+		bulkMediaCompressed: (state, action: PayloadAction<{ files: StagedMediaFile[] }>) => {
+			if (!state.zip || !state.pack) {
+				return;
+			}
+
+			// state.zip isn't Immer-drafted, so .files is the live pre-apply map; original(pack) is pre-draft.
+			const preApplyPack = original(state.pack);
+			const preApplyZipFiles = { ...state.zip.files };
+
+			// Atomic: a throw restores zip.files and Immer discards the pack draft (all-or-nothing).
+			const renames = applyStagedFilesToZip(state.zip, action.payload.files);
+
+			if (renames.size > 0) {
+				renameMediaReferences(state.pack, renames);
+			}
+
+			// Keep the logo (a media ref outside question params) in sync on rename.
+			if (state.pack.logo?.startsWith('@')) {
+				const newLogoName = renames.get(`image:${state.pack.logo.substring(1)}`);
+
+				if (newLogoName) {
+					state.pack.logo = `@${newLogoName}`;
+				}
+			}
+
+			// One composite undo reverts the whole apply; clears redo and stays in ignoreActions.
+			const past = state.history?.past ? [...state.history.past] : [];
+			if (preApplyPack) {
+				past.push({
+					pack: preApplyPack,
+					zipFiles: preApplyZipFiles,
+					roundIndex: state.roundIndex,
+					themeIndex: state.themeIndex,
+					questionIndex: state.questionIndex,
+					isPackageSelected: state.isPackageSelected,
+				});
+				if (past.length > 100) {
+					past.shift();
+				}
+			}
+			state.history = { past, future: [] };
+
+			state.zipRevision = (state.zipRevision ?? 0) + 1;
+		},
 	},
 	extraReducers: builder => {
 		builder.addCase(openFile.fulfilled, (state, action) => {
@@ -1124,6 +1285,7 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
+			state.zipRevision = 0;
 		});
 		builder.addCase(createNewPackage.fulfilled, (state, action) => {
 			state.zip = action.payload.zip;
@@ -1136,6 +1298,7 @@ export const siquesterSlice = createSlice({
 			state.packageStats = undefined;
 			state.packageTopLevelStats = undefined;
 			state.showPackageStats = false;
+			state.zipRevision = 0;
 		});
 		builder.addCase(loadPackageStatistics.pending, (state) => {
 			state.packageStatsLoading = true;
@@ -1190,6 +1353,9 @@ export const {
 	togglePackageStats,
 	addComplexAnswer,
 	resetQuestion,
+	setMediaCompressionBusy,
+	setMediaCompressionPreset,
+	bulkMediaCompressed,
 } = siquesterSlice.actions;
 
 // Selector to get the current item based on the indices
@@ -1281,6 +1447,11 @@ const ignoreActions = new Set([
 	'siquester/createNewPackage/pending',
 	'siquester/createNewPackage/fulfilled',
 	'siquester/createNewPackage/rejected',
+	'siquester/bulkMediaCompressed',
+	'siquester/setMediaCompressionBusy',
+	'siquester/compressSinglePackageMedia/pending',
+	'siquester/compressSinglePackageMedia/fulfilled',
+	'siquester/compressSinglePackageMedia/rejected',
 	'siquester/loadPackageStatistics/pending',
 	'siquester/loadPackageStatistics/fulfilled',
 	'siquester/loadPackageStatistics/rejected',

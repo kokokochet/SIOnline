@@ -1,5 +1,19 @@
-import reducer, { addComplexAnswer, resetQuestion, SIQuesterState, undo, redo, updatePackageProperty, updateRoundProperty, addRound, setContentItemMedia } from '../src/state/siquesterSlice';
+import reducer, {
+	addComplexAnswer,
+	resetQuestion,
+	SIQuesterState,
+	undo,
+	redo,
+	updatePackageProperty,
+	updateRoundProperty,
+	addRound,
+	setContentItemMedia,
+	bulkMediaCompressed,
+	setMediaCompressionPreset,
+	defaultMediaCompressionState,
+} from '../src/state/siquesterSlice';
 import { createDefaultPackage } from '../src/model/siquester/packageGenerator';
+import { applyStagedFilesToZip } from '../src/utils/mediaCompression/compressPackageMedia';
 import JSZip from 'jszip';
 
 describe('siquesterSlice', () => {
@@ -14,6 +28,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		const nextState = reducer(state, addComplexAnswer({
@@ -44,6 +59,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		state.pack!.rounds[0].themes[0].questions[0] = {
@@ -131,6 +147,7 @@ describe('siquesterSlice', () => {
 				includeFinalRound: false,
 				finalThemeCount: 0,
 			}),
+			mediaCompression: defaultMediaCompressionState,
 		};
 
 		state.pack!.rounds[0].themes[0].questions[0].params.question = {
@@ -183,6 +200,7 @@ describe('siquesterSlice', () => {
 				themeIndex: 0,
 				questionIndex: 0,
 				isPackageSelected: false,
+				mediaCompression: defaultMediaCompressionState,
 			};
 		});
 
@@ -320,4 +338,248 @@ describe('siquesterSlice', () => {
 			expect(mockZip.file('Images/test.png')).not.toBeNull();
 		});
 	});
+
+	test('setMediaCompressionPreset changes the preset for one type only', () => {
+		const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState };
+		const nextState = reducer(state, setMediaCompressionPreset({ type: 'image', preset: 'high' }));
+		expect(nextState.mediaCompression?.presets).toEqual({ image: 'high', audio: 'low', video: 'low' });
+	});
+
+	function makeBulkState(): SIQuesterState {
+		const zip = new JSZip();
+		zip.file('Images/pic.png', new Uint8Array([1, 2, 3]));
+		zip.file('Images/my%20photo.png', new Uint8Array([4, 5, 6]));
+		zip.file('Video/clip.mp4', new Uint8Array([7, 8, 9]));
+		// Stored URI-encoded; referenced raw — exercises identity-rename cleanup.
+		zip.file('Video/my%20clip.mp4', new Uint8Array([13, 14]));
+
+		const pack = createDefaultPackage({
+			packageName: '',
+			authorName: '',
+			roundCount: 1,
+			themeCount: 1,
+			questionCount: 1,
+			includeFinalRound: false,
+			finalThemeCount: 0,
+		});
+
+		pack.rounds[0].themes[0].questions[0].params.question = {
+			items: [
+				{ type: 'image', value: 'pic.png', isRef: true, placement: 'screen' },
+				{ type: 'image', value: 'my photo.png', isRef: true, placement: 'screen' },
+				{ type: 'video', value: 'clip.mp4', isRef: true, placement: 'screen' },
+				{ type: 'video', value: 'my clip.mp4', isRef: true, placement: 'screen' },
+			],
+		};
+
+		return { mediaCompression: defaultMediaCompressionState, pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+	}
+
+	test('bulkMediaCompressed replaces zip entries, rewrites refs, bumps zipRevision, pushes one undo entry', async () => {
+		const state = makeBulkState();
+		// Pre-existing edit history must be APPENDED to, not wiped.
+		state.history = { past: [{ pack: state.pack! }], future: [] };
+
+		const files = [
+			{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) },
+			{ type: 'image' as const, oldValue: 'my photo.png', newValue: 'my photo.jpg', data: new Uint8Array([11]) },
+			{ type: 'video' as const, oldValue: 'clip.mp4', newValue: 'clip.mp4', data: new Uint8Array([12]) },
+			{ type: 'video' as const, oldValue: 'my clip.mp4', newValue: 'my clip.mp4', data: new Uint8Array([15]) },
+		];
+
+		const nextState = reducer(state, bulkMediaCompressed({ files }));
+
+		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
+		expect(nextState.zip?.file('Images/my photo.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/my%20photo.png')).toBeNull();
+		expect(nextState.zipRevision).toBe(1);
+
+		// Identity renames: new bytes are written under the raw name, and the
+		// URI-encoded original entry is removed (no duplicate left behind).
+		expect(await nextState.zip!.file('Video/clip.mp4')!.async('uint8array')).toEqual(new Uint8Array([12]));
+		expect(await nextState.zip!.file('Video/my clip.mp4')!.async('uint8array')).toEqual(new Uint8Array([15]));
+		expect(nextState.zip?.file('Video/my%20clip.mp4')).toBeNull();
+
+		const items = nextState.pack!.rounds[0].themes[0].questions[0].params.question!.items;
+		expect(items[0].value).toBe('pic.jpg');
+		expect(items[1].value).toBe('my photo.jpg');
+		expect(items[2].value).toBe('clip.mp4');
+		expect(items[3].value).toBe('my clip.mp4');
+
+		expect(nextState.history?.past).toHaveLength(2);
+		expect(nextState.history?.past[0].pack).toBe(state.pack!);
+		expect(nextState.history?.future).toHaveLength(0);
+	});
+
+	test('bulkMediaCompressed rewrites a package logo reference when its file is renamed', () => {
+		const state = makeBulkState();
+		state.pack!.logo = '@pic.png';
+
+		const nextState = reducer(state, bulkMediaCompressed({
+			files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
+		}));
+
+		expect(nextState.pack!.logo).toBe('@pic.jpg');
+		expect(nextState.zip?.file('Images/pic.jpg')).not.toBeNull();
+		expect(nextState.zip?.file('Images/pic.png')).toBeNull();
+	});
+
+	describe('apply atomicity', () => {
+		test('applyStagedFilesToZip restores zip.files on a mid-apply throw (all-or-nothing)', () => {
+		const zip = new JSZip();
+			zip.file('Images/my a.png', new Uint8Array([1, 2, 3]));
+			zip.file('Images/b.png', new Uint8Array([4, 5, 6]));
+
+			const filesBefore = { ...zip.files };
+			// NOTE: file A uses a URI-special oldValue ('my a.png') so its raw and
+			// URI-encoded remove paths differ ('Images/my a.png' vs
+			// 'Images/my%20a.png'); this produces two genuinely distinct remove
+			// calls for file A. File B ('b.png') has identical raw/encoded paths.
+			const files = [
+				{ type: 'image' as const, oldValue: 'my a.png', newValue: 'my a.jpg', data: new Uint8Array([10]) },
+				{ type: 'image' as const, oldValue: 'b.png', newValue: 'b.jpg', data: new Uint8Array([11]) },
+			];
+
+			// Inject a throw on the THIRD remove call — file B's first remove
+			// (file A's two removes at calls 1 and 2 have already succeeded, so
+			// file A's original entry is genuinely deleted by then). Without
+			// snapshot/restore the zip would be left half-applied (file A gone,
+			// file B untouched). We capture the real `remove` before the spy
+			// overrides it so calls 1 and 2 genuinely mutate — proving a real
+			// mutation happened before the throw and was rolled back.
+			const realRemove = zip.remove.bind(zip);
+			let removeCalls = 0;
+			jest.spyOn(zip, 'remove').mockImplementation((path: string) => {
+				removeCalls += 1;
+				if (removeCalls === 3) {
+					throw new Error('injected mid-apply');
+				}
+				return realRemove(path);
+			});
+
+			expect(() => applyStagedFilesToZip(zip, files)).toThrow('injected mid-apply');
+
+			// All-or-nothing: both original entries present, neither write survived.
+			// file A's restoration is the real rollback proof — it was deleted by
+			// call 1 and only the snapshot/restore brings it back.
+			expect(zip.file('Images/my a.png')).not.toBeNull();
+			expect(zip.file('Images/my a.jpg')).toBeNull();
+			expect(zip.file('Images/b.png')).not.toBeNull();
+			expect(zip.file('Images/b.jpg')).toBeNull();
+		expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		});
+
+		test('bulkMediaCompressed rolls back zip.files when a mid-apply remove throws (all-or-nothing)', () => {
+			// JSZip is a class instance Immer cannot draft, so mutations to
+			// `zip.files` bypass Immer's rollback. The reducer must route the
+			// apply through `applyStagedFilesToZip` so a mid-apply throw restores
+			// the zip (otherwise it is left half-applied while the pack draft is
+			// discarded — an inconsistent state).
+			const zip = new JSZip();
+			zip.file('Images/my a.png', new Uint8Array([1, 2, 3]));
+			zip.file('Images/b.png', new Uint8Array([4, 5, 6]));
+
+			const filesBefore = { ...zip.files };
+
+			const pack = createDefaultPackage({
+				packageName: '',
+				authorName: '',
+				roundCount: 1,
+				themeCount: 1,
+				questionCount: 1,
+				includeFinalRound: false,
+				finalThemeCount: 0,
+			});
+
+			pack.rounds[0].themes[0].questions[0].params.question = {
+				items: [
+					{ type: 'image', value: 'my a.png', isRef: true, placement: 'screen' },
+					{ type: 'image', value: 'b.png', isRef: true, placement: 'screen' },
+				],
+			};
+
+			const state: SIQuesterState = { mediaCompression: defaultMediaCompressionState, pack, zip, zipRevision: 0, history: { past: [], future: [] } };
+
+			const files = [
+				{ type: 'image' as const, oldValue: 'my a.png', newValue: 'my a.jpg', data: new Uint8Array([10]) },
+				{ type: 'image' as const, oldValue: 'b.png', newValue: 'b.jpg', data: new Uint8Array([11]) },
+			];
+
+			// Inject a throw on the THIRD remove call — file A's original raw
+			// entry ('Images/my a.png') is genuinely deleted by call 1 before the
+			// throw, so a non-atomic apply leaves it gone while the new write
+			// survives. Snapshot/restore brings it back.
+			const realRemove = zip.remove.bind(zip);
+			let removeCalls = 0;
+			jest.spyOn(zip, 'remove').mockImplementation((path: string) => {
+				removeCalls += 1;
+				if (removeCalls === 3) {
+					throw new Error('injected mid-apply');
+				}
+				return realRemove(path);
+			});
+
+			expect(() => reducer(state, bulkMediaCompressed({ files }))).toThrow('injected mid-apply');
+
+			expect(zip.file('Images/my a.png')).not.toBeNull();
+			expect(zip.file('Images/my a.jpg')).toBeNull();
+			expect(zip.file('Images/b.png')).not.toBeNull();
+			expect(zip.file('Images/b.jpg')).toBeNull();
+			expect(Object.keys(zip.files).sort()).toEqual(Object.keys(filesBefore).sort());
+		});
+	});
+
+	describe('composite undo', () => {
+		test('bulkMediaCompressed pushes one composite undo entry (not a wipe)', () => {
+			const state = makeBulkState();
+		const preApplyPack = state.pack!;
+
+		// Pre-existing edit history must be PRESERVED (appended to), not wiped.
+			state.history = {
+				past: [{ pack: preApplyPack, roundIndex: 0, themeIndex: 0, questionIndex: 0 }],
+				future: [{ pack: preApplyPack }],
+			};
+
+			const files = [
+				{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) },
+			];
+
+			const nextState = reducer(state, bulkMediaCompressed({ files }));
+
+			expect(nextState.history?.past).toHaveLength(2);
+			expect(nextState.history?.past[0].pack).toBe(preApplyPack);
+			expect(nextState.history?.future).toHaveLength(0);
+
+			// The composite entry captured the PRE-apply pack + zip map.
+			const composite = nextState.history?.past[1];
+			expect(composite?.pack).toBe(preApplyPack);
+			expect(composite?.zipFiles).toBeDefined();
+			expect(composite?.zipFiles!['Images/pic.png']).toBeDefined();
+		});
+
+		test('undo() reverts the whole bulk apply in one step (pack + zip)', () => {
+			const state = makeBulkState();
+			const preApplyPack = state.pack!;
+
+			state.history = { past: [], future: [] };
+
+			const applied = reducer(state, bulkMediaCompressed({
+				files: [{ type: 'image' as const, oldValue: 'pic.png', newValue: 'pic.jpg', data: new Uint8Array([10]) }],
+			}));
+
+			expect(applied.zip?.file('Images/pic.jpg')).not.toBeNull();
+			expect(applied.zip?.file('Images/pic.png')).toBeNull();
+			expect(applied.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.jpg');
+
+			const undone = reducer(applied, undo());
+
+			expect(undone.pack).toBe(preApplyPack);
+			expect(undone.pack!.rounds[0].themes[0].questions[0].params.question!.items[0].value).toBe('pic.png');
+			expect(undone.zip?.file('Images/pic.png')).not.toBeNull();
+			expect(undone.zip?.file('Images/pic.jpg')).toBeNull();
+		expect(undone.history?.future).toHaveLength(1);
+	});
+	});
+
 });
