@@ -15,8 +15,9 @@ function getZipFile(zip: JSZip, folder: string, fileName: string) {
 }
 
 const MediaItem: React.FC<MediaItemProps> = ({ src, type, isRef }) => {
-	const siquester = useAppSelector(state => state.siquester);
-	const { zip } = siquester;
+	// Narrow selectors: whole-slice subscription caused extra re-renders on zipRevision/busy churn.
+	const zip = useAppSelector(state => state.siquester.zip);
+	const zipRevision = useAppSelector(state => state.siquester.zipRevision);
 	const [item, setItem] = React.useState<string | undefined>(undefined);
 
 	function getMimeType(filename: string, mediaType: 'image' | 'audio' | 'video' | 'html'): string {
@@ -122,7 +123,7 @@ const MediaItem: React.FC<MediaItemProps> = ({ src, type, isRef }) => {
 		return () => {
 			isMounted.current = false;
 		};
-	}, [zip, src, type, isRef]);
+	}, [zip, src, type, isRef, zipRevision]);
 
 	const source = isRef ? item : src;
 
